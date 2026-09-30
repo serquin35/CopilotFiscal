@@ -37,7 +37,7 @@
             },
             {
               "name": "Authorization",
-              "value": "Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY || 'your-supabase-key' }}"
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY || 'your-supabase-key' }}"
             },
             {
               "name": "Content-Type",
@@ -69,7 +69,7 @@
           "parameters": [
             {
               "name": "Authorization",
-              "value": "Bearer {{ $env.OPENAI_API_KEY || 'your-openai-api-key' }}"
+              "value": "=Bearer {{ $env.OPENAI_API_KEY || 'your-openai-api-key' }}"
             },
             {
               "name": "Content-Type",
@@ -111,7 +111,7 @@
             },
             {
               "name": "Authorization",
-              "value": "Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY || 'your-supabase-key' }}"
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY || 'your-supabase-key' }}"
             },
             {
               "name": "Content-Type",
@@ -147,7 +147,7 @@
             },
             {
               "name": "Authorization",
-              "value": "Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY || 'your-supabase-key' }}"
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY || 'your-supabase-key' }}"
             },
             {
               "name": "Content-Type",

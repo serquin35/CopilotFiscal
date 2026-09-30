@@ -208,7 +208,7 @@ export default function DocumentsPage() {
                       ...d,
                       status: "PENDING_REVIEW" as const,
                       providerName: "Extracción n8n / OpenAI",
-                      invoiceNumber: `F-${fileTimestamp.toString().slice(-4)}`,
+                      invoiceNumber: `F-${newDocUUID.slice(-4).toUpperCase()}`,
                       date: new Date().toISOString().split("T")[0],
                       baseAmount: 180.0,
                       vatRate: 21,
