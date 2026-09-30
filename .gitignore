@@ -20,6 +20,8 @@ node_modules/
 dist/
 build/
 .output/
+.next/
+web/.next/
 
 # IDE & Editor files
 .vscode/

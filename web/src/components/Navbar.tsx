@@ -1,0 +1,131 @@
+"use client";
+
+import React from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import {
+  LayoutDashboard,
+  FileText,
+  Receipt,
+  AlertTriangle,
+  BotMessageSquare,
+  ShieldCheck,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+
+const NAV_ITEMS = [
+  { label: "Dashboard", href: "/", icon: LayoutDashboard },
+  { label: "Documentos", href: "/documents", icon: FileText, badge: "3" },
+  { label: "Gastos", href: "/expenses", icon: Receipt },
+  { label: "Anomalías", href: "/alerts", icon: AlertTriangle, badge: "2", alert: true },
+  { label: "Copiloto IA", href: "/copilot", icon: BotMessageSquare },
+];
+
+export function Navbar() {
+  const pathname = usePathname();
+
+  return (
+    <header className="sticky top-0 z-40 border-b border-border/80 bg-background/90 backdrop-blur-md">
+      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 md:px-8">
+        {/* Brand / Logo */}
+        <div className="flex items-center gap-3">
+          <Link href="/" className="flex items-center gap-2.5 group">
+            <div className="flex size-9 items-center justify-center rounded-xl bg-primary/10 border border-primary/25 text-primary group-hover:bg-primary/20 transition-all">
+              <ShieldCheck className="size-5" />
+            </div>
+            <div className="flex flex-col">
+              <span className="font-semibold tracking-tight text-foreground text-sm flex items-center gap-1.5">
+                Copiloto Fiscal
+                <span className="text-[10px] uppercase font-mono px-1.5 py-0.2 rounded bg-primary/15 text-primary font-medium">
+                  3T 2026
+                </span>
+              </span>
+              <span className="text-[11px] text-muted-foreground">
+                Control AEAT &amp; Modelo 303
+              </span>
+            </div>
+          </Link>
+        </div>
+
+        {/* Navigation tabs */}
+        <nav className="hidden md:flex items-center gap-1 rounded-xl bg-card border border-border/80 p-1">
+          {NAV_ITEMS.map((item) => {
+            const Icon = item.icon;
+            const isActive =
+              item.href === "/"
+                ? pathname === "/"
+                : pathname.startsWith(item.href);
+
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={cn(
+                  "flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all relative",
+                  isActive
+                    ? "bg-secondary text-foreground shadow-xs font-semibold"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                )}
+              >
+                <Icon className={cn("size-3.5", isActive ? "text-primary" : "")} />
+                <span>{item.label}</span>
+                {item.badge && (
+                  <span
+                    className={cn(
+                      "size-4 rounded-full flex items-center justify-center text-[10px] font-mono",
+                      item.alert
+                        ? "bg-destructive/20 text-destructive border border-destructive/30"
+                        : "bg-warning/20 text-warning border border-warning/30"
+                    )}
+                  >
+                    {item.badge}
+                  </span>
+                )}
+              </Link>
+            );
+          })}
+        </nav>
+
+        {/* Quarter selector badge / user badge */}
+        <div className="flex items-center gap-3">
+          <div className="hidden sm:inline-flex items-center rounded-lg bg-card border border-border px-2.5 py-1 text-xs text-muted-foreground">
+            <span className="inline-block size-2 rounded-full bg-primary mr-2 animate-pulse" />
+            <span>Sandbox AEAT: <strong className="text-foreground font-mono">Activo</strong></span>
+          </div>
+          <Link
+            href="/documents"
+            className="flex items-center gap-1.5 rounded-xl bg-primary px-3.5 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition-all shadow-sm"
+          >
+            <span>+ Subir Factura</span>
+          </Link>
+        </div>
+      </div>
+
+      {/* Mobile nav */}
+      <div className="flex md:hidden overflow-x-auto border-t border-border/40 px-3 py-2 gap-1 bg-card/60">
+        {NAV_ITEMS.map((item) => {
+          const Icon = item.icon;
+          const isActive =
+            item.href === "/"
+              ? pathname === "/"
+              : pathname.startsWith(item.href);
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs whitespace-nowrap",
+                isActive
+                  ? "bg-secondary text-foreground font-semibold"
+                  : "text-muted-foreground"
+              )}
+            >
+              <Icon className="size-3.5" />
+              <span>{item.label}</span>
+            </Link>
+          );
+        })}
+      </div>
+    </header>
+  );
+}
