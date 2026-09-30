@@ -107,9 +107,9 @@ export default function DocumentsPage() {
     for (const file of Array.from(files)) {
       setUploadStatus(`Subiendo ${file.name} a Supabase Storage...`);
 
-      const fileTimestamp = Date.now();
+      const newDocUUID = crypto.randomUUID(); // UUID real para Supabase
       const sanitizedName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-      const storagePath = `${fileTimestamp}-${sanitizedName}`;
+      const storagePath = `${newDocUUID}-${sanitizedName}`;
 
       let filePublicUrl = "";
 
@@ -130,7 +130,7 @@ export default function DocumentsPage() {
       }
 
       // 2. Crear documento provisional en UI
-      const newDocId = `doc-${fileTimestamp}`;
+      const newDocId = newDocUUID; // UUID real
       const newDoc: FiscalDocument = {
         id: newDocId,
         filename: file.name,
@@ -161,7 +161,7 @@ export default function DocumentsPage() {
 
         await supabase.from("documents").insert([
           {
-            id: newDocId.includes("doc-") ? undefined : newDocId,
+            id: newDocId, // UUID real generado en cliente
             business_id: businessId,
             type: "invoice",
             direction: "expense",
