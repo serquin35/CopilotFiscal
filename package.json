@@ -1,0 +1,25 @@
+{
+  "name": "copiloto-fiscal",
+  "version": "0.1.0",
+  "description": "Copiloto Fiscal para hostelería - Motor fiscal determinista y copiloto de control",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "keywords": [
+    "fiscal",
+    "hosteleria",
+    "tax-engine",
+    "copiloto"
+  ],
+  "author": "Copiloto Fiscal Team",
+  "license": "UNLICENSED",
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  },
+  "dependencies": {}
+}
