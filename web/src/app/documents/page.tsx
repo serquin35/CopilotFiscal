@@ -10,6 +10,8 @@ import {
   ExternalLink,
   Search,
   Check,
+  Trash2,
+  RotateCcw,
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -31,65 +33,105 @@ export default function DocumentsPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // 1. Cargar documentos guardados localmente y desde Supabase al iniciar
-  useEffect(() => {
-    async function loadDocuments() {
-      try {
-        // Cargar desde localStorage
-        const saved = localStorage.getItem(STORAGE_KEY);
-        let currentDocs = initialDocuments;
-        if (saved) {
-          try {
-            const parsed = JSON.parse(saved);
-            if (Array.isArray(parsed) && parsed.length > 0) {
-              currentDocs = parsed;
-              setDocuments(parsed);
-            }
-          } catch {
-            // Ignorar error de parsing
+  const loadDocuments = async () => {
+    try {
+      // Cargar desde localStorage
+      const saved = localStorage.getItem(STORAGE_KEY);
+      let currentDocs = initialDocuments;
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            currentDocs = parsed;
+            setDocuments(parsed);
           }
+        } catch {
+          // Ignorar error de parsing
         }
+      }
 
-        // Consultar Supabase si las credenciales están configuradas
-        const { data: dbDocs, error } = await supabase
-          .from("documents")
-          .select("*")
-          .order("uploaded_at", { ascending: false });
+      // Consultar Supabase incluyendo document_extractions
+      const { data: dbDocs, error } = await supabase
+        .from("documents")
+        .select("*, document_extractions(*)")
+        .order("uploaded_at", { ascending: false });
 
-        if (!error && dbDocs && dbDocs.length > 0) {
-          // Mapear campos de Supabase a FiscalDocument
-          const mappedDbDocs: FiscalDocument[] = dbDocs.map((item: Record<string, unknown>) => ({
+      if (!error && dbDocs && dbDocs.length > 0) {
+        const mappedDbDocs: FiscalDocument[] = dbDocs.map((item: Record<string, unknown>) => {
+          const extList = item.document_extractions as Record<string, unknown>[] | null;
+          const ext = Array.isArray(extList) && extList.length > 0 ? extList[0] : null;
+
+          let publicUrl = "";
+          if (item.storage_path) {
+            const { data: urlData } = supabase.storage.from("documents").getPublicUrl(String(item.storage_path));
+            publicUrl = urlData?.publicUrl || "";
+          }
+
+          return {
             id: String(item.id || ""),
             filename: String(item.original_filename || "Documento"),
             fileSize: Number(item.file_size_bytes) || 120000,
             uploadedAt: String(item.uploaded_at || new Date().toISOString()),
             status: (item.status as FiscalDocument["status"]) || "UPLOADED",
-            providerName: String(item.notes || "Pendiente OCR"),
-            nif: "-",
-            invoiceNumber: String(item.id || "").substring(0, 8),
-            date: String(item.uploaded_at || "").split("T")[0] || new Date().toISOString().split("T")[0],
-            baseAmount: 0,
-            vatRate: 21,
-            vatAmount: 0,
-            totalAmount: 0,
-            category: String(item.type || "Factura"),
-            aiNotes: "Sincronizado desde Supabase DB",
-          }));
+            url: publicUrl,
+            providerName: (ext?.extracted_supplier_name as string) || String(item.notes || "Pendiente OCR"),
+            nif: (ext?.extracted_supplier_nif as string) || "-",
+            invoiceNumber: (ext?.extracted_invoice_number as string) || String(item.id || "").substring(0, 8),
+            date: (ext?.extracted_date as string) || String(item.uploaded_at || "").split("T")[0] || new Date().toISOString().split("T")[0],
+            baseAmount: Number(ext?.extracted_base_amount || 0),
+            vatRate: Number(ext?.extracted_vat_rate || 21),
+            vatAmount: Number(ext?.extracted_vat_amount || 0),
+            totalAmount: Number(ext?.extracted_total_amount || 0),
+            category: (ext?.extracted_category as string) || String(item.type || "Factura"),
+            aiNotes: Array.isArray(ext?.extraction_warnings) && ext.extraction_warnings.length > 0
+              ? (ext.extraction_warnings as string[]).join(". ")
+              : "Sincronizado desde Supabase DB",
+          };
+        });
 
-          // Unir evitando duplicados por ID
-          const combined = [
-            ...mappedDbDocs,
-            ...currentDocs.filter((cd) => !mappedDbDocs.some((md) => md.id === cd.id)),
-          ];
-          setDocuments(combined);
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(combined));
-        }
-      } catch {
-        // Fallback suave
+        // Unir evitando duplicados por ID
+        const combined = [
+          ...mappedDbDocs,
+          ...currentDocs.filter((cd) => !mappedDbDocs.some((md) => md.id === cd.id)),
+        ];
+        setDocuments(combined);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(combined));
       }
+    } catch {
+      // Fallback suave
     }
+  };
 
+  useEffect(() => {
     loadDocuments();
   }, []);
+
+  const handleDeleteDocument = async (id: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!confirm("¿Deseas eliminar este documento permanentemente?")) return;
+
+    // Actualizar estado local y persistencia
+    setDocuments((prev) => {
+      const updated = prev.filter((d) => d.id !== id);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+      return updated;
+    });
+
+    // Eliminar de Supabase DB
+    try {
+      await supabase.from("document_extractions").delete().eq("document_id", id);
+      await supabase.from("documents").delete().eq("id", id);
+    } catch (err) {
+      console.warn("Error borrando en Supabase:", err);
+    }
+  };
+
+  const handleResetToMock = () => {
+    if (!confirm("¿Deseas restablecer la lista con las facturas demo iniciales?")) return;
+    localStorage.removeItem(STORAGE_KEY);
+    setDocuments(initialDocuments);
+  };
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -102,12 +144,15 @@ export default function DocumentsPage() {
 
   const processUploadedFiles = async (files: FileList | File[]) => {
     setIsUploading(true);
-    const n8nWebhookUrl = process.env.NEXT_PUBLIC_N8N_WEBHOOK_URL;
+    const n8nWebhookUrl =
+      process.env.NEXT_PUBLIC_N8N_WEBHOOK_URL ||
+      process.env.NEXT_N8N_WEBHOOK_URL ||
+      "https://n8n.cheosdesign.info/webhook/copilot-document-intake";
 
     for (const file of Array.from(files)) {
       setUploadStatus(`Subiendo ${file.name} a Supabase Storage...`);
 
-      const newDocUUID = crypto.randomUUID(); // UUID real para Supabase
+      const newDocUUID = crypto.randomUUID();
       const sanitizedName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
       const storagePath = `${newDocUUID}-${sanitizedName}`;
 
@@ -125,111 +170,106 @@ export default function DocumentsPage() {
             .getPublicUrl(storagePath);
           filePublicUrl = urlData?.publicUrl || "";
         }
-      } catch {
-        // Si el bucket no tiene permisos de inserción anónima, continuamos con el pipeline
+      } catch (err) {
+        console.warn("Storage upload warn:", err);
       }
 
       // 2. Crear documento provisional en UI
-      const newDocId = newDocUUID; // UUID real
+      const newDocId = newDocUUID;
       const newDoc: FiscalDocument = {
         id: newDocId,
         filename: file.name,
         fileSize: file.size,
         uploadedAt: new Date().toISOString(),
         status: "EXTRACTING",
-        category: "Procesando en n8n",
+        category: "Procesando con IA...",
         url: filePublicUrl,
       };
 
-      // Guardar inmediatamente en UI y persistir en localStorage
       setDocuments((prev) => {
         const updated = [newDoc, ...prev];
         localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
         return updated;
       });
 
-      // 3. Insertar registro en Supabase DB si es posible
+      // 3. Insertar registro en Supabase DB
       try {
-        // Obtener un business_id existente o fallback
-        const { data: bus } = await supabase
-          .from("businesses")
-          .select("id")
-          .limit(1)
-          .maybeSingle();
-
-        const businessId = bus?.id || "00000000-0000-0000-0000-000000000000";
-
         await supabase.from("documents").insert([
           {
-            id: newDocId, // UUID real generado en cliente
-            business_id: businessId,
+            id: newDocId,
+            business_id: "00000000-0000-0000-0000-000000000000",
             type: "invoice",
             direction: "expense",
             storage_path: storagePath,
             original_filename: file.name,
             file_size_bytes: file.size,
             mime_type: file.type || "application/pdf",
-            status: "UPLOADED",
-            notes: "Subido desde panel web",
+            status: "EXTRACTING",
+            notes: filePublicUrl ? `URL: ${filePublicUrl}` : "Subido desde panel web",
           },
         ]);
-      } catch {
-        // Fallback seguro si RLS bloquea insert directo
+      } catch (err) {
+        console.warn("DB insert warn:", err);
       }
 
       // 4. Disparar Webhook real de n8n
-      if (n8nWebhookUrl) {
-        setUploadStatus(`Disparando webhook n8n (${n8nWebhookUrl.replace(/https?:\/\//, "").split("/")[0]})...`);
-        try {
-          const payload = {
-            documentId: newDocId,
-            businessId: "00000000-0000-0000-0000-000000000000",
-            storagePath: storagePath,
-            originalFilename: file.name,
-            fileSize: file.size,
-            mimeType: file.type || "application/pdf",
-            fileUrl: filePublicUrl,
-            uploadedAt: new Date().toISOString(),
-          };
+      setUploadStatus(`Extrayendo datos fiscales con OpenAI Vision...`);
+      try {
+        const payload = {
+          documentId: newDocId,
+          businessId: "00000000-0000-0000-0000-000000000000",
+          storagePath: storagePath,
+          originalFilename: file.name,
+          fileSize: file.size,
+          mimeType: file.type || "application/pdf",
+          fileUrl: filePublicUrl,
+          uploadedAt: new Date().toISOString(),
+        };
 
-          const response = await fetch(n8nWebhookUrl, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
+        const response = await fetch(n8nWebhookUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          setUploadStatus("¡Extracción OpenAI completada con éxito!");
+
+          const ext = result.extracted || {};
+          const status = (result.status === "EXTRACTED" ? "EXTRACTED" : "PENDING_REVIEW") as FiscalDocument["status"];
+
+          setDocuments((prev) => {
+            const updated = prev.map((d) =>
+              d.id === newDocId
+                ? {
+                    ...d,
+                    status: status,
+                    providerName: ext.supplier_name || "Proveedor detectado",
+                    nif: ext.supplier_nif || "-",
+                    invoiceNumber: ext.invoice_number || `F-${newDocUUID.slice(-4).toUpperCase()}`,
+                    date: ext.date || new Date().toISOString().split("T")[0],
+                    baseAmount: Number(ext.base_amount || 0),
+                    vatRate: Number(ext.vat_rate || 21),
+                    vatAmount: Number(ext.vat_amount || 0),
+                    totalAmount: Number(ext.total_amount || 0),
+                    category: ext.category || "Factura",
+                    aiNotes: result.warnings && result.warnings.length > 0
+                      ? result.warnings.join(". ")
+                      : "Extracción OpenAI completada satisfactoriamente.",
+                    url: filePublicUrl || d.url,
+                  }
+                : d
+            );
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+            return updated;
           });
-
-          if (response.ok) {
-            setUploadStatus("¡Webhook n8n recibido con éxito! Extracción OpenAI en curso.");
-            // Actualizar a PENDING_REVIEW
-            setDocuments((prev) => {
-              const updated = prev.map((d) =>
-                d.id === newDocId
-                  ? {
-                      ...d,
-                      status: "PENDING_REVIEW" as const,
-                      providerName: "Extracción n8n / OpenAI",
-                      invoiceNumber: `F-${newDocUUID.slice(-4).toUpperCase()}`,
-                      date: new Date().toISOString().split("T")[0],
-                      baseAmount: 180.0,
-                      vatRate: 21,
-                      vatAmount: 37.8,
-                      totalAmount: 217.8,
-                      aiNotes: "Enviado al pipeline de n8n satisfactoriamente.",
-                    }
-                  : d
-              );
-              localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-              return updated;
-            });
-          } else {
-            setUploadStatus(`n8n respondió HTTP ${response.status}. Documento guardado localmente.`);
-          }
-        } catch (fetchErr: unknown) {
-          const errMsg = fetchErr instanceof Error ? fetchErr.message : "error de red";
-          setUploadStatus("Documento guardado localmente (n8n Webhook: " + errMsg + ")");
+        } else {
+          setUploadStatus(`n8n respondió HTTP ${response.status}. Documento guardado.`);
         }
-      } else {
-        setUploadStatus("Documento guardado en sistema (NEXT_PUBLIC_N8N_WEBHOOK_URL no configurado)");
+      } catch (fetchErr: unknown) {
+        const errMsg = fetchErr instanceof Error ? fetchErr.message : "error de red";
+        setUploadStatus("Guardado localmente (Webhook: " + errMsg + ")");
       }
     }
 
@@ -346,7 +386,7 @@ export default function DocumentsPage() {
             </CardDescription>
           </div>
 
-          {/* Controls: Search + Filter Tabs */}
+          {/* Controls: Search + Filter Tabs + Reset */}
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
             <div className="relative">
               <Search className="size-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
@@ -379,6 +419,17 @@ export default function DocumentsPage() {
                 </button>
               ))}
             </div>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleResetToMock}
+              className="text-xs h-8 gap-1.5 text-muted-foreground hover:text-foreground"
+              title="Restablecer facturas demo"
+            >
+              <RotateCcw className="size-3.5" />
+              <span className="hidden sm:inline">Restablecer</span>
+            </Button>
           </div>
         </CardHeader>
 
@@ -442,16 +493,27 @@ export default function DocumentsPage() {
                         )}
                       </td>
                       <td className="py-3.5 pl-2 text-right font-sans">
-                        <Link href={`/documents/${doc.id}/review`}>
+                        <div className="flex items-center justify-end gap-1.5">
+                          <Link href={`/documents/${doc.id}/review`}>
+                            <Button
+                              size="sm"
+                              variant={doc.status === "PENDING_REVIEW" ? "primary" : "secondary"}
+                              className="text-xs h-7 gap-1"
+                            >
+                              <span>Revisar</span>
+                              <ExternalLink className="size-3" />
+                            </Button>
+                          </Link>
                           <Button
                             size="sm"
-                            variant={doc.status === "PENDING_REVIEW" ? "primary" : "secondary"}
-                            className="text-xs h-7 gap-1"
+                            variant="ghost"
+                            onClick={(e) => handleDeleteDocument(doc.id, e)}
+                            className="size-7 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                            title="Eliminar documento"
                           >
-                            <span>Revisar</span>
-                            <ExternalLink className="size-3" />
+                            <Trash2 className="size-3.5" />
                           </Button>
-                        </Link>
+                        </div>
                       </td>
                     </tr>
                   ))}

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import {
@@ -21,11 +21,14 @@ import { Badge, StatusBadge } from "@/components/ui/badge";
 import { formatCurrency } from "@/lib/utils";
 import { initialDocuments } from "@/lib/mockData";
 import { FiscalDocument } from "@/types";
+import { supabase } from "@/lib/supabase";
 
 export default function DocumentReviewPage() {
   const params = useParams();
   const router = useRouter();
   const docId = params.id as string;
+
+  const STORAGE_KEY = "copiloto_fiscal_documents_v1";
 
   // Encontrar o seleccionar documento por defecto
   const baseDoc = initialDocuments.find((d) => d.id === docId) || initialDocuments[0];
@@ -34,6 +37,77 @@ export default function DocumentReviewPage() {
   const [doc, setDoc] = useState<FiscalDocument>(baseDoc);
   const [zoomLevel, setZoomLevel] = useState<number>(100);
   const [actionFeedback, setActionFeedback] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function loadDocument() {
+      let found: FiscalDocument | null = null;
+
+      // 1. Intentar cargar desde localStorage
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+          const list = JSON.parse(saved) as FiscalDocument[];
+          const item = list.find((d) => d.id === docId);
+          if (item) found = item;
+        }
+      } catch (err) {
+        console.warn("Error leyendo localStorage:", err);
+      }
+
+      // 2. Consultar Supabase DB
+      try {
+        const { data: dbDoc, error } = await supabase
+          .from("documents")
+          .select("*, document_extractions(*)")
+          .eq("id", docId)
+          .maybeSingle();
+
+        if (!error && dbDoc) {
+          const extList = dbDoc.document_extractions as Record<string, unknown>[] | null;
+          const ext = Array.isArray(extList) && extList.length > 0 ? extList[0] : null;
+
+          let publicUrl = found?.url || "";
+          if (!publicUrl && dbDoc.storage_path) {
+            const { data: urlData } = supabase.storage.from("documents").getPublicUrl(dbDoc.storage_path);
+            publicUrl = urlData?.publicUrl || "";
+          }
+
+          const fromDb: FiscalDocument = {
+            id: String(dbDoc.id),
+            filename: String(dbDoc.original_filename || found?.filename || "Factura"),
+            fileSize: Number(dbDoc.file_size_bytes) || found?.fileSize || 102400,
+            uploadedAt: String(dbDoc.uploaded_at || found?.uploadedAt || new Date().toISOString()),
+            status: (dbDoc.status as FiscalDocument["status"]) || found?.status || "PENDING_REVIEW",
+            url: publicUrl,
+            providerName: (ext?.extracted_supplier_name as string) || found?.providerName || "Proveedor detectado",
+            nif: (ext?.extracted_supplier_nif as string) || found?.nif || "-",
+            invoiceNumber: (ext?.extracted_invoice_number as string) || found?.invoiceNumber || `F-${String(dbDoc.id).slice(-4).toUpperCase()}`,
+            date: (ext?.extracted_date as string) || found?.date || new Date().toISOString().split("T")[0],
+            baseAmount: Number(ext?.extracted_base_amount ?? found?.baseAmount ?? 0),
+            vatRate: Number(ext?.extracted_vat_rate ?? found?.vatRate ?? 21),
+            vatAmount: Number(ext?.extracted_vat_amount ?? found?.vatAmount ?? 0),
+            totalAmount: Number(ext?.extracted_total_amount ?? found?.totalAmount ?? 0),
+            category: (ext?.extracted_category as string) || found?.category || "Gastos deducibles",
+            aiNotes: Array.isArray(ext?.extraction_warnings) && ext.extraction_warnings.length > 0
+              ? (ext.extraction_warnings as string[]).join(". ")
+              : found?.aiNotes || "Extracción asistida por IA.",
+            anomalies: found?.anomalies || [],
+          };
+          found = fromDb;
+        }
+      } catch (err) {
+        console.warn("Error consultando Supabase:", err);
+      }
+
+      if (found) {
+        setDoc(found);
+      }
+    }
+
+    if (docId) {
+      loadDocument();
+    }
+  }, [docId]);
 
   const handleFieldChange = (field: keyof FiscalDocument, value: string | number | undefined) => {
     setDoc((prev) => {
@@ -57,17 +131,55 @@ export default function DocumentReviewPage() {
     }));
   };
 
-  const handleApprove = () => {
-    setDoc((prev) => ({ ...prev, status: "REVIEWED" }));
+  const handleApprove = async () => {
+    const updatedDoc: FiscalDocument = { ...doc, status: "REVIEWED" };
+    setDoc(updatedDoc);
     setActionFeedback("¡Documento validado y aprobado para el Modelo 303!");
+
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const list = JSON.parse(saved) as FiscalDocument[];
+        const updatedList = list.map((d) => (d.id === doc.id ? updatedDoc : d));
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedList));
+      }
+    } catch (e) {
+      console.warn("Error guardando en localStorage:", e);
+    }
+
+    try {
+      await supabase.from("documents").update({ status: "CONFIRMED" }).eq("id", doc.id);
+    } catch (e) {
+      console.warn("Error actualizando Supabase:", e);
+    }
+
     setTimeout(() => {
       router.push("/documents");
     }, 1500);
   };
 
-  const handleReject = () => {
-    setDoc((prev) => ({ ...prev, status: "REJECTED" }));
+  const handleReject = async () => {
+    const updatedDoc: FiscalDocument = { ...doc, status: "REJECTED" };
+    setDoc(updatedDoc);
     setActionFeedback("Documento marcado como rechazado/no deducible.");
+
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const list = JSON.parse(saved) as FiscalDocument[];
+        const updatedList = list.map((d) => (d.id === doc.id ? updatedDoc : d));
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedList));
+      }
+    } catch (e) {
+      console.warn("Error guardando en localStorage:", e);
+    }
+
+    try {
+      await supabase.from("documents").update({ status: "REJECTED" }).eq("id", doc.id);
+    } catch (e) {
+      console.warn("Error actualizando Supabase:", e);
+    }
+
     setTimeout(() => {
       router.push("/documents");
     }, 1500);
@@ -147,12 +259,28 @@ export default function DocumentReviewPage() {
             </div>
           </div>
 
-          {/* Visual Document Canvas Simulation */}
-          <div className="relative min-h-[560px] rounded-2xl border border-border bg-black/40 p-6 flex items-center justify-center overflow-auto shadow-inner">
-            <div
-              style={{ transform: `scale(${zoomLevel / 100})`, transformOrigin: "top center" }}
-              className="w-full max-w-lg rounded-xl bg-white text-neutral-900 p-8 shadow-2xl transition-transform duration-200"
-            >
+          {/* Visual Document Canvas Simulation or Embedded PDF */}
+          <div className="relative min-h-[580px] rounded-2xl border border-border bg-black/40 p-4 flex items-center justify-center overflow-auto shadow-inner">
+            {doc.url ? (
+              doc.url.toLowerCase().includes(".pdf") || doc.filename?.toLowerCase().endsWith(".pdf") ? (
+                <iframe
+                  src={`${doc.url}#view=FitH`}
+                  title={doc.filename}
+                  className="w-full h-[620px] rounded-xl border border-border/60 bg-white"
+                />
+              ) : (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img
+                  src={doc.url}
+                  alt={doc.filename}
+                  className="max-h-[620px] max-w-full object-contain rounded-xl shadow-lg"
+                />
+              )
+            ) : (
+              <div
+                style={{ transform: `scale(${zoomLevel / 100})`, transformOrigin: "top center" }}
+                className="w-full max-w-lg rounded-xl bg-white text-neutral-900 p-8 shadow-2xl transition-transform duration-200"
+              >
               {/* Simulated Invoice Header */}
               <div className="flex justify-between items-start border-b border-neutral-200 pb-4 mb-4">
                 <div>
@@ -209,9 +337,10 @@ export default function DocumentReviewPage() {
               {/* Footer Stamp / Watermark */}
               <div className="mt-8 pt-4 border-t border-neutral-100 flex items-center justify-between text-[10px] text-neutral-400 font-mono">
                 <span>DIGITALIZADO POR COPILOTO FISCAL</span>
-                <span>SHA-256: 7f8a9...b4c2</span>
+                <span>DOC: {doc.id}</span>
               </div>
             </div>
+          )}
           </div>
         </div>
 
