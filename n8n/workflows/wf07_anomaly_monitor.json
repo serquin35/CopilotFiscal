@@ -1,0 +1,100 @@
+{
+  "name": "[Copilot Fiscal] WF-07: Anomaly & Deadline Monitor",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "copilot-check-anomalies",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 0],
+      "id": "webhook-trigger",
+      "name": "Webhook: Check Anomalies"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://rqcpwxucgkcodccrykpv.supabase.co/rest/v1/expenses?business_id=eq.{{ $input.first().json.body.businessId || $input.first().json.businessId }}&limit=50&order=date.desc",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_SERVICE_ROLE_KEY || 'your-supabase-key' }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY || 'your-supabase-key' }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [240, 0],
+      "id": "http-get-expenses",
+      "name": "Supabase: Fetch Expenses"
+    },
+    {
+      "parameters": {
+        "jsCode": "const expenses = $input.first().json;\nconst businessId = $('Webhook: Check Anomalies').item.json.body?.businessId || $('Webhook: Check Anomalies').item.json.businessId;\n\nconst alerts = [];\n\nif (Array.isArray(expenses)) {\n  for (const exp of expenses) {\n    // 1. Gasto inusualmente alto (> 5000€)\n    if (Number(exp.total_amount) >= 5000) {\n      alerts.push({\n        business_id: businessId,\n        severity: 'medium',\n        type: 'UNUSUAL_EXPENSE',\n        title: 'Importe de gasto elevado (> 5.000€)',\n        description: `El gasto de ${exp.total_amount}€ (${exp.description || 'sin descripción'}) requiere comprobante formal.`,\n        evidence: { expenseId: exp.id, totalAmount: exp.total_amount },\n        entity_type: 'expense',\n        entity_id: exp.id,\n        source: 'n8n',\n        status: 'OPEN'\n      });\n    }\n\n    // 2. Falta de desglose de IVA\n    if (Number(exp.total_amount) > 0 && (exp.vat_rate === null || exp.vat_rate === undefined)) {\n      alerts.push({\n        business_id: businessId,\n        severity: 'medium',\n        type: 'MISSING_VAT_DATA',\n        title: 'Gasto sin tipo de IVA desglosado',\n        description: `El gasto de ${exp.total_amount}€ no especifica tipo de IVA aplicable.`,\n        evidence: { expenseId: exp.id },\n        entity_type: 'expense',\n        entity_id: exp.id,\n        source: 'n8n',\n        status: 'OPEN'\n      });\n    }\n\n    // 3. Gasto pendiente de revisión\n    if (exp.validation_status === 'PENDING') {\n      alerts.push({\n        business_id: businessId,\n        severity: 'low',\n        type: 'UNREVIEWED_EXPENSE',\n        title: 'Gasto pendiente de validación',\n        description: `El gasto registrado el ${exp.date} (${exp.total_amount}€) no ha sido validado.`,\n        evidence: { expenseId: exp.id },\n        entity_type: 'expense',\n        entity_id: exp.id,\n        source: 'n8n',\n        status: 'OPEN'\n      });\n    }\n  }\n}\n\nreturn {\n  json: {\n    businessId,\n    alertsCount: alerts.length,\n    alerts\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [480, 0],
+      "id": "code-detect-anomalies",
+      "name": "Analyze Anomalies"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"success\": true,\n  \"businessId\": \"{{ $json.businessId }}\",\n  \"detectedAnomalies\": {{ $json.alertsCount }},\n  \"alerts\": {{ JSON.stringify($json.alerts) }}\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [720, 0],
+      "id": "respond-webhook",
+      "name": "Respond to Webhook"
+    }
+  ],
+  "connections": {
+    "Webhook: Check Anomalies": {
+      "main": [
+        [
+          {
+            "node": "Supabase: Fetch Expenses",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase: Fetch Expenses": {
+      "main": [
+        [
+          {
+            "node": "Analyze Anomalies",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze Anomalies": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}
