@@ -342,6 +342,9 @@ Respond to Webhook (JSON con extracted + status + confidence)
 | 01/10/2026 | 🗄️ DB Migration | Añadidas columnas fiscales a `businesses`: `nif`, `vat_regime`, `fiscal_address`, `fiscal_city`, `fiscal_zip`, `phone`, `website` |
 | 01/10/2026 | 🗄️ DB Migration | Añadida columna `phone` a `profiles` |
 | 01/10/2026 | 🧩 AuthContext | Tipo `Business` expandido con todos los campos fiscales extendidos; query de carga actualizada |
+| 01/10/2026 | 📄 OCR Pipeline | Endpoint `/api/convert-pdf` implementado con `pdfjs-dist` y `canvas` para renderizar PDFs a JPEG de alta resolución para OpenAI Vision |
+| 01/10/2026 | 🛡️ Fix | Middleware SSR actualizado para eximir `/api` de redirección `/login` para llamadas de webhooks/n8n |
+| 01/10/2026 | 🔄 n8n WF-01 | Workflow WF-01 reestructurado a 12 nodos nativos con bifurcación `Is PDF?` + HTTP Request para evitar errores de sandbox (`$helpers`) |
 
 ---
 
@@ -352,6 +355,8 @@ Respond to Webhook (JSON con extracted + status + confidence)
 - [x] Aislamiento multi-tenant completo (datos por `business_id`)
 - [x] Badges del sidebar scoped al negocio activo
 - [x] Página `/settings` con perfil, empresa fiscal y seguridad
+- [x] Pipeline OCR end-to-end con soporte nativo de PDF mediante conversión JPEG en Vercel
+- [x] Workflow n8n WF-01 optimizado y validado (12 nodos nativos)
 
 ### 🚀 Próximos pasos sugeridos
 | Prioridad | Feature | Descripción |
