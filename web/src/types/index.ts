@@ -36,6 +36,8 @@ export interface FiscalDocument {
   deductiblePercentage?: number; // 0, 50, 100
   aiNotes?: string;
   anomalies?: AnomalyAlert[];
+  expenseId?: string;
+  documentId?: string;
 }
 
 export type AlertSeverity = "high" | "medium" | "low";

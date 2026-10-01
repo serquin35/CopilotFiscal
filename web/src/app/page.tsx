@@ -308,8 +308,8 @@ export default function DashboardPage() {
     }
 
     // 4. Cargar gastos contables de la tabla expenses filtrados por business_id
-    let dbExpenses: FiscalDocument[] = [];
     let rawExpensesList: AnomalyEngineExpense[] = [];
+    let expRowsList: Record<string, unknown>[] = [];
     try {
       const { data: expRows, error: expError } = await supabase
         .from("expenses")
@@ -319,41 +319,14 @@ export default function DashboardPage() {
 
       if (!expError && expRows && expRows.length > 0) {
         rawExpensesList = expRows as AnomalyEngineExpense[];
-        dbExpenses = expRows.map((item: Record<string, unknown>) => {
-          const sup = item.suppliers as Record<string, unknown> | null;
-          const deductPct =
-            item.deductibility_status === "NON_DEDUCTIBLE"
-              ? 0
-              : item.deductibility_status === "PARTIAL"
-              ? 50
-              : 100;
-
-          return {
-            id: String(item.id || ""),
-            filename: String(item.description || "Gasto contabilizado"),
-            fileSize: 0,
-            uploadedAt: String(item.created_at || new Date().toISOString()),
-            status: item.validation_status === "VALIDATED" ? "CONFIRMED" : "PENDING_REVIEW",
-            providerName: String(sup?.name || item.notes || "Proveedor"),
-            nif: String(sup?.tax_id_masked || "-"),
-            invoiceNumber: String(item.description || `EXP-${String(item.id || "").substring(0, 8)}`),
-            date: String(item.date || ""),
-            baseAmount: Number(item.base_amount || 0),
-            vatRate: Number(item.vat_rate || 21),
-            vatAmount: Number(item.vat_amount || 0),
-            totalAmount: Number(item.total_amount || 0),
-            category: String(item.category || "Gastos deducibles"),
-            deductiblePercentage: deductPct,
-            url: item.document_id ? `/documents/${item.document_id}/review` : undefined,
-            anomalies: [],
-          };
-        });
+        expRowsList = expRows as Record<string, unknown>[];
       }
     } catch (err) {
       console.warn("Error consultando expenses en Supabase:", err);
     }
 
-    // 5. Cargar documentos pendientes o subidos filtrados por business_id
+    // 5. Cargar documentos de la tabla documents filtrados por business_id
+    let dbDocsList: Record<string, unknown>[] = [];
     try {
       const { data: dbDocs, error } = await supabase
         .from("documents")
@@ -362,71 +335,134 @@ export default function DashboardPage() {
         .order("uploaded_at", { ascending: false });
 
       if (!error && dbDocs && dbDocs.length > 0) {
-        const mappedDbDocs: FiscalDocument[] = dbDocs
-          .filter((item: Record<string, unknown>) => {
-            return !dbExpenses.some(
-              (e) => e.url === `/documents/${item.id}/review` || e.id === String(item.id)
-            );
-          })
-          .map((item: Record<string, unknown>) => {
-            const extList = item.document_extractions as Record<string, unknown>[] | null;
-            const ext = Array.isArray(extList) && extList.length > 0 ? extList[0] : null;
-
-            let publicUrl = "";
-            if (item.storage_path) {
-              const { data: urlData } = supabase.storage.from("documents").getPublicUrl(String(item.storage_path));
-              publicUrl = urlData?.publicUrl || "";
-            }
-
-            const localMatch = currentDocs.find((cd) => cd.id === String(item.id));
-
-            return {
-              id: String(item.id || ""),
-              filename: String(item.original_filename || localMatch?.filename || "Documento"),
-              fileSize: Number(item.file_size_bytes) || localMatch?.fileSize || 120000,
-              uploadedAt: String(item.uploaded_at || localMatch?.uploadedAt || new Date().toISOString()),
-              status: (item.status as FiscalDocument["status"]) || localMatch?.status || "PENDING_REVIEW",
-              url: publicUrl || localMatch?.url,
-              providerName: (ext?.extracted_supplier_name as string) || localMatch?.providerName || String(item.notes || "Proveedor detectado"),
-              nif: (ext?.extracted_supplier_nif as string) || localMatch?.nif || "-",
-              invoiceNumber: (ext?.extracted_invoice_number as string) || localMatch?.invoiceNumber || `F-${String(item.id || "").substring(0, 8)}`,
-              date: (ext?.extracted_date as string) || localMatch?.date || String(item.uploaded_at || "").split("T")[0] || new Date().toISOString().split("T")[0],
-              baseAmount: Number(ext?.extracted_base_amount ?? localMatch?.baseAmount ?? 0),
-              vatRate: Number(ext?.extracted_vat_rate ?? localMatch?.vatRate ?? 21),
-              vatAmount: Number(ext?.extracted_vat_amount ?? localMatch?.vatAmount ?? 0),
-              totalAmount: Number(ext?.extracted_total_amount ?? localMatch?.totalAmount ?? 0),
-              category: (ext?.extracted_category as string) || localMatch?.category || String(item.type || "Factura"),
-              deductiblePercentage: localMatch?.deductiblePercentage ?? 100,
-              anomalies: localMatch?.anomalies || [],
-            };
-          });
-
-        const combined = [
-          ...dbExpenses,
-          ...mappedDbDocs,
-          ...currentDocs.filter((cd) => !dbExpenses.some((de) => de.id === cd.id) && !mappedDbDocs.some((md) => md.id === cd.id) && !cd.id.startsWith("doc-")),
-        ];
-        setDocuments(combined);
-        calculateSummary(combined, selectedQuarter, fetchedIncome, rawExpensesList, fetchedSuppliers);
-        return;
+        dbDocsList = dbDocs as Record<string, unknown>[];
       }
     } catch (err) {
-      console.warn("Error consultando Supabase en Dashboard:", err);
+      console.warn("Error consultando Supabase documents en Dashboard:", err);
     }
 
-    if (dbExpenses.length > 0) {
-      const combined = [
-        ...dbExpenses,
-        ...currentDocs.filter((cd) => !dbExpenses.some((de) => de.id === cd.id) && !cd.id.startsWith("doc-")),
-      ];
-      setDocuments(combined);
-      calculateSummary(combined, selectedQuarter, fetchedIncome, rawExpensesList, fetchedSuppliers);
-      return;
-    }
+    // ─── MAPEO Y DEDUPLICACIÓN UNIFICADA ─────────────────────────────────────
+    // A) Mapear documentos reales de Supabase vinculándolos a su gasto (si ya fue conciliado)
+    const mappedDbDocs: FiscalDocument[] = dbDocsList.map((item) => {
+      const docId = String(item.id || "");
+      const extList = item.document_extractions as Record<string, unknown>[] | null;
+      const ext = Array.isArray(extList) && extList.length > 0 ? extList[0] : null;
 
-    const realOnly = currentDocs.filter((cd) => !cd.id.startsWith("doc-"));
-    setDocuments(realOnly);
-    calculateSummary(realOnly, selectedQuarter, fetchedIncome, rawExpensesList, fetchedSuppliers);
+      // Buscar si este documento ya fue contabilizado en la tabla expenses
+      const matchedExpense = expRowsList.find(
+        (exp) => String(exp.document_id || "") === docId || String(exp.id || "") === docId
+      );
+
+      const sup = matchedExpense?.suppliers as Record<string, unknown> | null;
+      const localMatch = currentDocs.find((cd) => cd.id === docId);
+
+      const isConfirmed =
+        item.status === "CONFIRMED" ||
+        item.status === "APPROVED" ||
+        item.status === "REVIEWED" ||
+        matchedExpense?.validation_status === "VALIDATED" ||
+        localMatch?.status === "CONFIRMED";
+
+      const baseAmount = matchedExpense
+        ? Number(matchedExpense.base_amount || 0)
+        : Number(ext?.extracted_base_amount ?? localMatch?.baseAmount ?? 0);
+
+      const vatRate = matchedExpense
+        ? Number(matchedExpense.vat_rate || 21)
+        : Number(ext?.extracted_vat_rate ?? localMatch?.vatRate ?? 21);
+
+      const vatAmount = matchedExpense
+        ? Number(matchedExpense.vat_amount || 0)
+        : Number(ext?.extracted_vat_amount ?? localMatch?.vatAmount ?? 0);
+
+      const totalAmount = matchedExpense
+        ? Number(matchedExpense.total_amount || 0)
+        : Number(ext?.extracted_total_amount ?? localMatch?.totalAmount ?? 0);
+
+      const deductPct = matchedExpense
+        ? matchedExpense.deductibility_status === "NON_DEDUCTIBLE"
+          ? 0
+          : matchedExpense.deductibility_status === "PARTIAL"
+          ? 50
+          : 100
+        : localMatch?.deductiblePercentage ?? 100;
+
+      return {
+        id: docId,
+        filename: String(item.original_filename || localMatch?.filename || "Factura"),
+        fileSize: Number(item.file_size_bytes) || localMatch?.fileSize || 120000,
+        uploadedAt: String(item.uploaded_at || localMatch?.uploadedAt || new Date().toISOString()),
+        status: isConfirmed ? "CONFIRMED" : ((item.status as FiscalDocument["status"]) || localMatch?.status || "PENDING_REVIEW"),
+        url: `/documents/${docId}/review`,
+        providerName: String(
+          sup?.name || ext?.extracted_supplier_name || localMatch?.providerName || item.notes || "Proveedor detectado"
+        ),
+        nif: String(sup?.tax_id_masked || ext?.extracted_supplier_nif || localMatch?.nif || "-"),
+        invoiceNumber: String(
+          ext?.extracted_invoice_number || localMatch?.invoiceNumber || matchedExpense?.description || `F-${docId.substring(0, 8)}`
+        ),
+        date: String(
+          matchedExpense?.date || ext?.extracted_date || localMatch?.date || String(item.uploaded_at || "").split("T")[0]
+        ),
+        baseAmount,
+        vatRate,
+        vatAmount,
+        totalAmount,
+        category: String(
+          matchedExpense?.category || ext?.extracted_category || localMatch?.category || item.type || "Gastos deducibles"
+        ),
+        deductiblePercentage: deductPct,
+        anomalies: localMatch?.anomalies || [],
+        expenseId: matchedExpense ? String(matchedExpense.id) : undefined,
+        documentId: docId,
+      };
+    });
+
+    // B) Gastos manuales que NO provienen de un documento de la tabla documents
+    const manualExpenses: FiscalDocument[] = expRowsList
+      .filter((exp) => !exp.document_id || !mappedDbDocs.some((d) => d.id === String(exp.document_id)))
+      .map((item) => {
+        const sup = item.suppliers as Record<string, unknown> | null;
+        const deductPct =
+          item.deductibility_status === "NON_DEDUCTIBLE"
+            ? 0
+            : item.deductibility_status === "PARTIAL"
+            ? 50
+            : 100;
+
+        return {
+          id: String(item.id || ""),
+          filename: String(item.description || "Gasto contabilizado"),
+          fileSize: 0,
+          uploadedAt: String(item.created_at || new Date().toISOString()),
+          status: item.validation_status === "VALIDATED" ? "CONFIRMED" : "PENDING_REVIEW",
+          providerName: String(sup?.name || item.notes || "Proveedor"),
+          nif: String(sup?.tax_id_masked || "-"),
+          invoiceNumber: String(item.description || `EXP-${String(item.id || "").substring(0, 8)}`),
+          date: String(item.date || ""),
+          baseAmount: Number(item.base_amount || 0),
+          vatRate: Number(item.vat_rate || 21),
+          vatAmount: Number(item.vat_amount || 0),
+          totalAmount: Number(item.total_amount || 0),
+          category: String(item.category || "Gastos deducibles"),
+          deductiblePercentage: deductPct,
+          url: item.document_id ? `/documents/${item.document_id}/review` : undefined,
+          anomalies: [],
+          expenseId: String(item.id || ""),
+        };
+      });
+
+    // C) Documentos locales (localStorage) pendientes que aún no están en Supabase
+    const localPendingDocs: FiscalDocument[] = currentDocs.filter(
+      (cd) =>
+        !mappedDbDocs.some((md) => md.id === cd.id) &&
+        !manualExpenses.some((me) => me.id === cd.id || me.documentId === cd.id) &&
+        !cd.id.startsWith("doc-")
+    );
+
+    const combined = [...mappedDbDocs, ...manualExpenses, ...localPendingDocs];
+    setDocuments(combined);
+    calculateSummary(combined, selectedQuarter, fetchedIncome, rawExpensesList, fetchedSuppliers);
   }, [calculateSummary, currentBizId, selectedQuarter, STORAGE_KEY, supabase]);
 
   const handleLoadSampleData = async () => {
