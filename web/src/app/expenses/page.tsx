@@ -64,6 +64,8 @@ export default function ExpensesPage() {
 
           return {
             id: String(item.id || ""),
+            // Guardamos el document_id original para poder deduplicar contra la tabla documents
+            documentId: item.document_id ? String(item.document_id) : undefined,
             filename: String(item.description || "Gasto contabilizado"),
             fileSize: 0,
             uploadedAt: String(item.created_at || new Date().toISOString()),
@@ -97,8 +99,11 @@ export default function ExpensesPage() {
       if (!error && dbDocs && dbDocs.length > 0) {
         const mappedDbDocs: FiscalDocument[] = dbDocs
           .filter((item: Record<string, unknown>) => {
+            // Excluir documentos que ya tienen un expense contabilizado vinculado a su ID
+            // La comparacion correcta es: expense.document_id === document.id
+            // (el campo documentId del expense, o bien el url que construimos como /documents/{document_id}/review)
             return !dbExpenses.some(
-              (e) => e.url === `/documents/${item.id}/review` || e.id === String(item.id)
+              (e) => e.documentId === String(item.id) || e.url === `/documents/${item.id}/review`
             );
           })
           .map((item: Record<string, unknown>) => {
