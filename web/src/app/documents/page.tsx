@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
 import {
   UploadCloud,
@@ -19,12 +19,18 @@ import { StatusBadge } from "@/components/ui/badge";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { initialDocuments } from "@/lib/mockData";
 import { FiscalDocument } from "@/types";
-import { supabase } from "@/lib/supabase";
-
-const STORAGE_KEY = "copiloto_fiscal_documents_v1";
+import { useAuth } from "@/context/AuthContext";
 
 export default function DocumentsPage() {
-  const [documents, setDocuments] = useState<FiscalDocument[]>(initialDocuments);
+  const { business, supabase } = useAuth();
+  const currentBizId = business?.id;
+  const isDemo = business?.is_demo ?? false;
+
+  const STORAGE_KEY = currentBizId
+    ? `copiloto_fiscal_documents_${currentBizId}`
+    : "copiloto_fiscal_documents_demo";
+
+  const [documents, setDocuments] = useState<FiscalDocument[]>([]);
   const [filter, setFilter] = useState<string>("ALL");
   const [searchQuery, setSearchQuery] = useState("");
   const [isDragging, setIsDragging] = useState(false);
@@ -33,11 +39,12 @@ export default function DocumentsPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // 1. Cargar documentos guardados localmente y desde Supabase al iniciar
-  const loadDocuments = async () => {
+  const loadDocuments = useCallback(async () => {
+    if (!currentBizId) return;
     try {
       // Cargar desde localStorage
       const saved = localStorage.getItem(STORAGE_KEY);
-      let currentDocs = initialDocuments;
+      let currentDocs = isDemo ? initialDocuments : [];
       if (saved) {
         try {
           const parsed = JSON.parse(saved);
@@ -48,12 +55,17 @@ export default function DocumentsPage() {
         } catch {
           // Ignorar error de parsing
         }
+      } else if (isDemo) {
+        setDocuments(initialDocuments);
+      } else {
+        setDocuments([]);
       }
 
-      // Consultar Supabase incluyendo document_extractions
+      // Consultar Supabase incluyendo document_extractions filtrados por business_id
       const { data: dbDocs, error } = await supabase
         .from("documents")
         .select("*, document_extractions(*)")
+        .eq("business_id", currentBizId)
         .order("uploaded_at", { ascending: false });
 
       if (!error && dbDocs && dbDocs.length > 0) {
@@ -100,11 +112,11 @@ export default function DocumentsPage() {
     } catch {
       // Fallback suave
     }
-  };
+  }, [currentBizId, isDemo, STORAGE_KEY, supabase]);
 
   useEffect(() => {
     loadDocuments();
-  }, []);
+  }, [loadDocuments]);
 
   const handleDeleteDocument = async (id: string, e: React.MouseEvent) => {
     e.preventDefault();
@@ -200,7 +212,7 @@ export default function DocumentsPage() {
         await supabase.from("documents").insert([
           {
             id: newDocId,
-            business_id: "00000000-0000-0000-0000-000000000001",
+            business_id: currentBizId || "00000000-0000-0000-0000-000000000001",
             type: "invoice",
             direction: "expense",
             storage_path: storagePath,
@@ -220,7 +232,7 @@ export default function DocumentsPage() {
       try {
         const payload = {
           documentId: newDocId,
-          businessId: "00000000-0000-0000-0000-000000000001",
+          businessId: currentBizId || "00000000-0000-0000-0000-000000000001",
           storagePath: storagePath,
           originalFilename: file.name,
           fileSize: file.size,

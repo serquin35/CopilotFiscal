@@ -21,17 +21,41 @@ import { Badge, StatusBadge } from "@/components/ui/badge";
 import { formatCurrency } from "@/lib/utils";
 import { initialDocuments } from "@/lib/mockData";
 import { FiscalDocument } from "@/types";
-import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/context/AuthContext";
 
 export default function DocumentReviewPage() {
+  const { business, supabase } = useAuth();
+  const currentBizId = business?.id;
+  const isDemo = business?.is_demo ?? false;
+
   const params = useParams();
   const router = useRouter();
   const docId = params.id as string;
 
-  const STORAGE_KEY = "copiloto_fiscal_documents_v1";
+  const STORAGE_KEY = currentBizId
+    ? `copiloto_fiscal_documents_${currentBizId}`
+    : "copiloto_fiscal_documents_demo";
 
   // Encontrar o seleccionar documento por defecto
-  const baseDoc = initialDocuments.find((d) => d.id === docId) || initialDocuments[0];
+  const baseDoc =
+    (isDemo ? initialDocuments.find((d) => d.id === docId) || initialDocuments[0] : null) || {
+      id: docId,
+      filename: "Factura",
+      fileSize: 102400,
+      uploadedAt: new Date().toISOString(),
+      status: "PENDING_REVIEW" as const,
+      providerName: "Proveedor",
+      nif: "-",
+      invoiceNumber: `F-${String(docId).slice(-4).toUpperCase()}`,
+      date: new Date().toISOString().split("T")[0],
+      baseAmount: 0,
+      vatRate: 21,
+      vatAmount: 0,
+      totalAmount: 0,
+      category: "Gastos deducibles",
+      deductiblePercentage: 100,
+      anomalies: [],
+    };
 
   // Estado local para los campos editables
   const [doc, setDoc] = useState<FiscalDocument>(baseDoc);
@@ -115,7 +139,7 @@ export default function DocumentReviewPage() {
     if (docId) {
       loadDocument();
     }
-  }, [docId]);
+  }, [docId, STORAGE_KEY, supabase]);
 
   const handleFieldChange = (field: keyof FiscalDocument, value: string | number | undefined) => {
     if (isReadOnly) return;
@@ -184,6 +208,7 @@ export default function DocumentReviewPage() {
         const { data: existingSup } = await supabase
           .from("suppliers")
           .select("id")
+          .eq("business_id", currentBizId || "00000000-0000-0000-0000-000000000001")
           .ilike("name", `%${cleanName}%`)
           .limit(1)
           .maybeSingle();
@@ -194,7 +219,7 @@ export default function DocumentReviewPage() {
           const { data: newSup } = await supabase
             .from("suppliers")
             .insert([{
-              business_id: "00000000-0000-0000-0000-000000000001",
+              business_id: currentBizId || "00000000-0000-0000-0000-000000000001",
               name: cleanName,
               normalized_name: cleanName.toUpperCase(),
               tax_id_masked: doc.nif || null,
@@ -216,6 +241,7 @@ export default function DocumentReviewPage() {
       const { data: existingExp } = await supabase
         .from("expenses")
         .select("id")
+        .eq("business_id", currentBizId || "00000000-0000-0000-0000-000000000001")
         .eq("document_id", doc.id)
         .maybeSingle();
 
@@ -234,7 +260,7 @@ export default function DocumentReviewPage() {
         const quarter = Math.ceil(month / 3);
 
         await supabase.from("expenses").insert([{
-          business_id: "00000000-0000-0000-0000-000000000001",
+          business_id: currentBizId || "00000000-0000-0000-0000-000000000001",
           document_id: doc.id,
           supplier_id: supplierId,
           date: docDate,
@@ -259,7 +285,7 @@ export default function DocumentReviewPage() {
     // 5. Auditoría
     try {
       await supabase.from("audit_events").insert([{
-        business_id: "00000000-0000-0000-0000-000000000001",
+        business_id: currentBizId || "00000000-0000-0000-0000-000000000001",
         entity_type: "document",
         entity_id: doc.id,
         action: "DOCUMENT_CONFIRMED",

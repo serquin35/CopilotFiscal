@@ -1,17 +1,17 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
-import { User, Session } from "@supabase/supabase-js";
+import { User, Session, SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase-browser";
 
-interface Business {
+export interface Business {
   id: string;
   name: string;
   activity_type: string | null;
   is_demo: boolean;
 }
 
-interface Profile {
+export interface Profile {
   id: string;
   display_name: string | null;
   email: string | null;
@@ -24,8 +24,11 @@ interface AuthContextValue {
   profile: Profile | null;
   business: Business | null;
   loading: boolean;
+  supabase: SupabaseClient;
   signOut: () => Promise<void>;
 }
+
+const defaultClient = createClient();
 
 const AuthContext = createContext<AuthContextValue>({
   user: null,
@@ -33,6 +36,7 @@ const AuthContext = createContext<AuthContextValue>({
   profile: null,
   business: null,
   loading: true,
+  supabase: defaultClient,
   signOut: async () => {},
 });
 
@@ -53,18 +57,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             .from("profiles")
             .select("id, display_name, email, avatar_url")
             .eq("id", currentUser.id)
-            .single(),
+            .maybeSingle(),
           supabase
             .from("businesses")
             .select("id, name, activity_type, is_demo")
             .eq("owner_id", currentUser.id)
             .order("created_at", { ascending: false })
             .limit(1)
-            .single(),
+            .maybeSingle(),
         ]);
 
-        if (profileRes.data) setProfile(profileRes.data as Profile);
-        if (businessRes.data) setBusiness(businessRes.data as Business);
+        if (profileRes.data) {
+          setProfile(profileRes.data as Profile);
+        }
+
+        if (businessRes.data) {
+          setBusiness(businessRes.data as Business);
+        } else {
+          // Si el usuario no tiene negocio aún, aprovisionar uno por defecto
+          const defaultName = profileRes.data?.display_name
+            ? `Negocio de ${profileRes.data.display_name}`
+            : "Mi Negocio";
+          const { data: newBiz } = await supabase
+            .from("businesses")
+            .insert([{
+              owner_id: currentUser.id,
+              name: defaultName,
+              legal_form: "autonomo",
+              activity_type: "servicios",
+              region: "madrid",
+              currency: "EUR",
+              environment: "PRODUCTION",
+              is_demo: false,
+            }])
+            .select("id, name, activity_type, is_demo")
+            .single();
+
+          if (newBiz) {
+            setBusiness(newBiz as Business);
+          }
+        }
       } catch (e) {
         console.warn("Error loading user data:", e);
       }
@@ -104,7 +136,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, profile, business, loading, signOut }}>
+    <AuthContext.Provider value={{ user, session, profile, business, loading, supabase, signOut }}>
       {children}
     </AuthContext.Provider>
   );

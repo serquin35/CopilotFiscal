@@ -333,6 +333,9 @@ Respond to Webhook (JSON con extracted + status + confidence)
 | 01/10/2026 | 🛡️ Seguridad | Middleware SSR de protección de rutas, cookie management y auto-redirección de sesiones no autenticadas |
 | 01/10/2026 | ⚡ DB Trigger | Trigger `on_auth_user_created` en Supabase: auto-creación de `profiles` y `businesses` en registro |
 | 01/10/2026 | 🎨 UI/UX | Páginas premium `/login`, `/register`, `/forgot-password`, `/auth/callback` y badges de usuario/negocio en Navbar/Sidebar |
+| 01/10/2026 | 🏢 Multi-tenant | Aislamiento estricto de datos por `business_id` en Dashboard, Gastos, Documentos, Alertas y Review |
+| 01/10/2026 | 🔒 RLS | Eliminación de políticas públicas abiertas en Supabase: solo el propietario (`auth.uid()`) puede consultar o alterar registros |
+| 01/10/2026 | ✨ Onboarding | Empty State con bienvenida personalizada para cuentas nuevas y opción de carga de datos de muestra |
 
 ---
 

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import {
   Receipt,
@@ -12,18 +12,24 @@ import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/badge";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { FiscalDocument } from "@/types";
-import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/context/AuthContext";
 
 export default function ExpensesPage() {
+  const { business, supabase } = useAuth();
   const [documents, setDocuments] = useState<FiscalDocument[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("ALL");
   const [vatRateFilter, setVatRateFilter] = useState("ALL");
   const [deductibilityFilter, setDeductibilityFilter] = useState("ALL");
 
-  const STORAGE_KEY = "copiloto_fiscal_documents_v1";
+  const currentBizId = business?.id;
+  const STORAGE_KEY = currentBizId
+    ? `copiloto_fiscal_documents_${currentBizId}`
+    : "copiloto_fiscal_documents_demo";
 
-  const loadExpensesData = async () => {
+  const loadExpensesData = useCallback(async () => {
+    if (!currentBizId) return;
+
     let currentDocs: FiscalDocument[] = [];
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
@@ -37,12 +43,13 @@ export default function ExpensesPage() {
       console.warn("Error leyendo localStorage en Expenses:", e);
     }
 
-    // 1. Cargar gastos contables reales de la tabla `expenses` de Supabase
+    // 1. Cargar gastos contables reales de la tabla `expenses` de Supabase filtrados por business_id
     let dbExpenses: FiscalDocument[] = [];
     try {
       const { data: expRows, error: expError } = await supabase
         .from("expenses")
         .select("*, suppliers(name, tax_id_masked)")
+        .eq("business_id", currentBizId)
         .order("date", { ascending: false });
 
       if (!expError && expRows && expRows.length > 0) {
@@ -84,6 +91,7 @@ export default function ExpensesPage() {
       const { data: dbDocs, error } = await supabase
         .from("documents")
         .select("*, document_extractions(*)")
+        .eq("business_id", currentBizId)
         .order("uploaded_at", { ascending: false });
 
       if (!error && dbDocs && dbDocs.length > 0) {
@@ -149,7 +157,7 @@ export default function ExpensesPage() {
     // Filtrar docs mock iniciales si el usuario los eliminó
     const realOnly = currentDocs.filter((cd) => !cd.id.startsWith("doc-"));
     setDocuments(realOnly);
-  };
+  }, [currentBizId, STORAGE_KEY, supabase]);
 
   useEffect(() => {
     loadExpensesData();
@@ -164,7 +172,7 @@ export default function ExpensesPage() {
       window.removeEventListener("storage", handleUpdate);
       window.removeEventListener("fiscal_docs_updated", handleUpdate);
     };
-  }, []);
+  }, [loadExpensesData]);
 
   // Métricas agregadas
   const totalInvoiced = documents.reduce((sum, d) => sum + (d.totalAmount || 0), 0);

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import {
   AlertTriangle,
@@ -16,7 +16,7 @@ import {
 import { Card, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { AnomalyAlert, FiscalDocument } from "@/types";
-import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/context/AuthContext";
 import {
   detectFiscalAnomalies,
   AnomalyEngineExpense,
@@ -25,15 +25,24 @@ import {
 } from "@/lib/anomalyEngine";
 
 export default function AlertsPage() {
+  const { business, supabase } = useAuth();
+  const currentBizId = business?.id;
+
   const [documents, setDocuments] = useState<FiscalDocument[]>([]);
   const [alerts, setAlerts] = useState<AnomalyAlert[]>([]);
   const [filterSeverity, setFilterSeverity] = useState<string>("ALL");
   const [feedback, setFeedback] = useState<string | null>(null);
 
-  const STORAGE_KEY = "copiloto_fiscal_documents_v1";
-  const RESOLVED_ALERTS_KEY = "copiloto_fiscal_resolved_alerts_v1";
+  const STORAGE_KEY = currentBizId
+    ? `copiloto_fiscal_documents_${currentBizId}`
+    : "copiloto_fiscal_documents_demo";
+  const RESOLVED_ALERTS_KEY = currentBizId
+    ? `copiloto_fiscal_resolved_alerts_${currentBizId}`
+    : "copiloto_fiscal_resolved_alerts_demo";
 
-  const loadAlertsData = async () => {
+  const loadAlertsData = useCallback(async () => {
+    if (!currentBizId) return;
+
     let resolvedMap: Record<string, string> = {};
     try {
       const savedRes = localStorage.getItem(RESOLVED_ALERTS_KEY);
@@ -65,16 +74,25 @@ export default function AlertsPage() {
         supabase
           .from("expenses")
           .select("*, suppliers(name, tax_id_masked)")
+          .eq("business_id", currentBizId)
           .order("date", { ascending: false }),
         supabase
           .from("documents")
           .select("*, document_extractions(*)")
+          .eq("business_id", currentBizId)
           .order("uploaded_at", { ascending: false }),
         supabase
           .from("income")
-          .select("id, date, base_amount, vat_amount, total_amount, fiscal_period_quarter"),
-        supabase.from("suppliers").select("id, name, tax_id_masked"),
-        supabase.from("alerts").select("*"),
+          .select("id, date, base_amount, vat_amount, total_amount, fiscal_period_quarter")
+          .eq("business_id", currentBizId),
+        supabase
+          .from("suppliers")
+          .select("id, name, tax_id_masked")
+          .eq("business_id", currentBizId),
+        supabase
+          .from("alerts")
+          .select("*")
+          .eq("business_id", currentBizId),
       ]);
 
       if (expRes.data) fetchedExpenses = expRes.data as AnomalyEngineExpense[];
@@ -148,7 +166,7 @@ export default function AlertsPage() {
     try {
       localStorage.setItem("copiloto_fiscal_active_alerts_count", String(activeCount));
     } catch {}
-  };
+  }, [currentBizId, RESOLVED_ALERTS_KEY, STORAGE_KEY, supabase]);
 
   useEffect(() => {
     loadAlertsData();
@@ -159,7 +177,7 @@ export default function AlertsPage() {
       window.removeEventListener("storage", loadAlertsData);
       window.removeEventListener("fiscal_docs_updated", loadAlertsData);
     };
-  }, []);
+  }, [loadAlertsData]);
 
   const handleResolveAlert = async (id: string, reason: string) => {
     // 1. Actualizar estado local
@@ -184,7 +202,7 @@ export default function AlertsPage() {
     try {
       await supabase.from("audit_events").insert([
         {
-          business_id: "00000000-0000-0000-0000-000000000001",
+          business_id: currentBizId || "00000000-0000-0000-0000-000000000001",
           entity_type: "alert",
           entity_id: id.startsWith("anom-") ? null : id,
           action: "ALERT_DISMISSED",

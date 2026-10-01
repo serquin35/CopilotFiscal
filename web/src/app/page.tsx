@@ -12,6 +12,8 @@ import {
   ChevronRight,
   TrendingDown,
   Info,
+  Sparkles,
+  Loader2,
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -19,7 +21,7 @@ import { StatusBadge, FiscalDataBadge } from "@/components/ui/badge";
 import { ProgressBar, VatSegmentedBar } from "@/components/ui/progress";
 import { formatCurrency, formatDate, cn } from "@/lib/utils";
 import { FiscalDocument, AnomalyAlert, QuarterlySummary } from "@/types";
-import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/context/AuthContext";
 import {
   detectFiscalAnomalies,
   AnomalyEngineExpense,
@@ -57,10 +59,12 @@ const DEFAULT_DEADLINES: Record<string, string> = {
 };
 
 export default function DashboardPage() {
+  const { business, user, profile, supabase } = useAuth();
   const [selectedQuarter, setSelectedQuarter] = useState<"1T" | "2T" | "3T" | "4T">("4T");
   const [documents, setDocuments] = useState<FiscalDocument[]>([]);
   const [alerts, setAlerts] = useState<AnomalyAlert[]>([]);
   const [incomeData, setIncomeData] = useState<{ vat_amount: number; base_amount: number; date: string }[]>([]);
+  const [isSeedingSample, setIsSeedingSample] = useState(false);
   const [summary, setSummary] = useState<QuarterlySummary>({
     quarter: "4T",
     year: 2026,
@@ -85,7 +89,10 @@ export default function DashboardPage() {
     ],
   });
 
-  const STORAGE_KEY = "copiloto_fiscal_documents_v1";
+  const currentBizId = business?.id;
+  const STORAGE_KEY = currentBizId
+    ? `copiloto_fiscal_documents_${currentBizId}`
+    : "copiloto_fiscal_documents_demo";
 
   const rawExpensesRef = React.useRef<AnomalyEngineExpense[]>([]);
   const rawSuppliersRef = React.useRef<AnomalyEngineSupplier[]>([]);
@@ -230,6 +237,8 @@ export default function DashboardPage() {
   );
 
   const loadDashboardData = useCallback(async () => {
+    if (!currentBizId) return;
+
     let currentDocs: FiscalDocument[] = [];
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
@@ -243,12 +252,13 @@ export default function DashboardPage() {
       console.warn("Error leyendo localStorage:", e);
     }
 
-    // Cargar ingresos (ventas) desde Supabase para calcular IVA Repercutido real
+    // 1. Cargar ingresos (ventas) filtrados por business_id
     let fetchedIncome: { vat_amount: number; base_amount: number; date: string }[] = [];
     try {
       const { data: incomeRows, error: incomeError } = await supabase
         .from("income")
         .select("vat_amount, base_amount, date")
+        .eq("business_id", currentBizId)
         .eq("fiscal_period_year", 2026);
       if (!incomeError && incomeRows) {
         fetchedIncome = incomeRows.map((r: Record<string, unknown>) => ({
@@ -262,10 +272,13 @@ export default function DashboardPage() {
       console.warn("Error consultando ingresos en Supabase:", err);
     }
 
-    // Cargar proveedores desde Supabase
+    // 2. Cargar proveedores filtrados por business_id
     let fetchedSuppliers: AnomalyEngineSupplier[] = [];
     try {
-      const { data: supRows } = await supabase.from("suppliers").select("id, name, tax_id_masked");
+      const { data: supRows } = await supabase
+        .from("suppliers")
+        .select("id, name, tax_id_masked")
+        .eq("business_id", currentBizId);
       if (supRows) {
         fetchedSuppliers = supRows as AnomalyEngineSupplier[];
       }
@@ -273,30 +286,35 @@ export default function DashboardPage() {
       console.warn("Error consultando suppliers en Supabase:", err);
     }
 
-    // Cargar resoluciones previas de alertas desde Supabase
+    // 3. Cargar resoluciones previas de alertas filtradas por business_id
     try {
-      const { data: dbAlerts } = await supabase.from("alerts").select("id, status, notes");
+      const { data: dbAlerts } = await supabase
+        .from("alerts")
+        .select("id, status, notes")
+        .eq("business_id", currentBizId);
       if (dbAlerts && dbAlerts.length > 0) {
-        const saved = localStorage.getItem("copiloto_fiscal_resolved_alerts_v1");
+        const alertsKey = `copiloto_fiscal_resolved_alerts_${currentBizId}`;
+        const saved = localStorage.getItem(alertsKey);
         const map = saved ? JSON.parse(saved) : {};
         for (const row of dbAlerts) {
           if (row.status === "RESOLVED" || row.status === "DISMISSED") {
             map[row.id] = row.notes || "Resuelta";
           }
         }
-        localStorage.setItem("copiloto_fiscal_resolved_alerts_v1", JSON.stringify(map));
+        localStorage.setItem(alertsKey, JSON.stringify(map));
       }
     } catch (err) {
       console.warn("Error consultando alerts en Supabase:", err);
     }
 
-    // Cargar gastos contables de la tabla expenses de Supabase
+    // 4. Cargar gastos contables de la tabla expenses filtrados por business_id
     let dbExpenses: FiscalDocument[] = [];
     let rawExpensesList: AnomalyEngineExpense[] = [];
     try {
       const { data: expRows, error: expError } = await supabase
         .from("expenses")
         .select("*, suppliers(name, tax_id_masked)")
+        .eq("business_id", currentBizId)
         .order("date", { ascending: false });
 
       if (!expError && expRows && expRows.length > 0) {
@@ -335,10 +353,12 @@ export default function DashboardPage() {
       console.warn("Error consultando expenses en Supabase:", err);
     }
 
+    // 5. Cargar documentos pendientes o subidos filtrados por business_id
     try {
       const { data: dbDocs, error } = await supabase
         .from("documents")
         .select("*, document_extractions(*)")
+        .eq("business_id", currentBizId)
         .order("uploaded_at", { ascending: false });
 
       if (!error && dbDocs && dbDocs.length > 0) {
@@ -407,7 +427,121 @@ export default function DashboardPage() {
     const realOnly = currentDocs.filter((cd) => !cd.id.startsWith("doc-"));
     setDocuments(realOnly);
     calculateSummary(realOnly, selectedQuarter, fetchedIncome, rawExpensesList, fetchedSuppliers);
-  }, [calculateSummary, selectedQuarter]);
+  }, [calculateSummary, currentBizId, selectedQuarter, STORAGE_KEY, supabase]);
+
+  const handleLoadSampleData = async () => {
+    if (!currentBizId) return;
+    setIsSeedingSample(true);
+    try {
+      // 1. Insert sample suppliers
+      const { data: s1 } = await supabase
+        .from("suppliers")
+        .insert([{
+          business_id: currentBizId,
+          name: "Suministros Tech & Cloud",
+          normalized_name: "SUMINISTROS TECH & CLOUD",
+          tax_id_masked: "B-88***123",
+          category: "Suministros",
+          country: "ES",
+          is_verified: true,
+        }])
+        .select("id")
+        .single();
+
+      const { data: s2 } = await supabase
+        .from("suppliers")
+        .insert([{
+          business_id: currentBizId,
+          name: "Espacio Cowork & Networking",
+          normalized_name: "ESPACIO COWORK & NETWORKING",
+          tax_id_masked: "B-89***456",
+          category: "Servicios",
+          country: "ES",
+          is_verified: true,
+        }])
+        .select("id")
+        .single();
+
+      // 2. Insert sample expenses (4T 2026)
+      await supabase.from("expenses").insert([
+        {
+          business_id: currentBizId,
+          supplier_id: s1?.id,
+          date: "2026-10-15",
+          description: "Suscripción Servidores y Cloud - 4T",
+          base_amount: 140.00,
+          vat_rate: 21,
+          vat_amount: 29.40,
+          total_amount: 169.40,
+          currency: "EUR",
+          category: "suministros",
+          deductibility_status: "DEDUCTIBLE",
+          validation_status: "VALIDATED",
+          is_manually_entered: true,
+          fiscal_period_year: 2026,
+          fiscal_period_quarter: 4,
+        },
+        {
+          business_id: currentBizId,
+          supplier_id: s2?.id,
+          date: "2026-11-05",
+          description: "Puesto de Coworking y Oficina Compartida",
+          base_amount: 250.00,
+          vat_rate: 21,
+          vat_amount: 52.50,
+          total_amount: 302.50,
+          currency: "EUR",
+          category: "alquileres",
+          deductibility_status: "DEDUCTIBLE",
+          validation_status: "VALIDATED",
+          is_manually_entered: true,
+          fiscal_period_year: 2026,
+          fiscal_period_quarter: 4,
+        },
+        {
+          business_id: currentBizId,
+          supplier_id: s1?.id,
+          date: "2026-11-20",
+          description: "Mantenimiento y Certificados Digitales",
+          base_amount: 65.00,
+          vat_rate: 21,
+          vat_amount: 13.65,
+          total_amount: 78.65,
+          currency: "EUR",
+          category: "suministros",
+          deductibility_status: "DEDUCTIBLE",
+          validation_status: "VALIDATED",
+          is_manually_entered: true,
+          fiscal_period_year: 2026,
+          fiscal_period_quarter: 4,
+        },
+      ]);
+
+      // 3. Insert sample sales/income (4T 2026)
+      await supabase.from("income").insert([
+        {
+          business_id: currentBizId,
+          date: "2026-10-28",
+          invoice_number: "FAC-2026-001",
+          customer_name: "Cliente Soluciones Tech S.L.",
+          customer_tax_id: "B-12345678",
+          base_amount: 1850.00,
+          vat_rate: 21,
+          vat_amount: 388.50,
+          total_amount: 2238.50,
+          description: "Servicios profesionales de desarrollo y asesoría",
+          fiscal_period_year: 2026,
+          fiscal_period_quarter: 4,
+        },
+      ]);
+
+      await loadDashboardData();
+    } catch (err) {
+      console.error("Error cargando datos de muestra:", err);
+    } finally {
+      setIsSeedingSample(false);
+    }
+  };
 
   useEffect(() => {
     loadDashboardData();
@@ -522,6 +656,43 @@ export default function DashboardPage() {
           ))}
         </div>
       </div>
+
+      {/* Banner de bienvenida y estado inicial para nuevos negocios */}
+      {!business?.is_demo && summary.totalInvoices === 0 && summary.totalSalesBase === 0 && (
+        <div className="rounded-2xl border border-dashed border-primary/30 bg-primary/5 p-6 backdrop-blur-sm animate-fade-in flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5">
+          <div className="flex items-start gap-4">
+            <div className="size-12 rounded-xl bg-primary/10 border border-primary/25 flex items-center justify-center text-primary shrink-0">
+              <Sparkles className="size-6" />
+            </div>
+            <div>
+              <h3 className="text-base font-semibold text-foreground">
+                ¡Bienvenido a tu espacio fiscal, {profile?.display_name || user?.email?.split("@")[0] || "Emprendedor"}!
+              </h3>
+              <p className="text-xs text-muted-foreground mt-0.5 max-w-xl">
+                Tu empresa <strong className="text-foreground">{business?.name || "tu negocio"}</strong> está activa y protegida con aislamiento de datos. Puedes subir tus primeras facturas o cargar datos de prueba para explorar la liquidación del Modelo 303 en tu cuenta.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 shrink-0 self-stretch sm:self-auto justify-end">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleLoadSampleData}
+              disabled={isSeedingSample}
+              className="gap-2 border-border/70 hover:bg-white/5 text-xs"
+            >
+              {isSeedingSample ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5 text-amber-400" />}
+              Cargar datos de prueba
+            </Button>
+            <Link href="/documents">
+              <Button size="sm" className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground text-xs shadow-md shadow-primary/20">
+                <UploadCloud className="size-3.5" />
+                Subir facturas
+              </Button>
+            </Link>
+          </div>
+        </div>
+      )}
 
       {/* 2. Panel de Trazabilidad Operativa y Naturaleza de Saldos (MVP §7.1) */}
       <div className="grid gap-4 sm:grid-cols-3">
