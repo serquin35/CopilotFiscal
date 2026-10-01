@@ -55,6 +55,7 @@ export default function DashboardPage() {
   const [selectedQuarter, setSelectedQuarter] = useState<"1T" | "2T" | "3T" | "4T">("3T");
   const [documents, setDocuments] = useState<FiscalDocument[]>([]);
   const [alerts, setAlerts] = useState<AnomalyAlert[]>([]);
+  const [incomeData, setIncomeData] = useState<{ vat_amount: number; base_amount: number; date: string }[]>([]);
   const [summary, setSummary] = useState<QuarterlySummary>({
     quarter: "3T",
     year: 2026,
@@ -77,11 +78,14 @@ export default function DashboardPage() {
   const STORAGE_KEY = "copiloto_fiscal_documents_v1";
 
   const calculateSummary = useCallback(
-    (docs: FiscalDocument[], quarter: "1T" | "2T" | "3T" | "4T") => {
+    (
+      docs: FiscalDocument[],
+      quarter: "1T" | "2T" | "3T" | "4T",
+      income: { vat_amount: number; base_amount: number; date: string }[]
+    ) => {
       // Filtrar facturas demo si fueron descartadas
       const realDocs = docs.filter((d) => !d.id.startsWith("doc-"));
 
-      // Filtrar documentos del trimestre seleccionado o considerarlos todos si no tienen mes específico
       const quarterMonthsList = QUARTER_MONTHS[quarter];
       const validIndices = quarterMonthsList.map((m) => m.idx);
 
@@ -91,8 +95,6 @@ export default function DashboardPage() {
         return validIndices.includes(dMonth);
       });
 
-      // Si no hay facturas en este trimestre específico, pero hay facturas en el sistema,
-      // usamos las facturas del sistema para mostrar la liquidación viva.
       const activeDocs = quarterDocs.length > 0 ? quarterDocs : realDocs;
 
       const approvedDocs = activeDocs.filter(
@@ -107,14 +109,21 @@ export default function DashboardPage() {
         return sum + (d.vatAmount || 0) * pct;
       }, 0);
 
-      // El IVA repercutido proviene de ventas (0 si aún no se han registrado ingresos)
-      const collectedVat = 0;
+      // IVA Repercutido: suma del IVA de los ingresos (ventas) del trimestre seleccionado
+      const quarterIncome = income.filter((row) => {
+        if (!row.date) return false;
+        return validIndices.includes(new Date(row.date).getMonth());
+      });
+      const collectedVat = quarterIncome.reduce((sum, row) => sum + (row.vat_amount || 0), 0);
+      const collectedBase = quarterIncome.reduce((sum, row) => sum + (row.base_amount || 0), 0);
+
+      const roundedCollected = Number(collectedVat.toFixed(2));
       const roundedDeductible = Number(deductibleVat.toFixed(2));
-      const netVat = Number((collectedVat - roundedDeductible).toFixed(2));
+      const netVat = Number((roundedCollected - roundedDeductible).toFixed(2));
       const totalCount = activeDocs.length || 1;
       const completeness = Math.min(100, Math.round((approvedDocs.length / totalCount) * 100));
 
-      // Desglose mensual dinámico
+      // Desglose mensual dinámico (IVA repercutido + IVA soportado por mes)
       const breakdown = quarterMonthsList.map((m) => {
         const monthDocs = approvedDocs.filter((d) => {
           if (!d.date) return false;
@@ -124,9 +133,11 @@ export default function DashboardPage() {
           const pct = (d.deductiblePercentage ?? 100) / 100;
           return acc + (d.vatAmount || 0) * pct;
         }, 0);
+        const monthIncome = income.filter((row) => row.date && new Date(row.date).getMonth() === m.idx);
+        const monthCollected = monthIncome.reduce((acc, row) => acc + (row.vat_amount || 0), 0);
         return {
           month: m.name,
-          collected: 0,
+          collected: Number(monthCollected.toFixed(2)),
           deductible: Number(monthDeductible.toFixed(2)),
         };
       });
@@ -135,12 +146,15 @@ export default function DashboardPage() {
       const activeAlerts = activeDocs.flatMap((d) => d.anomalies || []).filter((a) => !a.resolved);
       setAlerts(activeAlerts);
 
+      // Suprimir advertencia de variable no usada (collectedBase se usará en el futuro para ingresos brutos)
+      void collectedBase;
+
       setSummary({
         quarter,
         year: 2026,
         deadline: DEFAULT_DEADLINES[quarter] || "2026-10-20",
         daysRemaining: 20,
-        collectedVat,
+        collectedVat: roundedCollected,
         deductibleVat: roundedDeductible,
         netVat,
         dataCompleteness: activeDocs.length === 0 ? 100 : completeness,
@@ -165,6 +179,25 @@ export default function DashboardPage() {
       }
     } catch (e) {
       console.warn("Error leyendo localStorage:", e);
+    }
+
+    // Cargar ingresos (ventas) desde Supabase para calcular IVA Repercutido real
+    let fetchedIncome: { vat_amount: number; base_amount: number; date: string }[] = [];
+    try {
+      const { data: incomeRows, error: incomeError } = await supabase
+        .from("income")
+        .select("vat_amount, base_amount, date")
+        .eq("fiscal_period_year", 2026);
+      if (!incomeError && incomeRows) {
+        fetchedIncome = incomeRows.map((r: Record<string, unknown>) => ({
+          vat_amount: Number(r.vat_amount || 0),
+          base_amount: Number(r.base_amount || 0),
+          date: String(r.date || ""),
+        }));
+        setIncomeData(fetchedIncome);
+      }
+    } catch (err) {
+      console.warn("Error consultando ingresos en Supabase:", err);
     }
 
     try {
@@ -212,7 +245,7 @@ export default function DashboardPage() {
           ...currentDocs.filter((cd) => !mappedDbDocs.some((md) => md.id === cd.id) && !cd.id.startsWith("doc-")),
         ];
         setDocuments(combined);
-        calculateSummary(combined, selectedQuarter);
+        calculateSummary(combined, selectedQuarter, fetchedIncome);
         return;
       }
     } catch (err) {
@@ -221,7 +254,7 @@ export default function DashboardPage() {
 
     const realOnly = currentDocs.filter((cd) => !cd.id.startsWith("doc-"));
     setDocuments(realOnly);
-    calculateSummary(realOnly, selectedQuarter);
+    calculateSummary(realOnly, selectedQuarter, fetchedIncome);
   }, [calculateSummary, selectedQuarter]);
 
   useEffect(() => {
@@ -241,7 +274,7 @@ export default function DashboardPage() {
 
   const handleSelectQuarter = (q: "1T" | "2T" | "3T" | "4T") => {
     setSelectedQuarter(q);
-    calculateSummary(documents, q);
+    calculateSummary(documents, q, incomeData);
   };
 
   const handleQuickApprove = async (docId: string) => {
@@ -249,7 +282,7 @@ export default function DashboardPage() {
       d.id === docId ? { ...d, status: "CONFIRMED" as const } : d
     );
     setDocuments(updated);
-    calculateSummary(updated, selectedQuarter);
+    calculateSummary(updated, selectedQuarter, incomeData);
 
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
@@ -274,7 +307,7 @@ export default function DashboardPage() {
       d.id === docId ? { ...d, status: "REJECTED" as const } : d
     );
     setDocuments(updated);
-    calculateSummary(updated, selectedQuarter);
+    calculateSummary(updated, selectedQuarter, incomeData);
 
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));

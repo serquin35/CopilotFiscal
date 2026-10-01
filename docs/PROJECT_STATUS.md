@@ -1,6 +1,6 @@
 # PROJECT STATUS — COPILOTO FISCAL
 
-> **Versión:** 1.3
+> **Versión:** 1.4
 > **Última actualización:** 01 Octubre 2026
 > **Estado global:** FASE 5 — En progreso avanzado (90%)
 > **Autor:** Antigravity (actualización continua)
@@ -14,9 +14,9 @@
 |------|--------|--------|-------------|
 | **FASE 0** | Descubrimiento y planificación | ✅ COMPLETA | 100% |
 | **FASE 1** | Infraestructura | ✅ COMPLETA | 100% |
-| **FASE 2** | Núcleo financiero | ✅ COMPLETA | 95% |
+| **FASE 2** | Núcleo financiero | ✅ COMPLETA | 100% |
 | **FASE 3** | Documentos | ✅ COMPLETA | 95% |
-| **FASE 4** | n8n + IA | 🔄 EN PROGRESO | 65% |
+| **FASE 4** | n8n + IA | 🔄 EN PROGRESO | 70% |
 | **FASE 5** | Dashboard & Visualización | 🔄 EN PROGRESO | 90% |
 | **FASE 6** | Anomalías | 🔄 EN PROGRESO | 50% |
 | **FASE 7** | Copiloto IA | ⏳ PENDIENTE | 20% |
@@ -65,7 +65,7 @@
 
 ---
 
-## FASE 2 — Núcleo Financiero ✅ COMPLETA (95%)
+## FASE 2 — Núcleo Financiero ✅ COMPLETA (100%)
 
 **Objetivo:** Motor fiscal determinista, gastos, ingresos, proveedores y periodos.
 
@@ -86,7 +86,7 @@
 | Tabla `tax_periods` | ✅ | 13 columnas |
 | Tabla `tax_snapshots` | ✅ | 19 columnas |
 | Tabla `businesses` | ✅ | 13 columnas |
-| Seed SQL de datos DEMO | ⏳ | Pendiente — actualmente `mockData.ts` en frontend |
+| Seed SQL de datos DEMO | ✅ | `seed_demo_la_corrala_escondida.sql` — 8 proveedores, 21 ingresos, 13 gastos (Q4 2026) |
 
 ---
 
@@ -272,11 +272,11 @@ Respond to Webhook (JSON con extracted + status + confidence)
 
 | # | Ítem | Prioridad | Fase |
 |---|---|---|---|
-| DT-01 | API key OpenAI hardcodeada en WF-01 nodo HTTP | 🔴 ALTA | F4 |
+| DT-01 | API key OpenAI hardcodeada en WF-01 nodo HTTP | ✅ RESUELTO | F4 |
 | DT-02 | Wrapper `AiProvider.interface.ts` no conectado al pipeline real | 🔴 ALTA | F4 |
 | DT-03 | `businessId` hardcodeado como UUID cero en todo el flujo | 🟡 MEDIA | F5 |
 | DT-04 | Dashboard parcialmente basado en `mockData.ts` | ✅ RESUELTO | F5 |
-| DT-05 | Seed SQL de datos DEMO no implementado | 🟡 MEDIA | F2 |
+| DT-05 | Seed SQL de datos DEMO no implementado | ✅ RESUELTO | F2 |
 | DT-06 | Tests RLS por tabla sin cubrir | 🟡 MEDIA | F1 |
 | DT-07 | Soporte PDF multi-página en WF-01 sin probar | 🟡 MEDIA | F4 |
 | DT-08 | WF-05 expense-processing automático no implementado | 🟠 BAJA | F4 |
@@ -288,8 +288,8 @@ Respond to Webhook (JSON con extracted + status + confidence)
 ## Próximos Pasos Priorizados
 
 ### 🔴 Urgente
-1. Migrar API key OpenAI al gestor de credenciales de n8n (DT-01)
-2. Probar WF-01 con facturas en formato PDF
+1. Probar WF-01 con facturas en formato PDF
+2. Separación visual DATO / ESTIMACIÓN / PENDIENTE en tarjetas de saldos fiscales
 
 ### 🟡 Esta semana
 3. Implementar WF-05: expense-processing tras aprobación human-in-the-loop
@@ -321,6 +321,9 @@ Respond to Webhook (JSON con extracted + status + confidence)
 | 01/10/2026 | 🚀 Feature | Sección Gastos (`/expenses`) 100% reactiva en tiempo real con Supabase y localStorage, recalculando KPIs fiscales |
 | 01/10/2026 | 🧹 Refactor | Eliminación de datos mock residuales en Dashboard (`/`) y Alertas (`/alerts`), meses y saldos tributarios dinámicos |
 | 01/10/2026 | 🔔 Feature | Badges dinámicos de documentos y anomalías en Sidebar y Navbar con ocultamiento inteligente en conteo cero |
+| 01/10/2026 | 🔒 Seguridad | Credenciales OpenAI y Supabase migradas al gestor de credenciales de n8n (DT-01 resuelto) |
+| 01/10/2026 | 🗄️ Seed | Seed SQL de "La Corrala Escondida" inyectado: 8 proveedores, 21 ingresos (17.107 € base), 13 gastos (5.596 € base) Q4 2026 |
+| 01/10/2026 | 🚀 Feature | Dashboard lee tabla `income` de Supabase para calcular IVA Repercutido real → liquidación Modelo 303 completa |
 
 ---
 
