@@ -344,7 +344,8 @@ Respond to Webhook (JSON con extracted + status + confidence)
 | 01/10/2026 | 🧩 AuthContext | Tipo `Business` expandido con todos los campos fiscales extendidos; query de carga actualizada |
 | 01/10/2026 | 📄 OCR Pipeline | Endpoint `/api/convert-pdf` implementado con `pdfjs-dist` y `canvas` para renderizar PDFs a JPEG de alta resolución para OpenAI Vision |
 | 01/10/2026 | 🛡️ Fix | Middleware SSR actualizado para eximir `/api` de redirección `/login` para llamadas de webhooks/n8n |
-| 01/10/2026 | 🔄 n8n WF-01 | Workflow WF-01 reestructurado a 12 nodos nativos con bifurcación `Is PDF?` + HTTP Request para evitar errores de sandbox (`$helpers`) |
+| 01/10/2026 | 🏆 Hito | **PIPELINE INGESTA & OCR 100% OPERATIVO**: Subida de facturas real (PDF e imágenes) desde `/documents` conectada a Supabase Storage, webhook n8n WF-01 y extracción exitosa con OpenAI (`Iberdrola Clientes, S.A.U.` extraída en 5.4s en producción) |
+| 01/10/2026 | 🔄 n8n WF-01 | Arquitectura robusta y autónoma en n8n: descarga directa de binario, construcción base64/files para OpenAI, JSON seguro con `JSON.stringify`, gestión de errores hacia `NEEDS_REVIEW` |
 
 ---
 
@@ -355,17 +356,17 @@ Respond to Webhook (JSON con extracted + status + confidence)
 - [x] Aislamiento multi-tenant completo (datos por `business_id`)
 - [x] Badges del sidebar scoped al negocio activo
 - [x] Página `/settings` con perfil, empresa fiscal y seguridad
-- [x] Pipeline OCR end-to-end con soporte nativo de PDF mediante conversión JPEG en Vercel
-- [x] Workflow n8n WF-01 optimizado y validado (12 nodos nativos)
+- [x] **Subida de facturas real y extracción OCR end-to-end** (Supabase Storage + n8n WF-01 + OpenAI)
+- [x] Soporte nativo para PDFs e imágenes con fallback a `NEEDS_REVIEW` en fallos
+- [x] Persistencia y actualización en vivo en `/documents` con botón de revisión
 
 ### 🚀 Próximos pasos sugeridos
 | Prioridad | Feature | Descripción |
 |-----------|---------|-------------|
-| 🔴 Alta | Subida de facturas real | Conectar el uploader de `/documents` a Supabase Storage + trigger n8n OCR |
-| 🔴 Alta | Cálculo 303 con datos reales | Reemplazar `mockData` del dashboard por queries reales de `expenses` y `documents` |
-| 🟡 Media | Validación NIF/CIF | Algoritmo de validación del NIF español en el formulario de empresa |
+| 🔴 Alta | Human-in-the-Loop Review (`/documents/[id]/review`) | Validar que la aprobación de la factura extraída cree automáticamente el registro en la tabla `expenses` |
+| 🔴 Alta | Cálculo 303 con datos reales | Reemplazar `mockData` del dashboard principal por queries reales agregadas de `expenses` |
+| 🟡 Media | Validación NIF/CIF | Algoritmo de validación del NIF/CIF español en el formulario de `/settings` |
 | 🟡 Media | Avatar personalizable | Upload de foto de perfil a Supabase Storage |
-| 🟢 Baja | 2FA / MFA | Activar Multi-Factor Authentication via Supabase Auth |
 | 🟢 Baja | Exportar datos | CSV/PDF de documentos y gastos filtrados por trimestre |
 
 ---
