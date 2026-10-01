@@ -40,6 +40,7 @@ export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { user, profile, business, signOut } = useAuth();
+  const businessId = business?.id ?? null;
   const [mobileOpen, setMobileOpen] = useState(false);
   const [docCount, setDocCount] = useState<number | null>(null);
   const [alertCount, setAlertCount] = useState<number | null>(null);
@@ -48,24 +49,38 @@ export function Sidebar() {
   useEffect(() => {
     const updateCounts = () => {
       try {
-        const customAlerts = localStorage.getItem("copiloto_fiscal_active_alerts_count");
+        // Use business-scoped key to match multi-tenant pattern in documents/page.tsx
+        const docsKey = businessId
+          ? `copiloto_fiscal_documents_${businessId}`
+          : null;
+        const alertsKey = businessId
+          ? `copiloto_fiscal_active_alerts_count_${businessId}`
+          : "copiloto_fiscal_active_alerts_count";
+
+        const customAlerts = localStorage.getItem(alertsKey);
         if (customAlerts !== null) {
           setAlertCount(Number(customAlerts));
         }
 
-        const saved = localStorage.getItem("copiloto_fiscal_documents_v1");
-        if (saved) {
-          const list = JSON.parse(saved) as Record<string, unknown>[];
-          if (Array.isArray(list)) {
-            const realList = list.filter((d) => typeof d.id === "string" && !d.id.startsWith("doc-"));
-            setDocCount(realList.length);
-            if (customAlerts === null) {
-              const anoms = realList.flatMap((d) => (Array.isArray(d.anomalies) ? (d.anomalies as Record<string, unknown>[]) : [])).filter((a) => !a.resolved);
-              setAlertCount(anoms.length);
+        if (docsKey) {
+          const saved = localStorage.getItem(docsKey);
+          if (saved) {
+            const list = JSON.parse(saved) as Record<string, unknown>[];
+            if (Array.isArray(list)) {
+              const realList = list.filter((d) => typeof d.id === "string" && !d.id.startsWith("doc-"));
+              setDocCount(realList.length);
+              if (customAlerts === null) {
+                const anoms = realList.flatMap((d) => (Array.isArray(d.anomalies) ? (d.anomalies as Record<string, unknown>[]) : [])).filter((a) => !a.resolved);
+                setAlertCount(anoms.length);
+              }
+              return;
             }
-            return;
           }
         }
+
+        // No docs found for this business → reset counts
+        setDocCount(0);
+        if (customAlerts === null) setAlertCount(0);
       } catch {}
     };
 
@@ -76,7 +91,7 @@ export function Sidebar() {
       window.removeEventListener("storage", updateCounts);
       window.removeEventListener("fiscal_docs_updated", updateCounts);
     };
-  }, []);
+  }, [businessId]);
 
   const navItems = BASE_NAV_ITEMS.map((item) => {
     if (item.href === "/documents") {
