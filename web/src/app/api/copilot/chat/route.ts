@@ -4,29 +4,35 @@ import { cookies } from "next/headers";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
+interface HistoryMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
 interface ChatRequest {
   message: string;
-  quarter?: string; // e.g. "4T", "3T" — opcional, se detecta del trimestre activo
+  quarter?: string; // "1T" | "2T" | "3T" | "4T"
   year?: number;
+  history?: HistoryMessage[]; // Ultimos N mensajes para contexto multi-turno
 }
 
 interface FiscalContext {
   quarter: string;
   year: number;
-  collectedVat: number;      // IVA repercutido (suma de income.vat_amount)
-  deductibleVat: number;     // IVA soportado deducible (suma de expenses.vat_amount * deductibility)
-  netVat: number;            // Resultado Modelo 303
-  totalExpenses: number;     // Suma base imponible gastos
-  totalIncome: number;       // Suma ingresos brutos
-  pendingDocuments: number;  // Documentos en NEEDS_REVIEW
-  openAlerts: number;        // Alertas OPEN
+  collectedVat: number;
+  deductibleVat: number;
+  netVat: number;
+  totalExpenses: number;
+  totalIncome: number;
+  pendingDocuments: number;
+  openAlerts: number;
   topSuppliers: { name: string; total: number }[];
   expensesByCategory: { category: string; total: number; vat: number }[];
   recentDocuments: { supplier: string; amount: number; status: string; date: string }[];
   businessName: string;
 }
 
-// ─── Supabase server client (usa la sesion del usuario autenticado) ───────────
+// ─── Supabase server client ───────────────────────────────────────────────────
 
 function createSupabaseServer() {
   const cookieStore = cookies();
@@ -43,16 +49,14 @@ function createSupabaseServer() {
   );
 }
 
-// ─── Aggregar contexto fiscal desde Supabase ──────────────────────────────────
+// ─── Agregador de contexto fiscal ─────────────────────────────────────────────
 
 async function buildFiscalContext(quarter: string, year: number): Promise<FiscalContext | null> {
   const supabase = createSupabaseServer();
 
-  // Verificar sesion
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
 
-  // Obtener business_id del perfil
   const { data: profile } = await supabase
     .from("profiles")
     .select("business_id")
@@ -62,14 +66,13 @@ async function buildFiscalContext(quarter: string, year: number): Promise<Fiscal
   if (!profile?.business_id) return null;
   const businessId = profile.business_id;
 
-  // Obtener nombre del negocio
   const { data: business } = await supabase
     .from("businesses")
     .select("name")
     .eq("id", businessId)
     .single();
 
-  // Calcular rango de fechas del trimestre
+  // Rango de fechas del trimestre
   const quarterMonths: Record<string, [number, number]> = {
     "1T": [1, 3], "2T": [4, 6], "3T": [7, 9], "4T": [10, 12],
   };
@@ -78,60 +81,55 @@ async function buildFiscalContext(quarter: string, year: number): Promise<Fiscal
   const lastDay = new Date(year, endMonth, 0).getDate();
   const endDate = `${year}-${String(endMonth).padStart(2, "0")}-${lastDay}`;
 
-  // Gastos del trimestre
-  const { data: expenses } = await supabase
-    .from("expenses")
-    .select("base_amount, vat_amount, total_amount, category, deductibility_percentage, supplier_name, expense_date, status")
-    .eq("business_id", businessId)
-    .gte("expense_date", startDate)
-    .lte("expense_date", endDate);
+  // Consultas paralelas para minimizar latencia
+  const [expensesRes, incomeRes, pendingDocsRes, openAlertsRes, recentDocsRes] = await Promise.all([
+    supabase
+      .from("expenses")
+      .select("base_amount, vat_amount, total_amount, category, deductibility_percentage, supplier_name, expense_date, status")
+      .eq("business_id", businessId)
+      .gte("expense_date", startDate)
+      .lte("expense_date", endDate),
 
-  // Ingresos del trimestre
-  const { data: income } = await supabase
-    .from("income")
-    .select("amount, vat_amount, description, income_date")
-    .eq("business_id", businessId)
-    .gte("income_date", startDate)
-    .lte("income_date", endDate);
+    supabase
+      .from("income")
+      .select("amount, vat_amount, income_date")
+      .eq("business_id", businessId)
+      .gte("income_date", startDate)
+      .lte("income_date", endDate),
 
-  // Documentos pendientes de revision
-  const { count: pendingDocs } = await supabase
-    .from("documents")
-    .select("id", { count: "exact", head: true })
-    .eq("business_id", businessId)
-    .in("status", ["NEEDS_REVIEW", "EXTRACTING"]);
+    supabase
+      .from("documents")
+      .select("id", { count: "exact", head: true })
+      .eq("business_id", businessId)
+      .in("status", ["NEEDS_REVIEW", "EXTRACTING"]),
 
-  // Alertas abiertas
-  const { count: openAlerts } = await supabase
-    .from("alerts")
-    .select("id", { count: "exact", head: true })
-    .eq("business_id", businessId)
-    .eq("status", "OPEN");
+    supabase
+      .from("alerts")
+      .select("id", { count: "exact", head: true })
+      .eq("business_id", businessId)
+      .eq("status", "OPEN"),
 
-  // Documentos recientes (ultimos 5)
-  const { data: recentDocs } = await supabase
-    .from("document_extractions")
-    .select("supplier_name, total_amount, invoice_date, documents!inner(status, business_id)")
-    .eq("documents.business_id", businessId)
-    .order("created_at", { ascending: false })
-    .limit(5);
+    supabase
+      .from("document_extractions")
+      .select("supplier_name, total_amount, invoice_date, documents!inner(status, business_id)")
+      .eq("documents.business_id", businessId)
+      .order("created_at", { ascending: false })
+      .limit(5),
+  ]);
 
-  // ── Calcular agregados ────────────────────────────────────────────────────
+  const expenses = expensesRes.data ?? [];
+  const income = incomeRes.data ?? [];
 
-  const totalIncome = income?.reduce((s, r) => s + (r.amount ?? 0), 0) ?? 0;
-  const collectedVat = income?.reduce((s, r) => s + (r.vat_amount ?? 0), 0) ?? 0;
-
-  const totalExpenses = expenses?.reduce((s, r) => s + (r.base_amount ?? 0), 0) ?? 0;
-  const deductibleVat = expenses?.reduce((s, r) => {
+  const totalIncome = income.reduce((s, r) => s + (r.amount ?? 0), 0);
+  const collectedVat = income.reduce((s, r) => s + (r.vat_amount ?? 0), 0);
+  const totalExpenses = expenses.reduce((s, r) => s + (r.base_amount ?? 0), 0);
+  const deductibleVat = expenses.reduce((s, r) => {
     const ded = (r.deductibility_percentage ?? 100) / 100;
     return s + (r.vat_amount ?? 0) * ded;
-  }, 0) ?? 0;
+  }, 0);
 
-  const netVat = collectedVat - deductibleVat;
-
-  // Top 5 proveedores por gasto total
   const supplierMap: Record<string, number> = {};
-  expenses?.forEach((e) => {
+  expenses.forEach((e) => {
     const name = e.supplier_name ?? "Sin proveedor";
     supplierMap[name] = (supplierMap[name] ?? 0) + (e.total_amount ?? 0);
   });
@@ -140,9 +138,8 @@ async function buildFiscalContext(quarter: string, year: number): Promise<Fiscal
     .sort((a, b) => b.total - a.total)
     .slice(0, 5);
 
-  // Gastos por categoria
   const categoryMap: Record<string, { total: number; vat: number }> = {};
-  expenses?.forEach((e) => {
+  expenses.forEach((e) => {
     const cat = e.category ?? "otros";
     if (!categoryMap[cat]) categoryMap[cat] = { total: 0, vat: 0 };
     categoryMap[cat].total += e.base_amount ?? 0;
@@ -152,8 +149,7 @@ async function buildFiscalContext(quarter: string, year: number): Promise<Fiscal
     .map(([category, v]) => ({ category, ...v }))
     .sort((a, b) => b.total - a.total);
 
-  // Documentos recientes formateados
-  const recentDocuments = (recentDocs ?? []).map((d) => ({
+  const recentDocuments = (recentDocsRes.data ?? []).map((d) => ({
     supplier: d.supplier_name ?? "Desconocido",
     amount: d.total_amount ?? 0,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -166,11 +162,11 @@ async function buildFiscalContext(quarter: string, year: number): Promise<Fiscal
     year,
     collectedVat,
     deductibleVat,
-    netVat,
+    netVat: collectedVat - deductibleVat,
     totalExpenses,
     totalIncome,
-    pendingDocuments: pendingDocs ?? 0,
-    openAlerts: openAlerts ?? 0,
+    pendingDocuments: pendingDocsRes.count ?? 0,
+    openAlerts: openAlertsRes.count ?? 0,
     topSuppliers,
     expensesByCategory,
     recentDocuments,
@@ -178,11 +174,16 @@ async function buildFiscalContext(quarter: string, year: number): Promise<Fiscal
   };
 }
 
-// ─── System prompt con contexto real ─────────────────────────────────────────
+// ─── System prompt ────────────────────────────────────────────────────────────
 
 function buildSystemPrompt(ctx: FiscalContext): string {
   const fmt = (n: number) =>
     n.toLocaleString("es-ES", { style: "currency", currency: "EUR" });
+
+  const netVatLabel = ctx.netVat >= 0 ? "A INGRESAR a Hacienda" : "A COMPENSAR / DEVOLVER";
+  const deadlineMonth =
+    ctx.quarter === "1T" ? "abril" : ctx.quarter === "2T" ? "julio"
+    : ctx.quarter === "3T" ? "octubre" : "enero";
 
   const suppliersText = ctx.topSuppliers.length
     ? ctx.topSuppliers.map((s) => `  - ${s.name}: ${fmt(s.total)}`).join("\n")
@@ -200,14 +201,9 @@ function buildSystemPrompt(ctx: FiscalContext): string {
         .join("\n")
     : "  - Sin facturas recientes";
 
-  const netVatLabel = ctx.netVat >= 0 ? "A INGRESAR a Hacienda" : "A COMPENSAR / DEVOLVER";
+  return `Eres el Copiloto Fiscal de "${ctx.businessName}", experto en fiscalidad espanola y Modelo 303 (IVA).
 
-  const deadlineMonth = ctx.quarter === "1T" ? "abril" : ctx.quarter === "2T" ? "julio"
-    : ctx.quarter === "3T" ? "octubre" : "enero";
-
-  return `Eres el Copiloto Fiscal de "${ctx.businessName}", un asistente experto en fiscalidad espanola especializado en el Modelo 303 (IVA) y normativa AEAT.
-
-## DATOS REALES DEL ${ctx.quarter} ${ctx.year} (extraidos de la base de datos en tiempo real)
+## DATOS REALES — ${ctx.quarter} ${ctx.year}
 
 ### Liquidacion Modelo 303
 - IVA Repercutido (ventas): ${fmt(ctx.collectedVat)}
@@ -220,7 +216,7 @@ function buildSystemPrompt(ctx: FiscalContext): string {
 - Documentos pendientes de revision: ${ctx.pendingDocuments}
 - Alertas fiscales activas: ${ctx.openAlerts}
 
-### Top proveedores por gasto
+### Top proveedores
 ${suppliersText}
 
 ### Gastos por categoria
@@ -229,21 +225,18 @@ ${categoriesText}
 ### Facturas recientes
 ${recentDocsText}
 
-## TUS REGLAS DE COMPORTAMIENTO
-
-1. **SOLO usa los datos anteriores** para responder preguntas sobre cifras. Nunca inventes importes.
-2. **Cita la normativa espanola** cuando expliques criterios fiscales (LIVA, LIRPF, consultas DGT).
-3. **Se preciso y conciso**. El usuario es un autonomo o pyme espanola sin perfil de asesor fiscal.
-4. **Si no tienes datos suficientes**, dilo claramente y sugiere que documentos falta cargar.
-5. **Formato**: usa markdown (negrita, listas). Maximo 4 parrafos por respuesta.
-6. **Idioma**: siempre en espanol. Formato numerico: 1.284,50 euro.
-7. El plazo de presentacion del ${ctx.quarter} es el 20 de ${deadlineMonth} (o 15 si hay domiciliacion bancaria).`;
+## REGLAS
+1. Usa SOLO los datos anteriores para cifras. Nunca inventes importes.
+2. Cita normativa espanola cuando expliques criterios (LIVA, LIRPF, DGT).
+3. Sé conciso. Maximo 4 parrafos. Formato numerico: 1.284,50 EUR.
+4. Si no tienes datos suficientes, indicalo y sugiere que documentos cargar.
+5. Plazo de presentacion del ${ctx.quarter}: 20 de ${deadlineMonth} (15 con domiciliacion bancaria).
+6. IMPORTANTE: Tienes acceso al historial de la conversacion. Usalo para dar respuestas coherentes y conectadas.`;
 }
 
-// ─── Handler principal ────────────────────────────────────────────────────────
+// ─── Handler ──────────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
-  // 1. Parsear body
   let body: ChatRequest;
   try {
     body = await req.json();
@@ -251,18 +244,16 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "Body JSON invalido" }, { status: 400 });
   }
 
-  const { message, quarter = "4T", year = 2026 } = body;
+  const { message, quarter = "4T", year = 2026, history = [] } = body;
   if (!message?.trim()) {
     return NextResponse.json({ error: "El campo 'message' es requerido" }, { status: 400 });
   }
 
-  // 2. Verificar API key de OpenAI
   const openAiKey = process.env.OPENAI_API_KEY;
   if (!openAiKey) {
-    return NextResponse.json({ error: "OPENAI_API_KEY no configurada en el servidor" }, { status: 500 });
+    return NextResponse.json({ error: "OPENAI_API_KEY no configurada" }, { status: 500 });
   }
 
-  // 3. Construir contexto fiscal real
   const ctx = await buildFiscalContext(quarter, year);
   if (!ctx) {
     return NextResponse.json(
@@ -271,7 +262,14 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  // 4. Llamar a OpenAI
+  // Construir array de mensajes: system + historial (max 10 turnos) + mensaje actual
+  const historySlice = history.slice(-10); // Ultimos 10 mensajes para no inflar el contexto
+  const openAiMessages = [
+    { role: "system" as const, content: buildSystemPrompt(ctx) },
+    ...historySlice.map((h) => ({ role: h.role, content: h.content })),
+    { role: "user" as const, content: message },
+  ];
+
   let openAiResponse: Response;
   try {
     openAiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -284,10 +282,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         model: "gpt-4o-mini",
         temperature: 0.3,
         max_tokens: 600,
-        messages: [
-          { role: "system", content: buildSystemPrompt(ctx) },
-          { role: "user", content: message },
-        ],
+        messages: openAiMessages,
       }),
     });
   } catch (err) {
@@ -308,7 +303,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const openAiData = await openAiResponse.json();
   const reply = openAiData.choices?.[0]?.message?.content ?? "";
 
-  // 5. Devolver respuesta + fuentes contextuales
   const sources = [
     `BD en tiempo real — ${ctx.quarter} ${ctx.year}`,
     "Normativa AEAT Espana",

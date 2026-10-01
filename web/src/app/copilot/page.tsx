@@ -12,6 +12,8 @@ import {
   TrendingDown,
   AlertTriangle,
   FileText,
+  ChevronDown,
+  RotateCcw,
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -40,50 +42,91 @@ interface FiscalSnapshot {
   year: number;
 }
 
-// ─── Prompts rápidos ──────────────────────────────────────────────────────────
+// ─── Constantes ───────────────────────────────────────────────────────────────
+
+const QUARTERS = ["1T", "2T", "3T", "4T"] as const;
+type Quarter = (typeof QUARTERS)[number];
 
 const QUICK_PROMPTS = [
-  "¿Por qué tengo ese resultado en el Modelo 303 este trimestre?",
-  "¿Qué anomalías activas pueden generar inspección de la AEAT?",
+  "¿Por qué tengo ese resultado en el Modelo 303?",
+  "¿Qué anomalías activas pueden generar inspección AEAT?",
   "¿Puedo deducir el 100% de la factura de gasolina?",
-  "¿Cuál es el plazo para presentar el Modelo 303 de este trimestre?",
+  "¿Cuál es el plazo para presentar el Modelo 303?",
 ];
+
+function getCurrentQuarter(): Quarter {
+  const m = new Date().getMonth() + 1;
+  if (m <= 3) return "1T";
+  if (m <= 6) return "2T";
+  if (m <= 9) return "3T";
+  return "4T";
+}
+
+const WELCOME_MSG: Message = {
+  id: "msg-welcome",
+  sender: "copilot",
+  content:
+    "Hola. Soy tu **Copiloto Fiscal**. Analizo en tiempo real tus facturas y el cálculo del **Modelo 303** desde tu base de datos real.\n\nRecuerdo el contexto de nuestra conversación, así que puedes hacer preguntas de seguimiento. ¿En qué duda tributaria puedo ayudarte hoy?",
+  timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+};
 
 // ─── Componente ───────────────────────────────────────────────────────────────
 
 export default function CopilotPage() {
   const { business } = useAuth();
+  const currentYear = new Date().getFullYear();
 
-  // Trimestre activo: por defecto el del mes actual
-  const now = new Date();
-  const currentMonth = now.getMonth() + 1; // 1-12
-  const defaultQuarter =
-    currentMonth <= 3 ? "1T" : currentMonth <= 6 ? "2T" : currentMonth <= 9 ? "3T" : "4T";
-  const defaultYear = now.getFullYear();
-
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: "msg-1",
-      sender: "copilot",
-      content:
-        "Hola. Soy tu **Copiloto Fiscal**. Analizo en tiempo real tus facturas y el cálculo del **Modelo 303** desde tu base de datos real. Toda mi información procede directamente de tus registros contables. ¿En qué duda tributaria puedo ayudarte hoy?",
-      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-    },
-  ]);
+  const [selectedQuarter, setSelectedQuarter] = useState<Quarter>(getCurrentQuarter());
+  const [selectedYear, setSelectedYear] = useState(currentYear);
+  const [messages, setMessages] = useState<Message[]>([WELCOME_MSG]);
   const [inputQuery, setInputQuery] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const [snapshot, setSnapshot] = useState<FiscalSnapshot | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    scrollToBottom();
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isTyping]);
 
-  // ── Enviar mensaje al endpoint real ─────────────────────────────────────────
+  // ── Reset de conversación ────────────────────────────────────────────────────
+
+  const handleReset = useCallback(() => {
+    setMessages([
+      {
+        ...WELCOME_MSG,
+        id: `msg-welcome-${Date.now()}`,
+        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      },
+    ]);
+    setSnapshot(null);
+    inputRef.current?.focus();
+  }, []);
+
+  // Resetear chat cuando cambia el trimestre
+  const handleQuarterChange = useCallback(
+    (q: Quarter) => {
+      setSelectedQuarter(q);
+      handleReset();
+    },
+    [handleReset]
+  );
+
+  // ── Construir historial para la API ─────────────────────────────────────────
+
+  const buildHistory = useCallback(
+    (currentMessages: Message[]) => {
+      return currentMessages
+        .filter((m) => !m.isError && m.id !== "msg-welcome" && !m.id.startsWith("msg-welcome-"))
+        .map((m) => ({
+          role: m.sender === "user" ? ("user" as const) : ("assistant" as const),
+          content: m.content,
+        }));
+    },
+    []
+  );
+
+  // ── Enviar mensaje ───────────────────────────────────────────────────────────
 
   const handleSend = useCallback(
     async (textToSend?: string) => {
@@ -97,7 +140,8 @@ export default function CopilotPage() {
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       };
 
-      setMessages((prev) => [...prev, userMsg]);
+      const nextMessages = [...messages, userMsg];
+      setMessages(nextMessages);
       if (!textToSend) setInputQuery("");
       setIsTyping(true);
 
@@ -107,8 +151,9 @@ export default function CopilotPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             message: query,
-            quarter: defaultQuarter,
-            year: defaultYear,
+            quarter: selectedQuarter,
+            year: selectedYear,
+            history: buildHistory(nextMessages), // historial INCLUYENDO el mensaje actual
           }),
         });
 
@@ -118,10 +163,7 @@ export default function CopilotPage() {
           throw new Error(data.error ?? `HTTP ${res.status}`);
         }
 
-        // Actualizar snapshot lateral con datos reales devueltos por la API
-        if (data.context) {
-          setSnapshot(data.context);
-        }
+        if (data.context) setSnapshot(data.context);
 
         const copilotMsg: Message = {
           id: `cop-${Date.now()}`,
@@ -136,7 +178,9 @@ export default function CopilotPage() {
         const errorMsg: Message = {
           id: `err-${Date.now()}`,
           sender: "copilot",
-          content: `⚠️ **Error al conectar con el Copiloto**: ${err instanceof Error ? err.message : "Error desconocido"}. Comprueba tu sesión y la configuración del servidor.`,
+          content: `⚠️ **Error al conectar con el Copiloto**: ${
+            err instanceof Error ? err.message : "Error desconocido"
+          }. Comprueba tu sesión e inténtalo de nuevo.`,
           timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
           isError: true,
         };
@@ -145,7 +189,7 @@ export default function CopilotPage() {
         setIsTyping(false);
       }
     },
-    [inputQuery, isTyping, defaultQuarter, defaultYear]
+    [inputQuery, isTyping, messages, selectedQuarter, selectedYear, buildHistory]
   );
 
   // ─── Render ──────────────────────────────────────────────────────────────────
@@ -154,29 +198,73 @@ export default function CopilotPage() {
     <div className="flex flex-col gap-6">
       {/* Header */}
       <div className="flex flex-col gap-1">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <span className="text-xs font-semibold uppercase tracking-widest text-primary">
             Motor Explicativo OpenAI gpt-4o-mini
           </span>
           <span className="size-2 rounded-full bg-primary animate-pulse" />
-          <Badge variant="muted" className="text-[10px] ml-auto">
-            {defaultQuarter} {defaultYear}
-          </Badge>
+
+          {/* Selector de trimestre */}
+          <div className="ml-auto flex items-center gap-1.5">
+            <div className="flex rounded-lg border border-border overflow-hidden text-[11px] font-mono">
+              {QUARTERS.map((q) => (
+                <button
+                  key={q}
+                  onClick={() => handleQuarterChange(q)}
+                  className={`px-2.5 py-1 transition-colors ${
+                    selectedQuarter === q
+                      ? "bg-primary text-primary-foreground font-semibold"
+                      : "bg-card text-muted-foreground hover:text-foreground hover:bg-secondary"
+                  }`}
+                >
+                  {q}
+                </button>
+              ))}
+            </div>
+
+            {/* Selector de año */}
+            <div className="relative">
+              <select
+                value={selectedYear}
+                onChange={(e) => {
+                  setSelectedYear(Number(e.target.value));
+                  handleReset();
+                }}
+                className="appearance-none bg-card border border-border rounded-lg text-[11px] font-mono px-2.5 py-1 pr-6 text-muted-foreground hover:text-foreground focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer"
+              >
+                {[currentYear - 1, currentYear].map((y) => (
+                  <option key={y} value={y}>{y}</option>
+                ))}
+              </select>
+              <ChevronDown className="absolute right-1.5 top-1/2 -translate-y-1/2 size-3 text-muted-foreground pointer-events-none" />
+            </div>
+
+            {/* Botón limpiar conversación */}
+            <button
+              onClick={handleReset}
+              title="Nueva conversación"
+              className="p-1.5 rounded-lg border border-border text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors"
+            >
+              <RotateCcw className="size-3.5" />
+            </button>
+          </div>
         </div>
+
         <h1 className="text-3xl font-semibold tracking-tight text-foreground">
           Copiloto Fiscal — &quot;Explícame mis números&quot;
         </h1>
         <p className="text-sm text-muted-foreground">
           Asistencia técnica fundamentada en la normativa tributaria española y en los datos{" "}
-          <strong className="text-foreground">reales</strong> de tu negocio. Sin respuestas genéricas.
+          <strong className="text-foreground">reales</strong> de tu negocio. Recuerda el contexto
+          de la conversación para preguntas de seguimiento.
         </p>
       </div>
 
-      {/* Main Grid: Chat (8 cols) vs Snapshot Context (4 cols) */}
+      {/* Main Grid: Chat (8 cols) vs Snapshot (4 cols) */}
       <div className="grid gap-6 lg:grid-cols-12 items-start">
-        {/* Chat Interface (8 cols) */}
+        {/* Chat (8 cols) */}
         <div className="lg:col-span-8 flex flex-col gap-4">
-          {/* Quick prompt suggestions */}
+          {/* Quick prompts */}
           <div className="flex flex-wrap gap-1.5">
             {QUICK_PROMPTS.map((prompt, idx) => (
               <button
@@ -190,9 +278,8 @@ export default function CopilotPage() {
             ))}
           </div>
 
-          {/* Chat Window */}
+          {/* Ventana de chat */}
           <Card className="flex flex-col h-[560px] p-0 overflow-hidden border-border/80">
-            {/* Messages Scroll Area */}
             <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4">
               {messages.map((m) => (
                 <div
@@ -216,10 +303,9 @@ export default function CopilotPage() {
                         : "bg-secondary/70 border border-border/60 text-foreground rounded-tl-none"
                     }`}
                   >
-                    {/* Renderizado básico de markdown (negrita, listas) */}
+                    {/* Markdown mínimo: negrita */}
                     <div className="whitespace-pre-line leading-relaxed">
                       {m.content.split("\n").map((line, i) => {
-                        // Negrita **texto**
                         const parts = line.split(/(\*\*[^*]+\*\*)/g);
                         return (
                           <span key={i} className="block">
@@ -274,14 +360,14 @@ export default function CopilotPage() {
                     <Sparkles className="size-4 animate-spin" />
                   </div>
                   <div className="rounded-2xl bg-secondary/70 border border-border/60 p-3 text-muted-foreground rounded-tl-none animate-pulse">
-                    Consultando datos fiscales reales y normativa AEAT...
+                    Consultando datos fiscales reales del {selectedQuarter} {selectedYear}...
                   </div>
                 </div>
               )}
               <div ref={messagesEndRef} />
             </div>
 
-            {/* Input Bar */}
+            {/* Input */}
             <div className="p-3 border-t border-border bg-card/80">
               <form
                 onSubmit={(e) => {
@@ -291,10 +377,11 @@ export default function CopilotPage() {
                 className="flex items-center gap-2"
               >
                 <input
+                  ref={inputRef}
                   type="text"
                   value={inputQuery}
                   onChange={(e) => setInputQuery(e.target.value)}
-                  placeholder="Pregúntale al Copiloto sobre IVA, retenciones, facturas o Modelo 303..."
+                  placeholder={`Pregunta sobre el ${selectedQuarter} ${selectedYear}...`}
                   className="flex-1 h-10 rounded-xl border border-border bg-background px-3.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
                   disabled={isTyping}
                 />
@@ -309,24 +396,35 @@ export default function CopilotPage() {
                   <Send className="size-3.5" />
                 </Button>
               </form>
+
+              {/* Indicador de contexto activo */}
+              {messages.length > 1 && (
+                <p className="text-[10px] text-muted-foreground/60 mt-1.5 text-center font-mono">
+                  {Math.floor((messages.length - 1) / 2)} turno
+                  {Math.floor((messages.length - 1) / 2) !== 1 ? "s" : ""} en contexto ·{" "}
+                  <button onClick={handleReset} className="hover:text-muted-foreground underline">
+                    Nueva conversación
+                  </button>
+                </p>
+              )}
             </div>
           </Card>
         </div>
 
-        {/* Snapshot Context Sidebar (4 cols) */}
+        {/* Sidebar (4 cols) */}
         <div className="lg:col-span-4 flex flex-col gap-4">
-          {/* Contexto fiscal en tiempo real */}
+          {/* Trimestre activo */}
           <Card>
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-sm">Contexto Fiscal Activo</CardTitle>
-                <Badge variant="primary" className="text-[10px]">
-                  {defaultQuarter} {defaultYear}
+                <Badge variant="primary" className="text-[10px] font-mono">
+                  {selectedQuarter} {selectedYear}
                 </Badge>
               </div>
               <CardDescription>
                 {snapshot
-                  ? "Datos reales — actualizados en cada consulta"
+                  ? "Datos reales — actualizados tras cada consulta"
                   : "Haz tu primera consulta para cargar los datos"}
               </CardDescription>
             </CardHeader>
@@ -351,11 +449,7 @@ export default function CopilotPage() {
                   </div>
                   <div className="flex justify-between border-b border-border/40 pb-2">
                     <span className="text-muted-foreground font-sans">Resultado 303:</span>
-                    <span
-                      className={`font-bold ${
-                        snapshot.netVat >= 0 ? "text-destructive" : "text-primary"
-                      }`}
-                    >
+                    <span className={`font-bold ${snapshot.netVat >= 0 ? "text-destructive" : "text-primary"}`}>
                       {formatCurrency(snapshot.netVat)}
                     </span>
                   </div>
@@ -380,7 +474,11 @@ export default function CopilotPage() {
                 <div className="flex flex-col items-center justify-center py-6 gap-2 text-muted-foreground font-sans">
                   <Sparkles className="size-6 text-primary/40" />
                   <p className="text-[11px] text-center">
-                    El panel se actualizará con datos reales tras tu primera consulta
+                    El panel se actualizará con datos reales del{" "}
+                    <strong className="text-foreground">
+                      {selectedQuarter} {selectedYear}
+                    </strong>{" "}
+                    tras tu primera consulta
                   </p>
                 </div>
               )}
