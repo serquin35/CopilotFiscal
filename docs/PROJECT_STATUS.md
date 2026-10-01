@@ -336,6 +336,37 @@ Respond to Webhook (JSON con extracted + status + confidence)
 | 01/10/2026 | 🏢 Multi-tenant | Aislamiento estricto de datos por `business_id` en Dashboard, Gastos, Documentos, Alertas y Review |
 | 01/10/2026 | 🔒 RLS | Eliminación de políticas públicas abiertas en Supabase: solo el propietario (`auth.uid()`) puede consultar o alterar registros |
 | 01/10/2026 | ✨ Onboarding | Empty State con bienvenida personalizada para cuentas nuevas y opción de carga de datos de muestra |
+| 01/10/2026 | 🐛 Fix | Sidebar: badges de documentos/alertas ahora usan clave de localStorage scoped al `business_id` — corrige el "15" hardcodeado en cuentas nuevas |
+| 01/10/2026 | 🐛 Fix | Auth callback: reescrito `route.ts` para setear cookies con `NextResponse` — resuelve el 404 post Google OAuth en Next.js 14 |
+| 01/10/2026 | ⚙️ Settings | Nueva página `/settings` con 4 secciones: Perfil Personal, Mi Empresa (datos fiscales), Preferencias y Seguridad |
+| 01/10/2026 | 🗄️ DB Migration | Añadidas columnas fiscales a `businesses`: `nif`, `vat_regime`, `fiscal_address`, `fiscal_city`, `fiscal_zip`, `phone`, `website` |
+| 01/10/2026 | 🗄️ DB Migration | Añadida columna `phone` a `profiles` |
+| 01/10/2026 | 🧩 AuthContext | Tipo `Business` expandido con todos los campos fiscales extendidos; query de carga actualizada |
+
+---
+
+## 🗺️ Estado actual y próximos pasos
+
+### ✅ Funcionalidades completadas (sesión actual)
+- [x] Google OAuth funcional en producción (`corrala.vercel.app`)
+- [x] Aislamiento multi-tenant completo (datos por `business_id`)
+- [x] Badges del sidebar scoped al negocio activo
+- [x] Página `/settings` con perfil, empresa fiscal y seguridad
+
+### 🚀 Próximos pasos sugeridos
+| Prioridad | Feature | Descripción |
+|-----------|---------|-------------|
+| 🔴 Alta | Subida de facturas real | Conectar el uploader de `/documents` a Supabase Storage + trigger n8n OCR |
+| 🔴 Alta | Cálculo 303 con datos reales | Reemplazar `mockData` del dashboard por queries reales de `expenses` y `documents` |
+| 🟡 Media | Validación NIF/CIF | Algoritmo de validación del NIF español en el formulario de empresa |
+| 🟡 Media | Avatar personalizable | Upload de foto de perfil a Supabase Storage |
+| 🟢 Baja | 2FA / MFA | Activar Multi-Factor Authentication via Supabase Auth |
+| 🟢 Baja | Exportar datos | CSV/PDF de documentos y gastos filtrados por trimestre |
+
+---
+
+*Documento generado y mantenido por Antigravity. Actualizar al final de cada sesión de desarrollo.*
+
 
 ---
 
