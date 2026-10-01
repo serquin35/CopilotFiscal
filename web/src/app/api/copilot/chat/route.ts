@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
+import { createClient } from "@/lib/supabase-server";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -32,27 +31,10 @@ interface FiscalContext {
   businessName: string;
 }
 
-// ─── Supabase server client ───────────────────────────────────────────────────
-
-function createSupabaseServer() {
-  const cookieStore = cookies();
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get: (name: string) => cookieStore.get(name)?.value,
-        set: () => {},
-        remove: () => {},
-      },
-    }
-  );
-}
-
 // ─── Agregador de contexto fiscal ─────────────────────────────────────────────
 
 async function buildFiscalContext(quarter: string, year: number): Promise<FiscalContext | null> {
-  const supabase = createSupabaseServer();
+  const supabase = createClient();
 
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;

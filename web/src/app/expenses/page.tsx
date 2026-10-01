@@ -138,10 +138,11 @@ export default function ExpensesPage() {
             };
           });
 
+        // Cuando Supabase tiene datos, es la fuente autoritativa.
+        // NO mezclamos con localStorage para evitar mostrar registros ya borrados en BD.
         const combined = [
           ...dbExpenses,
           ...mappedDbDocs,
-          ...currentDocs.filter((cd) => !dbExpenses.some((de) => de.id === cd.id) && !mappedDbDocs.some((md) => md.id === cd.id) && !cd.id.startsWith("doc-")),
         ];
         setDocuments(combined);
         return;
@@ -151,17 +152,19 @@ export default function ExpensesPage() {
     }
 
     if (dbExpenses.length > 0) {
-      const combined = [
-        ...dbExpenses,
-        ...currentDocs.filter((cd) => !dbExpenses.some((de) => de.id === cd.id) && !cd.id.startsWith("doc-")),
-      ];
-      setDocuments(combined);
+      // Solo expenses de Supabase, sin localStorage
+      setDocuments(dbExpenses);
       return;
     }
 
-    // Filtrar docs mock iniciales si el usuario los eliminó
-    const realOnly = currentDocs.filter((cd) => !cd.id.startsWith("doc-"));
+    // Fallback: solo si Supabase no devuelve nada, usar localStorage
+    // Filtramos IDs con formato UUID (sincronizados previamente) para evitar huérfanos
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const realOnly = currentDocs.filter(
+      (cd) => !cd.id.startsWith("doc-") && !uuidRegex.test(cd.id)
+    );
     setDocuments(realOnly);
+
   }, [currentBizId, STORAGE_KEY, supabase]);
 
   useEffect(() => {
