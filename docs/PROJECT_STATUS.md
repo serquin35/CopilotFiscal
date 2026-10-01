@@ -346,6 +346,7 @@ Respond to Webhook (JSON con extracted + status + confidence)
 | 01/10/2026 | 🛡️ Fix | Middleware SSR actualizado para eximir `/api` de redirección `/login` para llamadas de webhooks/n8n |
 | 01/10/2026 | 🏆 Hito | **PIPELINE INGESTA & OCR 100% OPERATIVO**: Subida de facturas real (PDF e imágenes) desde `/documents` conectada a Supabase Storage, webhook n8n WF-01 y extracción exitosa con OpenAI (`Iberdrola Clientes, S.A.U.` extraída en 5.4s en producción) |
 | 01/10/2026 | 🔄 n8n WF-01 | Arquitectura robusta y autónoma en n8n: descarga directa de binario, construcción base64/files para OpenAI, JSON seguro con `JSON.stringify`, gestión de errores hacia `NEEDS_REVIEW` |
+| 01/10/2026 | 🐛 Fix | Dashboard: resolución de duplicación de facturas conciliadas (fusión unificada por `document_id` entre `documents`, `expenses` y `localStorage`, evitando doble cómputo en el Modelo 303) |
 
 ---
 
