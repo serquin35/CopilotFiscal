@@ -16,6 +16,7 @@ import {
   FileCheck2,
   LogOut,
   Building2,
+  Settings2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
@@ -34,6 +35,7 @@ const BASE_NAV_ITEMS: NavItem[] = [
   { label: "Gastos & Deducción", href: "/expenses", icon: Receipt },
   { label: "Anomalías AEAT", href: "/alerts", icon: AlertTriangle, alert: true },
   { label: "Copiloto IA", href: "/copilot", icon: BotMessageSquare },
+  { label: "Configuración", href: "/settings", icon: Settings2 },
 ];
 
 export function Sidebar() {

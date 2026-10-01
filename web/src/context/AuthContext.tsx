@@ -9,6 +9,17 @@ export interface Business {
   name: string;
   activity_type: string | null;
   is_demo: boolean;
+  // Extended fiscal fields
+  legal_form?: string | null;
+  nif?: string | null;
+  cnae_code?: string | null;
+  vat_regime?: string | null;
+  region?: string | null;
+  fiscal_address?: string | null;
+  fiscal_city?: string | null;
+  fiscal_zip?: string | null;
+  phone?: string | null;
+  website?: string | null;
 }
 
 export interface Profile {
@@ -60,7 +71,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             .maybeSingle(),
           supabase
             .from("businesses")
-            .select("id, name, activity_type, is_demo")
+            .select("id, name, activity_type, is_demo, legal_form, nif, cnae_code, vat_regime, region, fiscal_address, fiscal_city, fiscal_zip, phone, website")
             .eq("owner_id", currentUser.id)
             .order("created_at", { ascending: false })
             .limit(1)
