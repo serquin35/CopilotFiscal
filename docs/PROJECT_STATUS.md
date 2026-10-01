@@ -398,13 +398,17 @@ Supabase (SSR client)    OpenAI GPT-4o-mini
 - [x] **Human-in-the-Loop Review (`/documents/[id]/review`)**: Conciliación real con inserción en `expenses` y `suppliers`
 - [x] **Cálculo dinámico del Modelo 303**: Reemplazo de mock data en Dashboard con agregaciones reales de gastos e ingresos
 - [x] **Deduplicación canónica**: Eliminación de doble cómputo entre documentos locales e historial de gastos
+- [x] **Copiloto Fiscal IA con datos reales**:
+  - Autenticación robusta serverless con JWT Bearer token validado contra Supabase Auth
+  - Mapeo fiel al esquema de base de datos (`businesses.owner_id`, `expenses.date`, `validation_status`, `document_extractions.extracted_at`)
+  - Historial multi-turno (últimos 10 mensajes) para preguntas de seguimiento contextuales
+  - Selector de trimestre y año dinámico en `/copilot`
+  - Inyección de contexto fiscal en tiempo real (Modelo 303, alertas, facturas recientes y top proveedores)
 
 ### 🚀 Próximos pasos sugeridos
 | Prioridad | Feature | Descripción |
 |-----------|---------|-------------|
-| 🔴 Alta | **Historial multi-turno en Copiloto** | Enviar los últimos N mensajes del chat a OpenAI para que el asistente recuerde el contexto de la conversación |
-| 🔴 Alta | **Selector de trimestre en `/copilot`** | Permitir al usuario cambiar el trimestre desde la UI del chat para consultar datos históricos |
-| 🟡 Media | **Streaming SSE en Copiloto** | Usar `ReadableStream` + SSE para mostrar la respuesta de OpenAI palabra a palabra |
+| 🟡 Media | **Streaming SSE en Copiloto** | Usar `ReadableStream` + SSE para mostrar la respuesta de OpenAI palabra a palabra en la interfaz |
 | 🟡 Media | **Validación NIF/CIF/NIE** | Algoritmo determinista de validación de documento fiscal español en `/settings` y revisión de facturas |
 | 🟡 Media | **Exportación de Datos / Borrador 303** | Descarga CSV/PDF del libro registro de facturas recibidas y resumen de liquidación oficial |
 | 🟢 Baja | **Avatar personalizable** | Subida y actualización de avatar a Supabase Storage desde `/settings` |
