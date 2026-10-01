@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -17,17 +17,63 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const NAV_ITEMS = [
+interface NavItem {
+  label: string;
+  href: string;
+  icon: React.ComponentType<{ className?: string }>;
+  badge?: string;
+  alert?: boolean;
+}
+
+const BASE_NAV_ITEMS: NavItem[] = [
   { label: "Dashboard (303)", href: "/", icon: LayoutDashboard },
-  { label: "Documentos", href: "/documents", icon: FileText, badge: "3" },
+  { label: "Documentos", href: "/documents", icon: FileText },
   { label: "Gastos & Deducción", href: "/expenses", icon: Receipt },
-  { label: "Anomalías AEAT", href: "/alerts", icon: AlertTriangle, badge: "2", alert: true },
+  { label: "Anomalías AEAT", href: "/alerts", icon: AlertTriangle, alert: true },
   { label: "Copiloto IA", href: "/copilot", icon: BotMessageSquare },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [docCount, setDocCount] = useState<number | null>(null);
+  const [alertCount, setAlertCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    const updateCounts = () => {
+      try {
+        const saved = localStorage.getItem("copiloto_fiscal_documents_v1");
+        if (saved) {
+          const list = JSON.parse(saved) as Record<string, unknown>[];
+          if (Array.isArray(list)) {
+            const realList = list.filter((d) => typeof d.id === "string" && !d.id.startsWith("doc-"));
+            setDocCount(realList.length);
+            const anoms = realList.flatMap((d) => (Array.isArray(d.anomalies) ? (d.anomalies as Record<string, unknown>[]) : [])).filter((a) => !a.resolved);
+            setAlertCount(anoms.length);
+            return;
+          }
+        }
+      } catch {}
+    };
+
+    updateCounts();
+    window.addEventListener("storage", updateCounts);
+    window.addEventListener("fiscal_docs_updated", updateCounts);
+    return () => {
+      window.removeEventListener("storage", updateCounts);
+      window.removeEventListener("fiscal_docs_updated", updateCounts);
+    };
+  }, []);
+
+  const navItems = BASE_NAV_ITEMS.map((item) => {
+    if (item.href === "/documents") {
+      return { ...item, badge: docCount !== null && docCount > 0 ? String(docCount) : undefined };
+    }
+    if (item.href === "/alerts") {
+      return { ...item, badge: alertCount !== null && alertCount > 0 ? String(alertCount) : undefined };
+    }
+    return item;
+  });
 
   return (
     <>
@@ -100,7 +146,7 @@ export function Sidebar() {
             <span className="px-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70 mb-1">
               Navegación
             </span>
-            {NAV_ITEMS.map((item) => {
+            {navItems.map((item) => {
               const Icon = item.icon;
               const isActive =
                 item.href === "/"

@@ -120,11 +120,14 @@ export default function DocumentsPage() {
 
     // Eliminar de Supabase DB
     try {
+      await supabase.from("expenses").delete().eq("document_id", id);
       await supabase.from("document_extractions").delete().eq("document_id", id);
       await supabase.from("documents").delete().eq("id", id);
     } catch (err) {
       console.warn("Error borrando en Supabase:", err);
     }
+
+    window.dispatchEvent(new Event("fiscal_docs_updated"));
   };
 
   const handleResetToMock = () => {
@@ -262,6 +265,7 @@ export default function DocumentsPage() {
                 : d
             );
             localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+            window.dispatchEvent(new Event("fiscal_docs_updated"));
             return updated;
           });
         } else {

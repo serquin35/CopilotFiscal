@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -13,16 +13,62 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const NAV_ITEMS = [
+interface NavItem {
+  label: string;
+  href: string;
+  icon: React.ComponentType<{ className?: string }>;
+  badge?: string;
+  alert?: boolean;
+}
+
+const BASE_NAV_ITEMS: NavItem[] = [
   { label: "Dashboard", href: "/", icon: LayoutDashboard },
-  { label: "Documentos", href: "/documents", icon: FileText, badge: "3" },
+  { label: "Documentos", href: "/documents", icon: FileText },
   { label: "Gastos", href: "/expenses", icon: Receipt },
-  { label: "Anomalías", href: "/alerts", icon: AlertTriangle, badge: "2", alert: true },
+  { label: "Anomalías", href: "/alerts", icon: AlertTriangle, alert: true },
   { label: "Copiloto IA", href: "/copilot", icon: BotMessageSquare },
 ];
 
 export function Navbar() {
   const pathname = usePathname();
+  const [docCount, setDocCount] = useState<number | null>(null);
+  const [alertCount, setAlertCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    const updateCounts = () => {
+      try {
+        const saved = localStorage.getItem("copiloto_fiscal_documents_v1");
+        if (saved) {
+          const list = JSON.parse(saved) as Record<string, unknown>[];
+          if (Array.isArray(list)) {
+            const realList = list.filter((d) => typeof d.id === "string" && !d.id.startsWith("doc-"));
+            setDocCount(realList.length);
+            const anoms = realList.flatMap((d) => (Array.isArray(d.anomalies) ? (d.anomalies as Record<string, unknown>[]) : [])).filter((a) => !a.resolved);
+            setAlertCount(anoms.length);
+            return;
+          }
+        }
+      } catch {}
+    };
+
+    updateCounts();
+    window.addEventListener("storage", updateCounts);
+    window.addEventListener("fiscal_docs_updated", updateCounts);
+    return () => {
+      window.removeEventListener("storage", updateCounts);
+      window.removeEventListener("fiscal_docs_updated", updateCounts);
+    };
+  }, []);
+
+  const navItems = BASE_NAV_ITEMS.map((item) => {
+    if (item.href === "/documents") {
+      return { ...item, badge: docCount !== null && docCount > 0 ? String(docCount) : undefined };
+    }
+    if (item.href === "/alerts") {
+      return { ...item, badge: alertCount !== null && alertCount > 0 ? String(alertCount) : undefined };
+    }
+    return item;
+  });
 
   return (
     <header className="sticky top-0 z-40 border-b border-border/80 bg-background/90 backdrop-blur-md">
@@ -49,7 +95,7 @@ export function Navbar() {
 
         {/* Navigation tabs */}
         <nav className="hidden md:flex items-center gap-1 rounded-xl bg-card border border-border/80 p-1">
-          {NAV_ITEMS.map((item) => {
+          {navItems.map((item) => {
             const Icon = item.icon;
             const isActive =
               item.href === "/"
@@ -103,7 +149,7 @@ export function Navbar() {
 
       {/* Mobile nav */}
       <div className="flex md:hidden overflow-x-auto border-t border-border/40 px-3 py-2 gap-1 bg-card/60">
-        {NAV_ITEMS.map((item) => {
+        {navItems.map((item) => {
           const Icon = item.icon;
           const isActive =
             item.href === "/"

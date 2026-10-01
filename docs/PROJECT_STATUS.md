@@ -1,8 +1,8 @@
 # PROJECT STATUS — COPILOTO FISCAL
 
-> **Versión:** 1.2
+> **Versión:** 1.3
 > **Última actualización:** 01 Octubre 2026
-> **Estado global:** FASE 4 — En progreso activo
+> **Estado global:** FASE 5 — En progreso avanzado (90%)
 > **Autor:** Antigravity (actualización continua)
 > **Fuente de verdad:** [COPILOTO_FISCAL_MASTER_PLAN.md](../COPILOTO_FISCAL_MASTER_PLAN.md)
 
@@ -15,9 +15,9 @@
 | **FASE 0** | Descubrimiento y planificación | ✅ COMPLETA | 100% |
 | **FASE 1** | Infraestructura | ✅ COMPLETA | 100% |
 | **FASE 2** | Núcleo financiero | ✅ COMPLETA | 95% |
-| **FASE 3** | Documentos | ✅ COMPLETA | 90% |
-| **FASE 4** | n8n + IA | 🔄 EN PROGRESO | 60% |
-| **FASE 5** | Dashboard | 🔄 EN PROGRESO | 70% |
+| **FASE 3** | Documentos | ✅ COMPLETA | 95% |
+| **FASE 4** | n8n + IA | 🔄 EN PROGRESO | 65% |
+| **FASE 5** | Dashboard & Visualización | 🔄 EN PROGRESO | 90% |
 | **FASE 6** | Anomalías | 🔄 EN PROGRESO | 50% |
 | **FASE 7** | Copiloto IA | ⏳ PENDIENTE | 20% |
 | **FASE 8** | Validación con datos reales | ⏳ PENDIENTE | 0% |
@@ -182,21 +182,23 @@ Respond to Webhook (JSON con extracted + status + confidence)
 
 ---
 
-## FASE 5 — Dashboard 🔄 EN PROGRESO (70%)
+## FASE 5 — Dashboard & Gestión Financiera 🔄 EN PROGRESO (90%)
 
 | Elemento | Estado | Detalle |
 |---|---|---|
-| Página principal (`/`) | ✅ | Dashboard con KPIs principales |
-| Métricas ingresos/gastos | ✅ | Calculadas (parcialmente mock) |
-| IVA repercutido/soportado estimativo | ✅ | Visible con motor determinista |
-| Saldo fiscal estimado | ✅ | Calculado |
-| Documentos pendientes | ✅ | Contador en tiempo real |
-| Alertas activas | ✅ | Listado con severidad |
-| Sidebar de navegación | ✅ | Dashboard, Documentos, Gastos, Anomalías, Copiloto IA |
-| Datos reales desde Supabase | ⚠️ | Parcialmente; dashboard aún depende de mockData |
+| Página principal (`/`) | ✅ | Dashboard 100% dinámico con KPIs y cálculo Modelo 303 en vivo |
+| Métricas ingresos/gastos | ✅ | Calculadas desde Supabase (`expenses`, `document_extractions`) y localStorage |
+| IVA repercutido/soportado | ✅ | Saldo determinista en tiempo real (distingue a devolver/compensar vs a ingresar) |
+| Saldo fiscal estimado | ✅ | Recálculo reactivo con selección dinámica de trimestres (1T, 2T, 3T, 4T) |
+| Progresión mensual por trimestre | ✅ | Dinámica según fechas reales de las facturas activas del trimestre |
+| Sección Gastos (`/expenses`) | ✅ | 100% conectada a Supabase; KPIs reactivos (Base, IVA Deducible, Total, Validadas) |
+| Sincronización en tiempo real | ✅ | Eventos `fiscal_docs_updated` y `storage` sincronizan `/`, `/documents`, `/expenses` y `/alerts` |
+| Badges en Sidebar y Navbar | ✅ | Contadores dinámicos de documentos pendientes y anomalías (auto-ocultables en 0) |
+| Alertas activas (`/alerts`) | ✅ | Filtrado dinámico de documentos reales sin anomalías mockeadas |
+| Eliminación total de datos mock | ✅ | Limpieza de facturas dummy de ejemplo y alertas falsas |
 | Comparativa periodo anterior | ⏳ | Pendiente |
 | Separación visual DATO/ESTIMACIÓN/PENDIENTE | ⏳ | Definido en spec, pendiente implementar |
-| Responsive / mobile-first | ⚠️ | Base presente, refinamiento pendiente |
+| Responsive / mobile-first | ✅ | Adaptado en grid y barras laterales |
 
 ---
 
@@ -273,7 +275,7 @@ Respond to Webhook (JSON con extracted + status + confidence)
 | DT-01 | API key OpenAI hardcodeada en WF-01 nodo HTTP | 🔴 ALTA | F4 |
 | DT-02 | Wrapper `AiProvider.interface.ts` no conectado al pipeline real | 🔴 ALTA | F4 |
 | DT-03 | `businessId` hardcodeado como UUID cero en todo el flujo | 🟡 MEDIA | F5 |
-| DT-04 | Dashboard parcialmente basado en `mockData.ts` | 🟡 MEDIA | F5 |
+| DT-04 | Dashboard parcialmente basado en `mockData.ts` | ✅ RESUELTO | F5 |
 | DT-05 | Seed SQL de datos DEMO no implementado | 🟡 MEDIA | F2 |
 | DT-06 | Tests RLS por tabla sin cubrir | 🟡 MEDIA | F1 |
 | DT-07 | Soporte PDF multi-página en WF-01 sin probar | 🟡 MEDIA | F4 |
@@ -291,8 +293,8 @@ Respond to Webhook (JSON con extracted + status + confidence)
 
 ### 🟡 Esta semana
 3. Implementar WF-05: expense-processing tras aprobación human-in-the-loop
-4. Reemplazar `mockData.ts` con queries reales a Supabase en dashboard (DT-04)
-5. Conectar `businessId` real desde sesión de usuario (DT-03)
+4. Conectar `businessId` real desde sesión de usuario (DT-03)
+5. Separación visual DATO / ESTIMACIÓN / PENDIENTE en tarjetas de saldos fiscales
 
 ### 🟠 Próximas 2 semanas
 6. Implementar reglas anomalías restantes (`MISSING_VAT_DATA`, `UNUSUAL_VAT_RATIO`)
@@ -316,6 +318,9 @@ Respond to Webhook (JSON con extracted + status + confidence)
 | 01/10/2026 | 🚀 Feature | Bloqueo estricto de re-validación en `/documents/[id]/review` (modo solo lectura para facturas aprobadas) |
 | 01/10/2026 | 🚀 Feature | Inserción automática en `expenses`, `suppliers` y `audit_events` al validar factura en Human-in-the-Loop |
 | 01/10/2026 | 🚀 Feature | Conexión dinámica del Dashboard (`/`) a Supabase para recalcular Modelo 303 en vivo con facturas reales |
+| 01/10/2026 | 🚀 Feature | Sección Gastos (`/expenses`) 100% reactiva en tiempo real con Supabase y localStorage, recalculando KPIs fiscales |
+| 01/10/2026 | 🧹 Refactor | Eliminación de datos mock residuales en Dashboard (`/`) y Alertas (`/alerts`), meses y saldos tributarios dinámicos |
+| 01/10/2026 | 🔔 Feature | Badges dinámicos de documentos y anomalías en Sidebar y Navbar con ocultamiento inteligente en conteo cero |
 
 ---
 

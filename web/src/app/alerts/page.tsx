@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   AlertTriangle,
@@ -15,13 +15,46 @@ import {
 } from "lucide-react";
 import { Card, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { initialAlerts, initialDocuments } from "@/lib/mockData";
-import { AnomalyAlert } from "@/types";
+import { AnomalyAlert, FiscalDocument } from "@/types";
 
 export default function AlertsPage() {
-  const [alerts, setAlerts] = useState<AnomalyAlert[]>(initialAlerts);
+  const [documents, setDocuments] = useState<FiscalDocument[]>([]);
+  const [alerts, setAlerts] = useState<AnomalyAlert[]>([]);
   const [filterSeverity, setFilterSeverity] = useState<string>("ALL");
   const [feedback, setFeedback] = useState<string | null>(null);
+
+  const STORAGE_KEY = "copiloto_fiscal_documents_v1";
+
+  const loadAlertsData = () => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const list = JSON.parse(saved) as FiscalDocument[];
+        if (Array.isArray(list)) {
+          const realDocs = list.filter((d) => !d.id.startsWith("doc-"));
+          setDocuments(realDocs);
+          const anoms = realDocs.flatMap((d) => d.anomalies || []);
+          setAlerts(anoms);
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn("Error leyendo alertas:", e);
+    }
+    setDocuments([]);
+    setAlerts([]);
+  };
+
+  useEffect(() => {
+    loadAlertsData();
+
+    window.addEventListener("storage", loadAlertsData);
+    window.addEventListener("fiscal_docs_updated", loadAlertsData);
+    return () => {
+      window.removeEventListener("storage", loadAlertsData);
+      window.removeEventListener("fiscal_docs_updated", loadAlertsData);
+    };
+  }, []);
 
   const handleResolveAlert = (id: string, reason: string) => {
     setAlerts((prev) =>
@@ -140,7 +173,7 @@ export default function AlertsPage() {
           </Card>
         ) : (
           filteredAlerts.map((alert) => {
-            const relatedDoc = initialDocuments.find((d) => d.id === alert.documentId);
+            const relatedDoc = documents.find((d) => d.id === alert.documentId);
 
             return (
               <Card

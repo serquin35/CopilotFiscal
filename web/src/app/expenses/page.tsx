@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   Receipt,
@@ -11,20 +11,110 @@ import { Card, CardHeader, CardDescription, CardContent } from "@/components/ui/
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/badge";
 import { formatCurrency, formatDate } from "@/lib/utils";
-import { initialDocuments } from "@/lib/mockData";
 import { FiscalDocument } from "@/types";
+import { supabase } from "@/lib/supabase";
 
 export default function ExpensesPage() {
-  const [documents] = useState<FiscalDocument[]>(initialDocuments);
+  const [documents, setDocuments] = useState<FiscalDocument[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("ALL");
   const [vatRateFilter, setVatRateFilter] = useState("ALL");
   const [deductibilityFilter, setDeductibilityFilter] = useState("ALL");
 
+  const STORAGE_KEY = "copiloto_fiscal_documents_v1";
+
+  const loadExpensesData = async () => {
+    let currentDocs: FiscalDocument[] = [];
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved) as FiscalDocument[];
+        if (Array.isArray(parsed)) {
+          currentDocs = parsed;
+        }
+      }
+    } catch (e) {
+      console.warn("Error leyendo localStorage en Expenses:", e);
+    }
+
+    try {
+      const { data: dbDocs, error } = await supabase
+        .from("documents")
+        .select("*, document_extractions(*)")
+        .order("uploaded_at", { ascending: false });
+
+      if (!error && dbDocs && dbDocs.length > 0) {
+        const mappedDbDocs: FiscalDocument[] = dbDocs.map((item: Record<string, unknown>) => {
+          const extList = item.document_extractions as Record<string, unknown>[] | null;
+          const ext = Array.isArray(extList) && extList.length > 0 ? extList[0] : null;
+
+          let publicUrl = "";
+          if (item.storage_path) {
+            const { data: urlData } = supabase.storage.from("documents").getPublicUrl(String(item.storage_path));
+            publicUrl = urlData?.publicUrl || "";
+          }
+
+          const localMatch = currentDocs.find((cd) => cd.id === String(item.id));
+
+          return {
+            id: String(item.id || ""),
+            filename: String(item.original_filename || localMatch?.filename || "Documento"),
+            fileSize: Number(item.file_size_bytes) || localMatch?.fileSize || 120000,
+            uploadedAt: String(item.uploaded_at || localMatch?.uploadedAt || new Date().toISOString()),
+            status: (item.status as FiscalDocument["status"]) || localMatch?.status || "PENDING_REVIEW",
+            url: publicUrl || localMatch?.url,
+            providerName: (ext?.extracted_supplier_name as string) || localMatch?.providerName || String(item.notes || "Proveedor detectado"),
+            nif: (ext?.extracted_supplier_nif as string) || localMatch?.nif || "-",
+            invoiceNumber: (ext?.extracted_invoice_number as string) || localMatch?.invoiceNumber || `F-${String(item.id || "").substring(0, 8)}`,
+            date: (ext?.extracted_date as string) || localMatch?.date || String(item.uploaded_at || "").split("T")[0] || new Date().toISOString().split("T")[0],
+            baseAmount: Number(ext?.extracted_base_amount ?? localMatch?.baseAmount ?? 0),
+            vatRate: Number(ext?.extracted_vat_rate ?? localMatch?.vatRate ?? 21),
+            vatAmount: Number(ext?.extracted_vat_amount ?? localMatch?.vatAmount ?? 0),
+            totalAmount: Number(ext?.extracted_total_amount ?? localMatch?.totalAmount ?? 0),
+            category: (ext?.extracted_category as string) || localMatch?.category || String(item.type || "Gastos deducibles"),
+            deductiblePercentage: localMatch?.deductiblePercentage ?? 100,
+          };
+        });
+
+        // Solo combinamos con locales si no están en BD y no son mocks descartados
+        const combined = [
+          ...mappedDbDocs,
+          ...currentDocs.filter((cd) => !mappedDbDocs.some((md) => md.id === cd.id) && !cd.id.startsWith("doc-")),
+        ];
+        setDocuments(combined);
+        return;
+      }
+    } catch (err) {
+      console.warn("Error consultando Supabase en Expenses:", err);
+    }
+
+    // Filtrar docs mock iniciales si el usuario los eliminó
+    const realOnly = currentDocs.filter((cd) => !cd.id.startsWith("doc-"));
+    setDocuments(realOnly);
+  };
+
+  useEffect(() => {
+    loadExpensesData();
+
+    const handleUpdate = () => {
+      loadExpensesData();
+    };
+
+    window.addEventListener("storage", handleUpdate);
+    window.addEventListener("fiscal_docs_updated", handleUpdate);
+    return () => {
+      window.removeEventListener("storage", handleUpdate);
+      window.removeEventListener("fiscal_docs_updated", handleUpdate);
+    };
+  }, []);
+
   // Métricas agregadas
   const totalInvoiced = documents.reduce((sum, d) => sum + (d.totalAmount || 0), 0);
   const totalBase = documents.reduce((sum, d) => sum + (d.baseAmount || 0), 0);
-  const totalDeductibleVat = documents.reduce((sum, d) => {
+  const approvedDocs = documents.filter(
+    (d) => d.status === "CONFIRMED" || d.status === "REVIEWED" || d.status === "APPROVED"
+  );
+  const totalDeductibleVat = approvedDocs.reduce((sum, d) => {
     const rate = (d.deductiblePercentage ?? 100) / 100;
     return sum + (d.vatAmount || 0) * rate;
   }, 0);
@@ -130,7 +220,7 @@ export default function ExpensesPage() {
             <span className="text-xs font-normal text-muted-foreground">documentos</span>
           </div>
           <span className="text-[11px] text-muted-foreground mt-1 block">
-            {documents.filter((d) => d.status === "REVIEWED").length} validados por el gestor
+            {approvedDocs.length} validados por el gestor
           </span>
         </Card>
       </div>
