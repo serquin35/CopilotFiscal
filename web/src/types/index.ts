@@ -4,6 +4,8 @@ export type DocumentStatus =
   | "EXTRACTED"
   | "PENDING_REVIEW"
   | "REVIEWED"
+  | "CONFIRMED"
+  | "APPROVED"
   | "REJECTED";
 
 export type InvoiceStatus =

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   Calendar,
@@ -19,23 +19,159 @@ import { StatusBadge } from "@/components/ui/badge";
 import { ProgressBar, VatSegmentedBar } from "@/components/ui/progress";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { initialSummary, initialDocuments, initialAlerts } from "@/lib/mockData";
-import { FiscalDocument } from "@/types";
+import { FiscalDocument, QuarterlySummary } from "@/types";
+import { supabase } from "@/lib/supabase";
 
 export default function DashboardPage() {
-  const [summary] = useState(initialSummary);
+  const [summary, setSummary] = useState<QuarterlySummary>(initialSummary);
   const [documents, setDocuments] = useState<FiscalDocument[]>(initialDocuments);
   const [alerts] = useState(initialAlerts.filter((a) => !a.resolved));
 
-  const handleQuickApprove = (docId: string) => {
-    setDocuments((prev) =>
-      prev.map((d) => (d.id === docId ? { ...d, status: "REVIEWED" } : d))
+  const STORAGE_KEY = "copiloto_fiscal_documents_v1";
+
+  const calculateSummary = (docs: FiscalDocument[]) => {
+    const approvedDocs = docs.filter(
+      (d) => d.status === "CONFIRMED" || d.status === "REVIEWED" || d.status === "APPROVED"
     );
+    const pendingDocs = docs.filter(
+      (d) => d.status === "PENDING_REVIEW" || d.status === "EXTRACTED" || d.status === "UPLOADED"
+    );
+
+    const deductibleVat = approvedDocs.reduce((sum, d) => {
+      const pct = (d.deductiblePercentage ?? 100) / 100;
+      return sum + (d.vatAmount || 0) * pct;
+    }, 0);
+
+    const collectedVat = initialSummary.collectedVat; // 4850.50 €
+    const roundedDeductible = Number(deductibleVat.toFixed(2));
+    const netVat = Number((collectedVat - roundedDeductible).toFixed(2));
+    const totalCount = docs.length || 1;
+    const completeness = Math.min(100, Math.round((approvedDocs.length / totalCount) * 100));
+
+    setSummary((prev) => ({
+      ...prev,
+      deductibleVat: roundedDeductible,
+      netVat: netVat > 0 ? netVat : 0,
+      pendingReviewCount: pendingDocs.length,
+      dataCompleteness: completeness,
+    }));
   };
 
-  const handleQuickReject = (docId: string) => {
-    setDocuments((prev) =>
-      prev.map((d) => (d.id === docId ? { ...d, status: "REJECTED" } : d))
+  useEffect(() => {
+    async function loadDashboardData() {
+      let currentDocs = initialDocuments;
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved) as FiscalDocument[];
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            currentDocs = parsed;
+          }
+        }
+      } catch (e) {
+        console.warn("Error leyendo localStorage:", e);
+      }
+
+      try {
+        const { data: dbDocs, error } = await supabase
+          .from("documents")
+          .select("*, document_extractions(*)")
+          .order("uploaded_at", { ascending: false });
+
+        if (!error && dbDocs && dbDocs.length > 0) {
+          const mappedDbDocs: FiscalDocument[] = dbDocs.map((item: Record<string, unknown>) => {
+            const extList = item.document_extractions as Record<string, unknown>[] | null;
+            const ext = Array.isArray(extList) && extList.length > 0 ? extList[0] : null;
+
+            let publicUrl = "";
+            if (item.storage_path) {
+              const { data: urlData } = supabase.storage.from("documents").getPublicUrl(String(item.storage_path));
+              publicUrl = urlData?.publicUrl || "";
+            }
+
+            return {
+              id: String(item.id || ""),
+              filename: String(item.original_filename || "Documento"),
+              fileSize: Number(item.file_size_bytes) || 120000,
+              uploadedAt: String(item.uploaded_at || new Date().toISOString()),
+              status: (item.status as FiscalDocument["status"]) || "PENDING_REVIEW",
+              url: publicUrl,
+              providerName: (ext?.extracted_supplier_name as string) || String(item.notes || "Proveedor detectado"),
+              nif: (ext?.extracted_supplier_nif as string) || "-",
+              invoiceNumber: (ext?.extracted_invoice_number as string) || `F-${String(item.id || "").substring(0, 8)}`,
+              date: (ext?.extracted_date as string) || String(item.uploaded_at || "").split("T")[0] || new Date().toISOString().split("T")[0],
+              baseAmount: Number(ext?.extracted_base_amount || 0),
+              vatRate: Number(ext?.extracted_vat_rate || 21),
+              vatAmount: Number(ext?.extracted_vat_amount || 0),
+              totalAmount: Number(ext?.extracted_total_amount || 0),
+              category: (ext?.extracted_category as string) || String(item.type || "Factura"),
+              deductiblePercentage: 100,
+            };
+          });
+
+          const combined = [
+            ...mappedDbDocs,
+            ...currentDocs.filter((cd) => !mappedDbDocs.some((md) => md.id === cd.id)),
+          ];
+          setDocuments(combined);
+          calculateSummary(combined);
+          return;
+        }
+      } catch (err) {
+        console.warn("Error consultando Supabase en Dashboard:", err);
+      }
+
+      setDocuments(currentDocs);
+      calculateSummary(currentDocs);
+    }
+
+    loadDashboardData();
+  }, []);
+
+  const handleQuickApprove = async (docId: string) => {
+    const updated = documents.map((d) =>
+      d.id === docId ? { ...d, status: "CONFIRMED" as const } : d
     );
+    setDocuments(updated);
+    calculateSummary(updated);
+
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    } catch (e) {
+      console.warn("Error guardando en localStorage:", e);
+    }
+
+    try {
+      await supabase
+        .from("documents")
+        .update({ status: "CONFIRMED", status_updated_at: new Date().toISOString() })
+        .eq("id", docId);
+    } catch (e) {
+      console.warn("Error actualizando Supabase en QuickApprove:", e);
+    }
+  };
+
+  const handleQuickReject = async (docId: string) => {
+    const updated = documents.map((d) =>
+      d.id === docId ? { ...d, status: "REJECTED" as const } : d
+    );
+    setDocuments(updated);
+    calculateSummary(updated);
+
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    } catch (e) {
+      console.warn("Error guardando en localStorage:", e);
+    }
+
+    try {
+      await supabase
+        .from("documents")
+        .update({ status: "REJECTED", status_updated_at: new Date().toISOString() })
+        .eq("id", docId);
+    } catch (e) {
+      console.warn("Error actualizando Supabase en QuickReject:", e);
+    }
   };
 
   const deductiblePercentage =

@@ -37,6 +37,14 @@ export default function DocumentReviewPage() {
   const [doc, setDoc] = useState<FiscalDocument>(baseDoc);
   const [zoomLevel, setZoomLevel] = useState<number>(100);
   const [actionFeedback, setActionFeedback] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const isAlreadyValidated =
+    doc.status === "CONFIRMED" ||
+    doc.status === "REVIEWED" ||
+    doc.status === "APPROVED";
+  const isRejected = doc.status === "REJECTED";
+  const isReadOnly = isAlreadyValidated || isRejected;
 
   useEffect(() => {
     async function loadDocument() {
@@ -110,6 +118,7 @@ export default function DocumentReviewPage() {
   }, [docId]);
 
   const handleFieldChange = (field: keyof FiscalDocument, value: string | number | undefined) => {
+    if (isReadOnly) return;
     setDoc((prev) => {
       const updated = { ...prev, [field]: value };
       // Recalcular cuota y total si cambia base o tasa de IVA
@@ -125,6 +134,7 @@ export default function DocumentReviewPage() {
   };
 
   const handleDismissAnomaly = (alertId: string) => {
+    if (isReadOnly) return;
     setDoc((prev) => ({
       ...prev,
       anomalies: prev.anomalies?.filter((a) => a.id !== alertId),
@@ -132,10 +142,16 @@ export default function DocumentReviewPage() {
   };
 
   const handleApprove = async () => {
-    const updatedDoc: FiscalDocument = { ...doc, status: "REVIEWED" };
+    if (isAlreadyValidated) {
+      setActionFeedback("Esta factura ya fue validada previamente.");
+      return;
+    }
+    setIsSaving(true);
+    const updatedDoc: FiscalDocument = { ...doc, status: "CONFIRMED" };
     setDoc(updatedDoc);
-    setActionFeedback("¡Documento validado y aprobado para el Modelo 303!");
+    setActionFeedback("¡Documento validado y conciliado en Modelo 303!");
 
+    // 1. Guardar en localStorage
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
@@ -147,15 +163,122 @@ export default function DocumentReviewPage() {
       console.warn("Error guardando en localStorage:", e);
     }
 
+    // 2. Actualizar estado en tabla documents
     try {
-      await supabase.from("documents").update({ status: "CONFIRMED" }).eq("id", doc.id);
+      await supabase
+        .from("documents")
+        .update({ 
+          status: "CONFIRMED",
+          status_updated_at: new Date().toISOString()
+        })
+        .eq("id", doc.id);
     } catch (e) {
-      console.warn("Error actualizando Supabase:", e);
+      console.warn("Error actualizando Supabase documents:", e);
     }
 
+    // 3. Crear o vincular proveedor en public.suppliers
+    let supplierId: string | null = null;
+    try {
+      const cleanName = doc.providerName?.trim() || "";
+      if (cleanName) {
+        const { data: existingSup } = await supabase
+          .from("suppliers")
+          .select("id")
+          .ilike("name", `%${cleanName}%`)
+          .limit(1)
+          .maybeSingle();
+
+        if (existingSup?.id) {
+          supplierId = existingSup.id;
+        } else {
+          const { data: newSup } = await supabase
+            .from("suppliers")
+            .insert([{
+              business_id: "00000000-0000-0000-0000-000000000000",
+              name: cleanName,
+              normalized_name: cleanName.toUpperCase(),
+              tax_id_masked: doc.nif || null,
+              category: doc.category || "General",
+              country: "ES",
+              is_verified: true,
+            }])
+            .select("id")
+            .single();
+          if (newSup?.id) supplierId = newSup.id;
+        }
+      }
+    } catch (e) {
+      console.warn("Error vinculando proveedor:", e);
+    }
+
+    // 4. Crear registro contable en public.expenses
+    try {
+      const { data: existingExp } = await supabase
+        .from("expenses")
+        .select("id")
+        .eq("document_id", doc.id)
+        .maybeSingle();
+
+      if (!existingExp) {
+        const deductStatus =
+          doc.deductiblePercentage === 0
+            ? "NON_DEDUCTIBLE"
+            : doc.deductiblePercentage === 50
+            ? "PARTIAL"
+            : "DEDUCTIBLE";
+
+        const docDate = doc.date || new Date().toISOString().split("T")[0];
+        const dateObj = new Date(docDate);
+        const year = dateObj.getFullYear() || 2026;
+        const month = dateObj.getMonth() + 1;
+        const quarter = Math.ceil(month / 3);
+
+        await supabase.from("expenses").insert([{
+          business_id: "00000000-0000-0000-0000-000000000000",
+          document_id: doc.id,
+          supplier_id: supplierId,
+          date: docDate,
+          description: `${doc.providerName || "Factura"} - ${doc.invoiceNumber || doc.filename}`,
+          base_amount: doc.baseAmount || 0,
+          vat_rate: doc.vatRate || 21,
+          vat_amount: doc.vatAmount || 0,
+          total_amount: doc.totalAmount || 0,
+          currency: "EUR",
+          category: doc.category || "suministros",
+          deductibility_status: deductStatus,
+          validation_status: "VALIDATED",
+          is_manually_entered: false,
+          fiscal_period_year: year,
+          fiscal_period_quarter: quarter,
+        }]);
+      }
+    } catch (e) {
+      console.warn("Error creando apunte en expenses:", e);
+    }
+
+    // 5. Auditoría
+    try {
+      await supabase.from("audit_events").insert([{
+        business_id: "00000000-0000-0000-0000-000000000000",
+        entity_type: "document",
+        entity_id: doc.id,
+        action: "DOCUMENT_CONFIRMED",
+        actor_type: "user",
+        metadata: {
+          invoice_number: doc.invoiceNumber,
+          total_amount: doc.totalAmount,
+          vat_amount: doc.vatAmount,
+          deductible_percentage: doc.deductiblePercentage,
+        },
+      }]);
+    } catch (e) {
+      console.warn("Error registrando auditoría:", e);
+    }
+
+    setIsSaving(false);
     setTimeout(() => {
       router.push("/documents");
-    }, 1500);
+    }, 1200);
   };
 
   const handleReject = async () => {
@@ -346,6 +469,34 @@ export default function DocumentReviewPage() {
 
         {/* Right Column: AI Extracted Fields & Validation (5 cols) */}
         <div className="lg:col-span-5 flex flex-col gap-4">
+          {/* Banner de Validación Completada */}
+          {isAlreadyValidated && (
+            <div className="rounded-xl border border-primary/40 bg-primary/10 p-3.5 flex items-start gap-3">
+              <CheckCircle2 className="size-5 text-primary shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <h4 className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                  <span>Factura Validada y Conciliada</span>
+                  <StatusBadge status="CONFIRMED" />
+                </h4>
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  Este documento ya está computado en el Modelo 303 y registrado en la tabla contable de gastos. Por seguridad fiscal, los campos están bloqueados contra re-validaciones accidentales.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {isRejected && (
+            <div className="rounded-xl border border-destructive/40 bg-destructive/10 p-3.5 flex items-start gap-3">
+              <XCircle className="size-5 text-destructive shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <h4 className="text-xs font-semibold text-destructive">Gasto Rechazado</h4>
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  Este documento fue catalogado como no deducible / rechazado y no se imputará al Modelo 303.
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Anomalies Card (if any) */}
           {doc.anomalies && doc.anomalies.length > 0 && (
             <Card className="border-destructive/40 bg-destructive/10">
@@ -370,12 +521,14 @@ export default function DocumentReviewPage() {
                     <p className="text-muted-foreground text-[11px] leading-relaxed">
                       {anom.description}
                     </p>
-                    <button
-                      onClick={() => handleDismissAnomaly(anom.id)}
-                      className="text-xs text-primary font-medium hover:underline pt-1"
-                    >
-                      Descartar anomalía (Confirmada correcta)
-                    </button>
+                    {!isReadOnly && (
+                      <button
+                        onClick={() => handleDismissAnomaly(anom.id)}
+                        className="text-xs text-primary font-medium hover:underline pt-1"
+                      >
+                        Descartar anomalía (Confirmada correcta)
+                      </button>
+                    )}
                   </div>
                 ))}
               </CardContent>
@@ -390,12 +543,14 @@ export default function DocumentReviewPage() {
                   <Sparkles className="size-4 text-primary" />
                   <CardTitle className="text-base">Datos Extraídos por el Pipeline</CardTitle>
                 </div>
-                <Badge variant="primary" className="text-[10px]">
-                  Confianza: 98%
+                <Badge variant={isAlreadyValidated ? "success" : "primary"} className="text-[10px]">
+                  {isAlreadyValidated ? "Validada" : "Confianza: 98%"}
                 </Badge>
               </div>
               <CardDescription>
-                Puedes editar cualquier campo antes de aprobar. La decisión es 100% tuya.
+                {isReadOnly
+                  ? "Vista en modo lectura. Para modificar datos fiscales, contacta con tu asesor contable."
+                  : "Puedes editar cualquier campo antes de aprobar. La decisión es 100% tuya."}
               </CardDescription>
             </CardHeader>
 
@@ -408,9 +563,12 @@ export default function DocumentReviewPage() {
                   </label>
                   <input
                     type="text"
+                    disabled={isReadOnly}
                     value={doc.providerName || ""}
                     onChange={(e) => handleFieldChange("providerName", e.target.value)}
-                    className="w-full h-8 rounded-lg border border-border bg-background px-2.5 text-xs text-foreground focus:ring-1 focus:ring-ring"
+                    className={`w-full h-8 rounded-lg border border-border bg-background px-2.5 text-xs text-foreground focus:ring-1 focus:ring-ring ${
+                      isReadOnly ? "opacity-80 cursor-not-allowed bg-muted/40" : ""
+                    }`}
                   />
                 </div>
                 <div>
@@ -419,9 +577,12 @@ export default function DocumentReviewPage() {
                   </label>
                   <input
                     type="text"
+                    disabled={isReadOnly}
                     value={doc.nif || ""}
                     onChange={(e) => handleFieldChange("nif", e.target.value)}
-                    className="w-full h-8 font-mono rounded-lg border border-border bg-background px-2.5 text-xs text-foreground focus:ring-1 focus:ring-ring"
+                    className={`w-full h-8 font-mono rounded-lg border border-border bg-background px-2.5 text-xs text-foreground focus:ring-1 focus:ring-ring ${
+                      isReadOnly ? "opacity-80 cursor-not-allowed bg-muted/40" : ""
+                    }`}
                   />
                 </div>
                 <div>
@@ -430,9 +591,12 @@ export default function DocumentReviewPage() {
                   </label>
                   <input
                     type="text"
+                    disabled={isReadOnly}
                     value={doc.invoiceNumber || ""}
                     onChange={(e) => handleFieldChange("invoiceNumber", e.target.value)}
-                    className="w-full h-8 font-mono rounded-lg border border-border bg-background px-2.5 text-xs text-foreground focus:ring-1 focus:ring-ring"
+                    className={`w-full h-8 font-mono rounded-lg border border-border bg-background px-2.5 text-xs text-foreground focus:ring-1 focus:ring-ring ${
+                      isReadOnly ? "opacity-80 cursor-not-allowed bg-muted/40" : ""
+                    }`}
                   />
                 </div>
               </div>
@@ -445,9 +609,12 @@ export default function DocumentReviewPage() {
                   </label>
                   <input
                     type="date"
+                    disabled={isReadOnly}
                     value={doc.date || ""}
                     onChange={(e) => handleFieldChange("date", e.target.value)}
-                    className="w-full h-8 rounded-lg border border-border bg-background px-2.5 text-xs text-foreground focus:ring-1 focus:ring-ring"
+                    className={`w-full h-8 rounded-lg border border-border bg-background px-2.5 text-xs text-foreground focus:ring-1 focus:ring-ring ${
+                      isReadOnly ? "opacity-80 cursor-not-allowed bg-muted/40" : ""
+                    }`}
                   />
                 </div>
                 <div>
@@ -455,9 +622,12 @@ export default function DocumentReviewPage() {
                     Categoría de Gasto
                   </label>
                   <select
+                    disabled={isReadOnly}
                     value={doc.category || "Servicios"}
                     onChange={(e) => handleFieldChange("category", e.target.value)}
-                    className="w-full h-8 rounded-lg border border-border bg-background px-2 text-xs text-foreground focus:ring-1 focus:ring-ring"
+                    className={`w-full h-8 rounded-lg border border-border bg-background px-2 text-xs text-foreground focus:ring-1 focus:ring-ring ${
+                      isReadOnly ? "opacity-80 cursor-not-allowed bg-muted/40" : ""
+                    }`}
                   >
                     <option value="Servicios Cloud / Hosting">Servicios Cloud / Hosting</option>
                     <option value="Software y Licencias">Software y Licencias</option>
@@ -465,6 +635,7 @@ export default function DocumentReviewPage() {
                     <option value="Comidas de Negocios / Relaciones Públicas">Restauración y Dietas</option>
                     <option value="Combustible y Desplazamientos">Combustible / Transporte</option>
                     <option value="Suministros y Material">Suministros Oficina</option>
+                    <option value="suministros">Suministros (Luz, Agua, Gas)</option>
                   </select>
                 </div>
               </div>
@@ -479,9 +650,12 @@ export default function DocumentReviewPage() {
                     <input
                       type="number"
                       step="0.01"
+                      disabled={isReadOnly}
                       value={doc.baseAmount || 0}
                       onChange={(e) => handleFieldChange("baseAmount", e.target.value)}
-                      className="w-full h-8 font-mono rounded-lg border border-border bg-background px-2 text-xs text-foreground text-right focus:ring-1 focus:ring-ring"
+                      className={`w-full h-8 font-mono rounded-lg border border-border bg-background px-2 text-xs text-foreground text-right focus:ring-1 focus:ring-ring ${
+                        isReadOnly ? "opacity-80 cursor-not-allowed bg-muted/40" : ""
+                      }`}
                     />
                   </div>
                   <div>
@@ -489,9 +663,12 @@ export default function DocumentReviewPage() {
                       IVA (%)
                     </label>
                     <select
+                      disabled={isReadOnly}
                       value={doc.vatRate || 21}
                       onChange={(e) => handleFieldChange("vatRate", e.target.value)}
-                      className="w-full h-8 font-mono rounded-lg border border-border bg-background px-2 text-xs text-foreground focus:ring-1 focus:ring-ring"
+                      className={`w-full h-8 font-mono rounded-lg border border-border bg-background px-2 text-xs text-foreground focus:ring-1 focus:ring-ring ${
+                        isReadOnly ? "opacity-80 cursor-not-allowed bg-muted/40" : ""
+                      }`}
                     >
                       <option value={21}>21% General</option>
                       <option value={10}>10% Reducido</option>
@@ -506,6 +683,7 @@ export default function DocumentReviewPage() {
                     <input
                       type="number"
                       readOnly
+                      disabled
                       value={doc.vatAmount || 0}
                       className="w-full h-8 font-mono rounded-lg border border-border/60 bg-muted px-2 text-xs text-muted-foreground text-right"
                     />
@@ -534,12 +712,13 @@ export default function DocumentReviewPage() {
                     <button
                       key={item.val}
                       type="button"
+                      disabled={isReadOnly}
                       onClick={() => handleFieldChange("deductiblePercentage", item.val)}
                       className={`h-8 rounded-lg border text-xs font-medium transition-all ${
                         doc.deductiblePercentage === item.val
                           ? "border-primary bg-primary/20 text-primary font-semibold"
                           : "border-border bg-background text-muted-foreground hover:text-foreground"
-                      }`}
+                      } ${isReadOnly ? "opacity-75 cursor-not-allowed" : ""}`}
                     >
                       {item.label}
                     </button>
@@ -560,33 +739,76 @@ export default function DocumentReviewPage() {
 
             {/* Bottom Actions Bar */}
             <CardFooter className="flex flex-col gap-2 pt-4">
-              <Button
-                variant="primary"
-                className="w-full gap-2 text-xs h-10 shadow-sm"
-                onClick={handleApprove}
-              >
-                <CheckCircle2 className="size-4" />
-                <span>Aprobar Extracción &amp; Conciliar en Modelo 303</span>
-              </Button>
+              {isAlreadyValidated ? (
+                <div className="w-full space-y-2">
+                  <Button
+                    variant="secondary"
+                    className="w-full gap-2 text-xs h-10 shadow-sm cursor-not-allowed bg-primary/15 text-primary border border-primary/30 hover:bg-primary/15"
+                    disabled
+                  >
+                    <CheckCircle2 className="size-4 text-primary" />
+                    <span>Factura ya Validada y Conciliada en Modelo 303</span>
+                  </Button>
+                  <Link href="/documents" className="block w-full">
+                    <Button variant="outline" className="w-full text-xs h-9">
+                      Volver al Gestor de Documentos
+                    </Button>
+                  </Link>
+                </div>
+              ) : isRejected ? (
+                <div className="w-full space-y-2">
+                  <Button
+                    variant="destructive"
+                    className="w-full gap-2 text-xs h-10 shadow-sm cursor-not-allowed opacity-80"
+                    disabled
+                  >
+                    <XCircle className="size-4" />
+                    <span>Documento Marcado como Rechazado</span>
+                  </Button>
+                  <Link href="/documents" className="block w-full">
+                    <Button variant="outline" className="w-full text-xs h-9">
+                      Volver al Gestor de Documentos
+                    </Button>
+                  </Link>
+                </div>
+              ) : (
+                <>
+                  <Button
+                    variant="primary"
+                    className="w-full gap-2 text-xs h-10 shadow-sm"
+                    onClick={handleApprove}
+                    disabled={isSaving}
+                  >
+                    <CheckCircle2 className="size-4" />
+                    <span>
+                      {isSaving
+                        ? "Conciliando en Supabase..."
+                        : "Aprobar Extracción & Conciliar en Modelo 303"}
+                    </span>
+                  </Button>
 
-              <div className="grid grid-cols-2 gap-2 w-full">
-                <Button
-                  variant="destructive"
-                  className="gap-1.5 text-xs h-9"
-                  onClick={handleReject}
-                >
-                  <XCircle className="size-3.5" />
-                  <span>Rechazar Gasto</span>
-                </Button>
-                <Button
-                  variant="secondary"
-                  className="gap-1.5 text-xs h-9"
-                  onClick={handleEscalate}
-                >
-                  <Share2 className="size-3.5" />
-                  <span>Escalar a Gestor</span>
-                </Button>
-              </div>
+                  <div className="grid grid-cols-2 gap-2 w-full">
+                    <Button
+                      variant="destructive"
+                      className="gap-1.5 text-xs h-9"
+                      onClick={handleReject}
+                      disabled={isSaving}
+                    >
+                      <XCircle className="size-3.5" />
+                      <span>Rechazar Gasto</span>
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      className="gap-1.5 text-xs h-9"
+                      onClick={handleEscalate}
+                      disabled={isSaving}
+                    >
+                      <Share2 className="size-3.5" />
+                      <span>Escalar a Gestor</span>
+                    </Button>
+                  </div>
+                </>
+              )}
             </CardFooter>
           </Card>
         </div>
