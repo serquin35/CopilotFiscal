@@ -15,7 +15,7 @@ import {
   FileText,
   MapPin,
   Phone,
-  Globe,
+
   Hash,
   CreditCard,
   Bell,
@@ -816,7 +816,7 @@ const TABS: { id: Tab; label: string; icon: React.ComponentType<{ className?: st
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<Tab>("profile");
   const [toast, setToast] = useState<Toast | null>(null);
-  const { user, business } = useAuth();
+  useAuth();
 
   const showToast = useCallback((t: Toast) => setToast(t), []);
 
