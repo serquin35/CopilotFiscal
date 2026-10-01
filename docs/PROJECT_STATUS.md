@@ -15,8 +15,8 @@
 | **FASE 0** | Descubrimiento y planificación | ✅ COMPLETA | 100% |
 | **FASE 1** | Infraestructura | ✅ COMPLETA | 100% |
 | **FASE 2** | Núcleo financiero | ✅ COMPLETA | 100% |
-| **FASE 3** | Documentos | ✅ COMPLETA | 95% |
-| **FASE 4** | n8n + IA | 🔄 EN PROGRESO | 70% |
+| **FASE 3** | Documentos | ✅ COMPLETA | 100% |
+| **FASE 4** | n8n + IA | ✅ OPERATIVO | 90% |
 | **FASE 5** | Dashboard & Visualización | ✅ COMPLETA | 100% |
 | **FASE 6** | Anomalías & Inspección AEAT | ✅ COMPLETA | 100% |
 | **FASE 7** | Copiloto IA | ⏳ PENDIENTE | 20% |
@@ -346,7 +346,9 @@ Respond to Webhook (JSON con extracted + status + confidence)
 | 01/10/2026 | 🛡️ Fix | Middleware SSR actualizado para eximir `/api` de redirección `/login` para llamadas de webhooks/n8n |
 | 01/10/2026 | 🏆 Hito | **PIPELINE INGESTA & OCR 100% OPERATIVO**: Subida de facturas real (PDF e imágenes) desde `/documents` conectada a Supabase Storage, webhook n8n WF-01 y extracción exitosa con OpenAI (`Iberdrola Clientes, S.A.U.` extraída en 5.4s en producción) |
 | 01/10/2026 | 🔄 n8n WF-01 | Arquitectura robusta y autónoma en n8n: descarga directa de binario, construcción base64/files para OpenAI, JSON seguro con `JSON.stringify`, gestión de errores hacia `NEEDS_REVIEW` |
-| 01/10/2026 | 🐛 Fix | Dashboard: resolución de duplicación de facturas conciliadas (fusión unificada por `document_id` entre `documents`, `expenses` y `localStorage`, evitando doble cómputo en el Modelo 303) |
+| 01/10/2026 | 🏆 Hito | **HUMAN-IN-THE-LOOP & CONCILIACIÓN VALIDADA**: Pantalla `/documents/[id]/review` probada en producción; la aprobación del usuario crea el apunte contable en `expenses` y registra el proveedor en `suppliers` |
+| 01/10/2026 | 📊 Finanzas | **CÁLCULO 303 CON DATOS REALES**: Dashboard computa dinámicamente el Modelo 303 agregando la tabla `expenses` y cruzando con `documents` con deduplicación canónica por `document_id` |
+| 01/10/2026 | 🧹 Mantenimiento | Limpieza de base de datos en producción: purga de usuarios y empresas de prueba temporales, dejando el entorno aislado y limpio para `serquin16@gmail.com` |
 
 ---
 
@@ -360,20 +362,17 @@ Respond to Webhook (JSON con extracted + status + confidence)
 - [x] **Subida de facturas real y extracción OCR end-to-end** (Supabase Storage + n8n WF-01 + OpenAI)
 - [x] Soporte nativo para PDFs e imágenes con fallback a `NEEDS_REVIEW` en fallos
 - [x] Persistencia y actualización en vivo en `/documents` con botón de revisión
+- [x] **Human-in-the-Loop Review (`/documents/[id]/review`)**: Conciliación real con inserción en `expenses` y `suppliers`
+- [x] **Cálculo dinámico del Modelo 303**: Reemplazo de mock data en Dashboard con agregaciones reales de gastos e ingresos
+- [x] **Deduplicación canónica**: Eliminación de doble cómputo entre documentos locales e historial de gastos
 
 ### 🚀 Próximos pasos sugeridos
 | Prioridad | Feature | Descripción |
 |-----------|---------|-------------|
-| 🔴 Alta | Human-in-the-Loop Review (`/documents/[id]/review`) | Validar que la aprobación de la factura extraída cree automáticamente el registro en la tabla `expenses` |
-| 🔴 Alta | Cálculo 303 con datos reales | Reemplazar `mockData` del dashboard principal por queries reales agregadas de `expenses` |
-| 🟡 Media | Validación NIF/CIF | Algoritmo de validación del NIF/CIF español en el formulario de `/settings` |
-| 🟡 Media | Avatar personalizable | Upload de foto de perfil a Supabase Storage |
-| 🟢 Baja | Exportar datos | CSV/PDF de documentos y gastos filtrados por trimestre |
-
----
-
-*Documento generado y mantenido por Antigravity. Actualizar al final de cada sesión de desarrollo.*
-
+| 🔴 Alta | **FASE 7 — Copiloto IA (`/copilot`) real** | Conectar el asistente conversacional con datos reales de la empresa (gastos, facturas, Modelo 303 de Supabase) + endpoint LLM (`/api/copilot/chat`) |
+| 🟡 Media | **Validación NIF/CIF/NIE** | Algoritmo determinista de validación de documento fiscal español (con letra/dígito de control) en `/settings` y formulario de revisión de facturas |
+| 🟡 Media | **Exportación de Datos / Borrador 303** | Descarga CSV/PDF del libro registro de facturas recibidas y resumen de liquidación oficial |
+| 🟢 Baja | **Avatar personalizable** | Subida y actualización de avatar a Supabase Storage desde `/settings` |
 
 ---
 
