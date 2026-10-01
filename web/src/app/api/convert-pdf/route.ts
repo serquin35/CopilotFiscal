@@ -82,6 +82,12 @@ export async function POST(req: NextRequest): Promise<NextResponse<ConvertPdfRes
       g.Path2D = (canvasModule as Record<string, unknown>).Path2D;
     }
 
+    // Cargar worker directamente en memoria para que Vercel no intente buscar un archivo externo
+    if (!g.pdfjsWorker) {
+      // @ts-expect-error pdf.worker.mjs lacks separate typescript declarations
+      g.pdfjsWorker = await import("pdfjs-dist/legacy/build/pdf.worker.mjs");
+    }
+
     const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
 
     // Cargar el documento PDF desde el buffer
