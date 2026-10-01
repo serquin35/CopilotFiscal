@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   BotMessageSquare,
   Send,
@@ -8,12 +8,18 @@ import {
   ShieldCheck,
   User,
   Lightbulb,
+  TrendingUp,
+  TrendingDown,
+  AlertTriangle,
+  FileText,
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { formatCurrency, formatDate } from "@/lib/utils";
-import { initialSummary, initialAlerts } from "@/lib/mockData";
+import { formatCurrency } from "@/lib/utils";
+import { useAuth } from "@/context/AuthContext";
+
+// ─── Tipos ────────────────────────────────────────────────────────────────────
 
 interface Message {
   id: string;
@@ -21,20 +27,52 @@ interface Message {
   content: string;
   timestamp: string;
   sources?: string[];
+  isError?: boolean;
 }
 
+interface FiscalSnapshot {
+  netVat: number;
+  collectedVat: number;
+  deductibleVat: number;
+  pendingDocuments: number;
+  openAlerts: number;
+  quarter: string;
+  year: number;
+}
+
+// ─── Prompts rápidos ──────────────────────────────────────────────────────────
+
+const QUICK_PROMPTS = [
+  "¿Por qué tengo ese resultado en el Modelo 303 este trimestre?",
+  "¿Qué anomalías activas pueden generar inspección de la AEAT?",
+  "¿Puedo deducir el 100% de la factura de gasolina?",
+  "¿Cuál es el plazo para presentar el Modelo 303 de este trimestre?",
+];
+
+// ─── Componente ───────────────────────────────────────────────────────────────
+
 export default function CopilotPage() {
+  const { business } = useAuth();
+
+  // Trimestre activo: por defecto el del mes actual
+  const now = new Date();
+  const currentMonth = now.getMonth() + 1; // 1-12
+  const defaultQuarter =
+    currentMonth <= 3 ? "1T" : currentMonth <= 6 ? "2T" : currentMonth <= 9 ? "3T" : "4T";
+  const defaultYear = now.getFullYear();
+
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "msg-1",
       sender: "copilot",
       content:
-        "Hola. Soy tu **Copiloto Fiscal**. Analizo en tiempo real tus facturas y snapshots del **Modelo 303 (3T 2026)**. Toda mi información procede directamente de tu base de datos inmutable. ¿En qué duda tributaria o análisis de cifras puedo ayudarte hoy?",
+        "Hola. Soy tu **Copiloto Fiscal**. Analizo en tiempo real tus facturas y el cálculo del **Modelo 303** desde tu base de datos real. Toda mi información procede directamente de tus registros contables. ¿En qué duda tributaria puedo ayudarte hoy?",
       timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
     },
   ]);
   const [inputQuery, setInputQuery] = useState("");
   const [isTyping, setIsTyping] = useState(false);
+  const [snapshot, setSnapshot] = useState<FiscalSnapshot | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -45,89 +83,72 @@ export default function CopilotPage() {
     scrollToBottom();
   }, [messages, isTyping]);
 
-  const QUICK_PROMPTS = [
-    "¿Por qué tengo que pagar 2.710,30 € en este trimestre?",
-    "¿Qué anomalías tengo pendientes que puedan generar inspección AEAT?",
-    "¿Puedo deducir el 100% de la factura de gasolina de Repsol?",
-    "¿Cuál es el plazo improrrogable para presentar el Modelo 303?",
-  ];
+  // ── Enviar mensaje al endpoint real ─────────────────────────────────────────
 
-  const handleSend = (textToSend?: string) => {
-    const query = textToSend || inputQuery;
-    if (!query.trim()) return;
+  const handleSend = useCallback(
+    async (textToSend?: string) => {
+      const query = textToSend || inputQuery;
+      if (!query.trim() || isTyping) return;
 
-    const userMsg: Message = {
-      id: `usr-${Date.now()}`,
-      sender: "user",
-      content: query,
-      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-    };
-
-    setMessages((prev) => [...prev, userMsg]);
-    if (!textToSend) setInputQuery("");
-    setIsTyping(true);
-
-    setTimeout(() => {
-      let botResponse = "";
-      let sources: string[] = [];
-
-      const lower = query.toLowerCase();
-
-      if (lower.includes("por qué") || lower.includes("pagar") || lower.includes("2.710")) {
-        botResponse = `Tu liquidación provisional del **3T 2026** arroja un resultado a ingresar de **${formatCurrency(
-          initialSummary.netVat
-        )}** debido a la siguiente fórmula oficial:\n\n1. **IVA Repercutido (Tus ventas):** ${formatCurrency(
-          initialSummary.collectedVat
-        )}\n2. **IVA Soportado Deducible (Tus compras):** ${formatCurrency(
-          initialSummary.deductibleVat
-        )}\n\n**Resultado neto:** ${formatCurrency(
-          initialSummary.collectedVat
-        )} - ${formatCurrency(initialSummary.deductibleVat)} = **${formatCurrency(
-          initialSummary.netVat
-        )}**.\n\nActualmente tienes **${
-          initialSummary.pendingReviewCount
-        } facturas pendientes de validar**. Si apruebas los gastos pendientes, tu cuota soportada aumentará y el importe a ingresar se reducirá.`;
-        sources = ["Modelo 303 - Snapshot 3T", "Casillas 27 y 28 AEAT"];
-      } else if (lower.includes("anomalía") || lower.includes("inspección")) {
-        botResponse = `Actualmente tu Centro de Anomalías registra **${initialAlerts.length} alertas activas**:\n\n- **Posible duplicado en AWS Cloud (${formatCurrency(
-          145.2
-        )})**: Misma fecha e importe que otra factura. Riesgo de doble cómputo indebido.\n- **Gasto elevado en Legal Tech (${formatCurrency(
-          5200.0
-        )})**: Supera el umbral de 3.000 € y requiere justificación de retención IRPF.\n- **Ticket de combustible sin desglose de IVA**.\n\nTe recomiendo revisar la sección **/alerts** para justificarlas antes de exportar el borrador definitivo.`;
-        sources = ["Motor de Reglas n8n AnomalyDetector", "Censo AEAT VIES"];
-      } else if (lower.includes("gasolina") || lower.includes("repsol") || lower.includes("vehículo")) {
-        botResponse = `Conforme al **artículo 95 de la Ley del IVA (LIVA)** y la doctrina de la DGT para vehículos turismos utilizados por profesionales:\n\n- Se presume una **afectación máxima del 50%** de los gastos de carburante y mantenimiento, salvo que el vehículo sea de uso comercial exclusivo o transporte de mercancías.\n- El sistema ha clasificado provisionalmente tu ticket de Repsol al **50% de deducibilidad** (${formatCurrency(
-          7.38
-        )} de IVA deducible sobre los 14,75 € totales) para evitar requerimientos automáticos de la AEAT.`;
-        sources = ["Ley 37/1992 del IVA (Art. 95)", "Consulta Vinculante DGT V0138-20"];
-      } else if (lower.includes("plazo") || lower.includes("fecha") || lower.includes("límite")) {
-        botResponse = `El plazo legal para la presentación de la declaración del **3T 2026 (Modelo 303)** finaliza el **${formatDate(
-          initialSummary.deadline
-        )}**.\n\n- Si deseas **domiciliación bancaria**, la fecha límite es el **15 de Octubre de 2026**.\n- Te quedan **${
-          initialSummary.daysRemaining
-        } días** para completar la conciliación documental.`;
-        sources = ["Calendario del Contribuyente AEAT 2026"];
-      } else {
-        botResponse = `He revisado tus datos fiscales. En tu cuenta actual del 3T tienes un **IVA Repercutido de ${formatCurrency(
-          initialSummary.collectedVat
-        )}** y **${formatCurrency(
-          initialSummary.deductibleVat
-        )} deducibles**, con una completitud del **${initialSummary.dataCompleteness}%**.\n\n¿Quieres que profundicemos en algún proveedor, anomalía o categoría de gasto específica?`;
-        sources = ["Base de Datos Fiscal Copiloto"];
-      }
-
-      const copilotMsg: Message = {
-        id: `cop-${Date.now()}`,
-        sender: "copilot",
-        content: botResponse,
+      const userMsg: Message = {
+        id: `usr-${Date.now()}`,
+        sender: "user",
+        content: query,
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-        sources,
       };
 
-      setMessages((prev) => [...prev, copilotMsg]);
-      setIsTyping(false);
-    }, 900);
-  };
+      setMessages((prev) => [...prev, userMsg]);
+      if (!textToSend) setInputQuery("");
+      setIsTyping(true);
+
+      try {
+        const res = await fetch("/api/copilot/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            message: query,
+            quarter: defaultQuarter,
+            year: defaultYear,
+          }),
+        });
+
+        const data = await res.json();
+
+        if (!res.ok || data.error) {
+          throw new Error(data.error ?? `HTTP ${res.status}`);
+        }
+
+        // Actualizar snapshot lateral con datos reales devueltos por la API
+        if (data.context) {
+          setSnapshot(data.context);
+        }
+
+        const copilotMsg: Message = {
+          id: `cop-${Date.now()}`,
+          sender: "copilot",
+          content: data.reply ?? "Sin respuesta del servidor.",
+          timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          sources: data.sources ?? [],
+        };
+
+        setMessages((prev) => [...prev, copilotMsg]);
+      } catch (err) {
+        const errorMsg: Message = {
+          id: `err-${Date.now()}`,
+          sender: "copilot",
+          content: `⚠️ **Error al conectar con el Copiloto**: ${err instanceof Error ? err.message : "Error desconocido"}. Comprueba tu sesión y la configuración del servidor.`,
+          timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          isError: true,
+        };
+        setMessages((prev) => [...prev, errorMsg]);
+      } finally {
+        setIsTyping(false);
+      }
+    },
+    [inputQuery, isTyping, defaultQuarter, defaultYear]
+  );
+
+  // ─── Render ──────────────────────────────────────────────────────────────────
 
   return (
     <div className="flex flex-col gap-6">
@@ -135,15 +156,19 @@ export default function CopilotPage() {
       <div className="flex flex-col gap-1">
         <div className="flex items-center gap-2">
           <span className="text-xs font-semibold uppercase tracking-widest text-primary">
-            Motor Explicativo OpenAI gpt-4o
+            Motor Explicativo OpenAI gpt-4o-mini
           </span>
           <span className="size-2 rounded-full bg-primary animate-pulse" />
+          <Badge variant="muted" className="text-[10px] ml-auto">
+            {defaultQuarter} {defaultYear}
+          </Badge>
         </div>
         <h1 className="text-3xl font-semibold tracking-tight text-foreground">
           Copiloto Fiscal — &quot;Explícame mis números&quot;
         </h1>
         <p className="text-sm text-muted-foreground">
-          Asistencia técnica fundamentada en la normativa tributaria española y en los datos reales de tu negocio. Sin respuestas genéricas.
+          Asistencia técnica fundamentada en la normativa tributaria española y en los datos{" "}
+          <strong className="text-foreground">reales</strong> de tu negocio. Sin respuestas genéricas.
         </p>
       </div>
 
@@ -157,7 +182,8 @@ export default function CopilotPage() {
               <button
                 key={idx}
                 onClick={() => handleSend(prompt)}
-                className="text-[11px] rounded-lg border border-border/80 bg-card px-2.5 py-1 text-muted-foreground hover:border-primary/50 hover:text-foreground transition-all text-left"
+                disabled={isTyping}
+                className="text-[11px] rounded-lg border border-border/80 bg-card px-2.5 py-1 text-muted-foreground hover:border-primary/50 hover:text-foreground transition-all text-left disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 &ldquo;{prompt}&rdquo;
               </button>
@@ -185,11 +211,28 @@ export default function CopilotPage() {
                     className={`rounded-2xl p-4 max-w-xl space-y-2 ${
                       m.sender === "user"
                         ? "bg-primary text-primary-foreground font-medium rounded-tr-none"
+                        : m.isError
+                        ? "bg-destructive/10 border border-destructive/30 text-foreground rounded-tl-none"
                         : "bg-secondary/70 border border-border/60 text-foreground rounded-tl-none"
                     }`}
                   >
-                    <div className="whitespace-pre-line prose prose-invert prose-xs">
-                      {m.content}
+                    {/* Renderizado básico de markdown (negrita, listas) */}
+                    <div className="whitespace-pre-line leading-relaxed">
+                      {m.content.split("\n").map((line, i) => {
+                        // Negrita **texto**
+                        const parts = line.split(/(\*\*[^*]+\*\*)/g);
+                        return (
+                          <span key={i} className="block">
+                            {parts.map((part, j) =>
+                              part.startsWith("**") && part.endsWith("**") ? (
+                                <strong key={j}>{part.slice(2, -2)}</strong>
+                              ) : (
+                                part
+                              )
+                            )}
+                          </span>
+                        );
+                      })}
                     </div>
 
                     {m.sources && m.sources.length > 0 && (
@@ -231,7 +274,7 @@ export default function CopilotPage() {
                     <Sparkles className="size-4 animate-spin" />
                   </div>
                   <div className="rounded-2xl bg-secondary/70 border border-border/60 p-3 text-muted-foreground rounded-tl-none animate-pulse">
-                    Consultando libro contable y normativa AEAT...
+                    Consultando datos fiscales reales y normativa AEAT...
                   </div>
                 </div>
               )}
@@ -253,6 +296,7 @@ export default function CopilotPage() {
                   onChange={(e) => setInputQuery(e.target.value)}
                   placeholder="Pregúntale al Copiloto sobre IVA, retenciones, facturas o Modelo 303..."
                   className="flex-1 h-10 rounded-xl border border-border bg-background px-3.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                  disabled={isTyping}
                 />
                 <Button
                   type="submit"
@@ -271,48 +315,98 @@ export default function CopilotPage() {
 
         {/* Snapshot Context Sidebar (4 cols) */}
         <div className="lg:col-span-4 flex flex-col gap-4">
+          {/* Contexto fiscal en tiempo real */}
           <Card>
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-sm">Contexto Fiscal Activo</CardTitle>
                 <Badge variant="primary" className="text-[10px]">
-                  3T 2026
+                  {defaultQuarter} {defaultYear}
                 </Badge>
               </div>
               <CardDescription>
-                Datos inmutables en los que el Copiloto apoya sus respuestas
+                {snapshot
+                  ? "Datos reales — actualizados en cada consulta"
+                  : "Haz tu primera consulta para cargar los datos"}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3 pt-2 text-xs font-mono">
-              <div className="flex justify-between border-b border-border/40 pb-2">
-                <span className="text-muted-foreground font-sans">IVA Repercutido:</span>
-                <span className="text-warning font-semibold">
-                  {formatCurrency(initialSummary.collectedVat)}
-                </span>
-              </div>
-              <div className="flex justify-between border-b border-border/40 pb-2">
-                <span className="text-muted-foreground font-sans">IVA Soportado:</span>
-                <span className="text-primary font-semibold">
-                  {formatCurrency(initialSummary.deductibleVat)}
-                </span>
-              </div>
-              <div className="flex justify-between border-b border-border/40 pb-2">
-                <span className="text-muted-foreground font-sans">Resultado Modelo 303:</span>
-                <span className="text-foreground font-bold">
-                  {formatCurrency(initialSummary.netVat)}
-                </span>
-              </div>
-              <div className="flex justify-between border-b border-border/40 pb-2">
-                <span className="text-muted-foreground font-sans">Completitud:</span>
-                <span className="text-foreground">{initialSummary.dataCompleteness}%</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground font-sans">Días para el cierre:</span>
-                <span className="text-foreground">{initialSummary.daysRemaining} días</span>
-              </div>
+              {snapshot ? (
+                <>
+                  <div className="flex justify-between border-b border-border/40 pb-2">
+                    <span className="text-muted-foreground font-sans flex items-center gap-1">
+                      <TrendingUp className="size-3" /> IVA Repercutido:
+                    </span>
+                    <span className="text-warning font-semibold">
+                      {formatCurrency(snapshot.collectedVat)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between border-b border-border/40 pb-2">
+                    <span className="text-muted-foreground font-sans flex items-center gap-1">
+                      <TrendingDown className="size-3" /> IVA Soportado:
+                    </span>
+                    <span className="text-primary font-semibold">
+                      {formatCurrency(snapshot.deductibleVat)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between border-b border-border/40 pb-2">
+                    <span className="text-muted-foreground font-sans">Resultado 303:</span>
+                    <span
+                      className={`font-bold ${
+                        snapshot.netVat >= 0 ? "text-destructive" : "text-primary"
+                      }`}
+                    >
+                      {formatCurrency(snapshot.netVat)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between border-b border-border/40 pb-2">
+                    <span className="text-muted-foreground font-sans flex items-center gap-1">
+                      <FileText className="size-3" /> Docs pendientes:
+                    </span>
+                    <span className={snapshot.pendingDocuments > 0 ? "text-warning" : "text-primary"}>
+                      {snapshot.pendingDocuments}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground font-sans flex items-center gap-1">
+                      <AlertTriangle className="size-3" /> Alertas activas:
+                    </span>
+                    <span className={snapshot.openAlerts > 0 ? "text-destructive" : "text-primary"}>
+                      {snapshot.openAlerts}
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-6 gap-2 text-muted-foreground font-sans">
+                  <Sparkles className="size-6 text-primary/40" />
+                  <p className="text-[11px] text-center">
+                    El panel se actualizará con datos reales tras tu primera consulta
+                  </p>
+                </div>
+              )}
             </CardContent>
           </Card>
 
+          {/* Negocio activo */}
+          {business && (
+            <Card className="border-border/60 bg-secondary/20">
+              <CardContent className="pt-4 pb-4">
+                <div className="flex items-start gap-2">
+                  <div className="size-8 rounded-lg bg-primary/15 border border-primary/20 flex items-center justify-center shrink-0">
+                    <BotMessageSquare className="size-4 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-foreground">{business.name}</p>
+                    <p className="text-[10px] text-muted-foreground">
+                      {business.nif ?? "NIF no configurado"}
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Regla anti-alucinación */}
           <Card className="border-border/60 bg-secondary/30">
             <CardHeader className="pb-2">
               <div className="flex items-center gap-2">
@@ -321,7 +415,9 @@ export default function CopilotPage() {
               </div>
             </CardHeader>
             <CardContent className="text-[11px] text-muted-foreground leading-relaxed">
-              El Copiloto opera en modo determinista asistido: <strong>no inventa importes ni deducciones ficticias</strong>. Si un gasto no está amparado por una factura formal registrada en el sistema, no es computado.
+              El Copiloto opera en modo determinista asistido:{" "}
+              <strong>no inventa importes ni deducciones ficticias</strong>. Si un gasto no está
+              amparado por una factura formal registrada en el sistema, no es computado.
             </CardContent>
           </Card>
         </div>
