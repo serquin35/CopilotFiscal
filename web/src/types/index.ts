@@ -40,16 +40,34 @@ export interface FiscalDocument {
 
 export type AlertSeverity = "high" | "medium" | "low";
 
+export type AnomalyType =
+  | "DUPLICATE"
+  | "HIGH_AMOUNT"
+  | "MISSING_VAT"
+  | "UNREGISTERED_NIF"
+  | "IRPF_MISMATCH"
+  | "UNUSUAL_VAT_RATIO"
+  | "UNUSUAL_EXPENSE"
+  | "MISSING_VAT_DATA"
+  | "UNREVIEWED_EXPENSE"
+  | "PERIOD_MISMATCH"
+  | "DUPLICATE_SUPPLIER"
+  | "MISSING_NIF";
+
 export interface AnomalyAlert {
   id: string;
   documentId?: string;
   title: string;
   description: string;
   severity: AlertSeverity;
-  type: "DUPLICATE" | "HIGH_AMOUNT" | "MISSING_VAT" | "UNREGISTERED_NIF" | "IRPF_MISMATCH";
+  type: AnomalyType | string;
   createdAt: string;
   resolved: boolean;
   resolutionReason?: string;
+  evidence?: Record<string, unknown>;
+  entityType?: "document" | "expense" | "supplier" | "period" | string;
+  entityId?: string;
+  source?: "system" | "n8n" | "manual" | string;
 }
 
 export interface QuarterlySummary {

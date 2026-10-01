@@ -20,6 +20,11 @@ import { ProgressBar, VatSegmentedBar } from "@/components/ui/progress";
 import { formatCurrency, formatDate, cn } from "@/lib/utils";
 import { FiscalDocument, AnomalyAlert, QuarterlySummary } from "@/types";
 import { supabase } from "@/lib/supabase";
+import {
+  detectFiscalAnomalies,
+  AnomalyEngineExpense,
+  AnomalyEngineSupplier,
+} from "@/lib/anomalyEngine";
 
 const QUARTER_MONTHS: Record<string, { name: string; idx: number }[]> = {
   "1T": [
@@ -82,12 +87,20 @@ export default function DashboardPage() {
 
   const STORAGE_KEY = "copiloto_fiscal_documents_v1";
 
+  const rawExpensesRef = React.useRef<AnomalyEngineExpense[]>([]);
+  const rawSuppliersRef = React.useRef<AnomalyEngineSupplier[]>([]);
+
   const calculateSummary = useCallback(
     (
       docs: FiscalDocument[],
       quarter: "1T" | "2T" | "3T" | "4T",
-      income: { vat_amount: number; base_amount: number; date: string }[]
+      income: { vat_amount: number; base_amount: number; date: string }[],
+      expensesList?: AnomalyEngineExpense[],
+      suppliersList?: AnomalyEngineSupplier[]
     ) => {
+      if (expensesList) rawExpensesRef.current = expensesList;
+      if (suppliersList) rawSuppliersRef.current = suppliersList;
+
       // Filtrar facturas demo si fueron descartadas
       const realDocs = docs.filter((d) => !d.id.startsWith("doc-"));
 
@@ -155,9 +168,37 @@ export default function DashboardPage() {
         };
       });
 
-      // Anomalías de los documentos reales
-      const activeAlerts = activeDocs.flatMap((d) => d.anomalies || []).filter((a) => !a.resolved);
+      // Anomalías deterministas del motor fiscal oficial
+      let resolvedMap: Record<string, string> = {};
+      try {
+        const savedResolved = localStorage.getItem("copiloto_fiscal_resolved_alerts_v1");
+        if (savedResolved) {
+          resolvedMap = JSON.parse(savedResolved);
+        }
+      } catch (e) {
+        console.warn("Error leyendo resoluciones locales:", e);
+      }
+
+      const detected = detectFiscalAnomalies({
+        documents: activeDocs,
+        expenses: rawExpensesRef.current,
+        income: income.map((r, i) => ({
+          id: `inc-${i}`,
+          date: r.date,
+          base_amount: r.base_amount,
+          vat_amount: r.vat_amount,
+          total_amount: r.base_amount + r.vat_amount,
+        })),
+        suppliers: rawSuppliersRef.current,
+        selectedQuarter: quarter,
+        selectedYear: 2026,
+      });
+
+      const activeAlerts = detected.filter((a) => !resolvedMap[a.id]);
       setAlerts(activeAlerts);
+      try {
+        localStorage.setItem("copiloto_fiscal_active_alerts_count", String(activeAlerts.length));
+      } catch {}
 
       const deadlineStr = DEFAULT_DEADLINES[quarter] || "2027-01-30";
       const targetDate = new Date(deadlineStr);
@@ -221,8 +262,37 @@ export default function DashboardPage() {
       console.warn("Error consultando ingresos en Supabase:", err);
     }
 
+    // Cargar proveedores desde Supabase
+    let fetchedSuppliers: AnomalyEngineSupplier[] = [];
+    try {
+      const { data: supRows } = await supabase.from("suppliers").select("id, name, tax_id_masked");
+      if (supRows) {
+        fetchedSuppliers = supRows as AnomalyEngineSupplier[];
+      }
+    } catch (err) {
+      console.warn("Error consultando suppliers en Supabase:", err);
+    }
+
+    // Cargar resoluciones previas de alertas desde Supabase
+    try {
+      const { data: dbAlerts } = await supabase.from("alerts").select("id, status, notes");
+      if (dbAlerts && dbAlerts.length > 0) {
+        const saved = localStorage.getItem("copiloto_fiscal_resolved_alerts_v1");
+        const map = saved ? JSON.parse(saved) : {};
+        for (const row of dbAlerts) {
+          if (row.status === "RESOLVED" || row.status === "DISMISSED") {
+            map[row.id] = row.notes || "Resuelta";
+          }
+        }
+        localStorage.setItem("copiloto_fiscal_resolved_alerts_v1", JSON.stringify(map));
+      }
+    } catch (err) {
+      console.warn("Error consultando alerts en Supabase:", err);
+    }
+
     // Cargar gastos contables de la tabla expenses de Supabase
     let dbExpenses: FiscalDocument[] = [];
+    let rawExpensesList: AnomalyEngineExpense[] = [];
     try {
       const { data: expRows, error: expError } = await supabase
         .from("expenses")
@@ -230,6 +300,7 @@ export default function DashboardPage() {
         .order("date", { ascending: false });
 
       if (!expError && expRows && expRows.length > 0) {
+        rawExpensesList = expRows as AnomalyEngineExpense[];
         dbExpenses = expRows.map((item: Record<string, unknown>) => {
           const sup = item.suppliers as Record<string, unknown> | null;
           const deductPct =
@@ -316,7 +387,7 @@ export default function DashboardPage() {
           ...currentDocs.filter((cd) => !dbExpenses.some((de) => de.id === cd.id) && !mappedDbDocs.some((md) => md.id === cd.id) && !cd.id.startsWith("doc-")),
         ];
         setDocuments(combined);
-        calculateSummary(combined, selectedQuarter, fetchedIncome);
+        calculateSummary(combined, selectedQuarter, fetchedIncome, rawExpensesList, fetchedSuppliers);
         return;
       }
     } catch (err) {
@@ -329,13 +400,13 @@ export default function DashboardPage() {
         ...currentDocs.filter((cd) => !dbExpenses.some((de) => de.id === cd.id) && !cd.id.startsWith("doc-")),
       ];
       setDocuments(combined);
-      calculateSummary(combined, selectedQuarter, fetchedIncome);
+      calculateSummary(combined, selectedQuarter, fetchedIncome, rawExpensesList, fetchedSuppliers);
       return;
     }
 
     const realOnly = currentDocs.filter((cd) => !cd.id.startsWith("doc-"));
     setDocuments(realOnly);
-    calculateSummary(realOnly, selectedQuarter, fetchedIncome);
+    calculateSummary(realOnly, selectedQuarter, fetchedIncome, rawExpensesList, fetchedSuppliers);
   }, [calculateSummary, selectedQuarter]);
 
   useEffect(() => {
@@ -728,7 +799,7 @@ export default function DashboardPage() {
               </span>
             </div>
             <CardDescription>
-              Discrepancias detectadas por los workflows de n8n
+              Discrepancias detectadas según criterios AEAT
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -743,7 +814,7 @@ export default function DashboardPage() {
                 </span>
               </div>
             ) : (
-              alerts.slice(0, 2).map((alert) => (
+              alerts.slice(0, 3).map((alert) => (
                 <div
                   key={alert.id}
                   className="rounded-xl border border-border/60 bg-secondary/50 p-3 text-xs space-y-1.5"

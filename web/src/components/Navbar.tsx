@@ -37,14 +37,21 @@ export function Navbar() {
   useEffect(() => {
     const updateCounts = () => {
       try {
+        const customAlerts = localStorage.getItem("copiloto_fiscal_active_alerts_count");
+        if (customAlerts !== null) {
+          setAlertCount(Number(customAlerts));
+        }
+
         const saved = localStorage.getItem("copiloto_fiscal_documents_v1");
         if (saved) {
           const list = JSON.parse(saved) as Record<string, unknown>[];
           if (Array.isArray(list)) {
             const realList = list.filter((d) => typeof d.id === "string" && !d.id.startsWith("doc-"));
             setDocCount(realList.length);
-            const anoms = realList.flatMap((d) => (Array.isArray(d.anomalies) ? (d.anomalies as Record<string, unknown>[]) : [])).filter((a) => !a.resolved);
-            setAlertCount(anoms.length);
+            if (customAlerts === null) {
+              const anoms = realList.flatMap((d) => (Array.isArray(d.anomalies) ? (d.anomalies as Record<string, unknown>[]) : [])).filter((a) => !a.resolved);
+              setAlertCount(anoms.length);
+            }
             return;
           }
         }

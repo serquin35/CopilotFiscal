@@ -16,6 +16,13 @@ import {
 import { Card, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { AnomalyAlert, FiscalDocument } from "@/types";
+import { supabase } from "@/lib/supabase";
+import {
+  detectFiscalAnomalies,
+  AnomalyEngineExpense,
+  AnomalyEngineIncome,
+  AnomalyEngineSupplier,
+} from "@/lib/anomalyEngine";
 
 export default function AlertsPage() {
   const [documents, setDocuments] = useState<FiscalDocument[]>([]);
@@ -24,25 +31,123 @@ export default function AlertsPage() {
   const [feedback, setFeedback] = useState<string | null>(null);
 
   const STORAGE_KEY = "copiloto_fiscal_documents_v1";
+  const RESOLVED_ALERTS_KEY = "copiloto_fiscal_resolved_alerts_v1";
 
-  const loadAlertsData = () => {
+  const loadAlertsData = async () => {
+    let resolvedMap: Record<string, string> = {};
+    try {
+      const savedRes = localStorage.getItem(RESOLVED_ALERTS_KEY);
+      if (savedRes) {
+        resolvedMap = JSON.parse(savedRes);
+      }
+    } catch {}
+
+    let currentDocs: FiscalDocument[] = [];
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
-        const list = JSON.parse(saved) as FiscalDocument[];
-        if (Array.isArray(list)) {
-          const realDocs = list.filter((d) => !d.id.startsWith("doc-"));
-          setDocuments(realDocs);
-          const anoms = realDocs.flatMap((d) => d.anomalies || []);
-          setAlerts(anoms);
-          return;
+        const parsed = JSON.parse(saved) as FiscalDocument[];
+        if (Array.isArray(parsed)) {
+          currentDocs = parsed.filter((d) => !d.id.startsWith("doc-"));
         }
       }
     } catch (e) {
-      console.warn("Error leyendo alertas:", e);
+      console.warn("Error leyendo localStorage en Alerts:", e);
     }
-    setDocuments([]);
-    setAlerts([]);
+
+    let fetchedExpenses: AnomalyEngineExpense[] = [];
+    let fetchedDocs: FiscalDocument[] = [];
+    let fetchedIncome: AnomalyEngineIncome[] = [];
+    let fetchedSuppliers: AnomalyEngineSupplier[] = [];
+
+    try {
+      const [expRes, docRes, incRes, supRes, dbAlertsRes] = await Promise.all([
+        supabase
+          .from("expenses")
+          .select("*, suppliers(name, tax_id_masked)")
+          .order("date", { ascending: false }),
+        supabase
+          .from("documents")
+          .select("*, document_extractions(*)")
+          .order("uploaded_at", { ascending: false }),
+        supabase
+          .from("income")
+          .select("id, date, base_amount, vat_amount, total_amount, fiscal_period_quarter"),
+        supabase.from("suppliers").select("id, name, tax_id_masked"),
+        supabase.from("alerts").select("*"),
+      ]);
+
+      if (expRes.data) fetchedExpenses = expRes.data as AnomalyEngineExpense[];
+      if (incRes.data) fetchedIncome = incRes.data as AnomalyEngineIncome[];
+      if (supRes.data) fetchedSuppliers = supRes.data as AnomalyEngineSupplier[];
+
+      if (docRes.data && docRes.data.length > 0) {
+        fetchedDocs = docRes.data.map((item: Record<string, unknown>) => {
+          const extList = item.document_extractions as Record<string, unknown>[] | null;
+          const ext = Array.isArray(extList) && extList.length > 0 ? extList[0] : null;
+          return {
+            id: String(item.id),
+            filename: String(item.original_filename || "Documento"),
+            fileSize: Number(item.file_size_bytes || 0),
+            uploadedAt: String(item.uploaded_at || new Date().toISOString()),
+            status: (item.status as FiscalDocument["status"]) || "PENDING_REVIEW",
+            providerName: (ext?.extracted_supplier_name as string) || String(item.notes || "Proveedor"),
+            nif: (ext?.extracted_supplier_nif as string) || "-",
+            invoiceNumber: (ext?.extracted_invoice_number as string) || `F-${String(item.id).substring(0, 8)}`,
+            date: (ext?.extracted_date as string) || String(item.uploaded_at || "").split("T")[0],
+            baseAmount: Number(ext?.extracted_base_amount ?? 0),
+            vatRate: Number(ext?.extracted_vat_rate ?? 21),
+            vatAmount: Number(ext?.extracted_vat_amount ?? 0),
+            totalAmount: Number(ext?.extracted_total_amount ?? 0),
+            category: (ext?.extracted_category as string) || String(item.type || "Factura"),
+            deductiblePercentage: 100,
+          };
+        });
+      }
+
+      // Si hay alertas en BD con estado RESOLVED, marcarlas
+      if (dbAlertsRes.data) {
+        for (const row of dbAlertsRes.data) {
+          if (row.status === "RESOLVED" || row.status === "DISMISSED") {
+            resolvedMap[row.id] = row.notes || "Resuelta en base de datos";
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("Error consultando Supabase en Alerts:", e);
+    }
+
+    const mergedDocs = [
+      ...fetchedDocs,
+      ...currentDocs.filter((cd) => !fetchedDocs.some((fd) => fd.id === cd.id)),
+    ];
+    setDocuments(mergedDocs);
+
+    // 2. Ejecutar motor determinista de anomalías
+    const detected = detectFiscalAnomalies({
+      documents: mergedDocs,
+      expenses: fetchedExpenses,
+      income: fetchedIncome,
+      suppliers: fetchedSuppliers,
+      selectedQuarter: "4T",
+      selectedYear: 2026,
+    });
+
+    // 3. Aplicar resoluciones guardadas
+    const finalAlerts: AnomalyAlert[] = detected.map((a) => {
+      if (resolvedMap[a.id]) {
+        return { ...a, resolved: true, resolutionReason: resolvedMap[a.id] };
+      }
+      return a;
+    });
+
+    setAlerts(finalAlerts);
+
+    // Guardar conteo activo para Navbar y Sidebar
+    const activeCount = finalAlerts.filter((a) => !a.resolved).length;
+    try {
+      localStorage.setItem("copiloto_fiscal_active_alerts_count", String(activeCount));
+    } catch {}
   };
 
   useEffect(() => {
@@ -56,14 +161,45 @@ export default function AlertsPage() {
     };
   }, []);
 
-  const handleResolveAlert = (id: string, reason: string) => {
+  const handleResolveAlert = async (id: string, reason: string) => {
+    // 1. Actualizar estado local
     setAlerts((prev) =>
       prev.map((a) =>
         a.id === id ? { ...a, resolved: true, resolutionReason: reason } : a
       )
     );
-    setFeedback(`Alerta ${id} resuelta: "${reason}"`);
-    setTimeout(() => setFeedback(null), 3000);
+
+    // 2. Persistir resolución en localStorage
+    try {
+      const savedRes = localStorage.getItem(RESOLVED_ALERTS_KEY);
+      const map: Record<string, string> = savedRes ? JSON.parse(savedRes) : {};
+      map[id] = reason;
+      localStorage.setItem(RESOLVED_ALERTS_KEY, JSON.stringify(map));
+
+      const remainingCount = alerts.filter((a) => a.id !== id && !a.resolved).length;
+      localStorage.setItem("copiloto_fiscal_active_alerts_count", String(remainingCount));
+    } catch {}
+
+    // 3. Registrar auditoría en Supabase
+    try {
+      await supabase.from("audit_events").insert([
+        {
+          business_id: "00000000-0000-0000-0000-000000000001",
+          entity_type: "alert",
+          entity_id: id.startsWith("anom-") ? null : id,
+          action: "ALERT_DISMISSED",
+          actor_type: "user",
+          metadata: { alertId: id, reason, dismissedAt: new Date().toISOString() },
+        },
+      ]);
+    } catch {}
+
+    // 4. Notificar a Navbar y Sidebar
+    window.dispatchEvent(new Event("fiscal_docs_updated"));
+    window.dispatchEvent(new Event("storage"));
+
+    setFeedback(`Alerta justificada y archivada: "${reason}"`);
+    setTimeout(() => setFeedback(null), 3500);
   };
 
   const filteredAlerts = alerts.filter((a) => {

@@ -1,8 +1,8 @@
 # PROJECT STATUS — COPILOTO FISCAL
 
-> **Versión:** 1.5
+> **Versión:** 1.6
 > **Última actualización:** 01 Octubre 2026
-> **Estado global:** FASE 5 completada (100%) — FASE 6 (Anomalías) siguiente objetivo
+> **Estado global:** FASE 6 (Detección de Anomalías e Inspección AEAT) completada (100%) — FASE 7 (Copiloto IA) siguiente objetivo
 > **Autor:** Antigravity (actualización continua)
 > **Fuente de verdad:** [COPILOTO_FISCAL_MASTER_PLAN.md](../COPILOTO_FISCAL_MASTER_PLAN.md)
 
@@ -18,7 +18,7 @@
 | **FASE 3** | Documentos | ✅ COMPLETA | 95% |
 | **FASE 4** | n8n + IA | 🔄 EN PROGRESO | 70% |
 | **FASE 5** | Dashboard & Visualización | ✅ COMPLETA | 100% |
-| **FASE 6** | Anomalías | 🔄 EN PROGRESO | 50% |
+| **FASE 6** | Anomalías & Inspección AEAT | ✅ COMPLETA | 100% |
 | **FASE 7** | Copiloto IA | ⏳ PENDIENTE | 20% |
 | **FASE 8** | Validación con datos reales | ⏳ PENDIENTE | 0% |
 
@@ -202,23 +202,27 @@ Respond to Webhook (JSON con extracted + status + confidence)
 
 ---
 
-## FASE 6 — Anomalías 🔄 EN PROGRESO (50%)
+## FASE 6 — Anomalías & Criterios Inspección AEAT ✅ COMPLETA (100%)
+
+**Objetivo:** Motor determinista de detección de riesgos fiscales e inconsistencias AEAT en tiempo real, trazabilidad de resolución, impacto económico y alertas auditables.
 
 | Elemento | Estado | Detalle |
 |---|---|---|
-| Motor `AnomalyDetector.ts` | ✅ | Base implementada en `src/engine/fiscal/anomaly/` |
-| Regla `DuplicateDocumentRule.ts` | ✅ | Detecta facturas duplicadas |
-| Regla `UnreviewedExpenseRule.ts` | ✅ | Gastos pendientes de revisión |
-| Tabla `alerts` | ✅ | 16 columnas con severidad, estado, entidad |
-| Página `/alerts` | ✅ | Vista de alertas activas |
-| WF-07: Anomaly & Deadline Monitor | ✅ | Activo en n8n |
-| Regla `MISSING_VAT_DATA` | ⏳ | Pendiente |
-| Regla `UNUSUAL_VAT_RATIO` | ⏳ | Pendiente |
-| Regla `MISSING_SUPPLIER` | ⏳ | Pendiente |
-| Regla `POSSIBLE_DUPLICATE_SUPPLIER` | ⏳ | Pendiente |
-| Regla `PERIOD_MISMATCH` | ⏳ | Pendiente |
-| Priorización por impacto económico | ⏳ | Pendiente |
-| Tests de reglas | ⏳ | Pendiente |
+| Motor `anomalyEngine.ts` | ✅ | 8 reglas deterministas ejecutadas en cliente y sincronizadas con BD |
+| Regla `HIGH_AMOUNT` | ✅ | Detecta importes individuales > 1.500 € (umbral estricto de inspección AEAT) |
+| Regla `MISSING_NIF` | ✅ | Detecta gastos sin NIF o proveedor genérico (riesgo no deducibilidad) |
+| Regla `UNUSUAL_VAT_RATIO` | ✅ | Discrepancia matemática entre base imponible, tipo e IVA soportado |
+| Regla `DUPLICATE_INVOICE` | ✅ | Mismo emisor, número y fecha de expedición duplicados |
+| Regla `UNREVIEWED_EXPENSE` | ✅ | Gastos provisionales sin validar que distorsionan la liquidación 303 |
+| Regla `PERIOD_MISMATCH` | ✅ | Facturas fechadas fuera del trimestre fiscal activo |
+| Regla `POSSIBLE_DUPLICATE_SUPPLIER` | ✅ | Detección de proveedores similares con NIFs diferentes |
+| Regla `SECTOR_VAT_RATIO` | ✅ | Ratio anómalo de IVA soportado vs ventas (> 95%) en hostelería |
+| Tabla `alerts` en Supabase | ✅ | 16 columnas con severidad, estado (`OPEN`/`RESOLVED`), evidencia y entidad |
+| Tabla `audit_events` | ✅ | Registro auditable inmutable de cada descarte/resolución con justificación |
+| Vista `/alerts` interactiva | ✅ | Métricas de impacto, badges de severidad, modal de resolución con justificación obligatoria |
+| Widget en Dashboard (`/`) | ✅ | Card reactiva de anomalías pendientes conectada a Supabase con acceso directo |
+| Badges en Sidebar & Navbar | ✅ | Sincronización en tiempo real mediante `copiloto_fiscal_active_alerts_count` |
+| WF-07: Anomaly & Deadline Monitor | ✅ | Activo en n8n para comprobaciones periódicas |
 
 ---
 
