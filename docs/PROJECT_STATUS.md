@@ -1,8 +1,8 @@
 # PROJECT STATUS — COPILOTO FISCAL
 
-> **Versión:** 1.6
+> **Versión:** 1.8
 > **Última actualización:** 01 Octubre 2026
-> **Estado global:** FASE 6 (Detección de Anomalías e Inspección AEAT) completada (100%) — FASE 7 (Copiloto IA) siguiente objetivo
+> **Estado global:** FASES 0 a 6 completadas al 100% — FASE 7 (Copiloto IA conversacional) EN PROGRESO (75%)
 > **Autor:** Antigravity (actualización continua)
 > **Fuente de verdad:** [COPILOTO_FISCAL_MASTER_PLAN.md](../COPILOTO_FISCAL_MASTER_PLAN.md)
 
@@ -15,12 +15,12 @@
 | **FASE 0** | Descubrimiento y planificación | ✅ COMPLETA | 100% |
 | **FASE 1** | Infraestructura | ✅ COMPLETA | 100% |
 | **FASE 2** | Núcleo financiero | ✅ COMPLETA | 100% |
-| **FASE 3** | Documentos | ✅ COMPLETA | 100% |
-| **FASE 4** | n8n + IA | ✅ OPERATIVO | 90% |
+| **FASE 3** | Documentos & Review | ✅ COMPLETA | 100% |
+| **FASE 4** | n8n + Pipeline IA | ✅ COMPLETA | 100% |
 | **FASE 5** | Dashboard & Visualización | ✅ COMPLETA | 100% |
 | **FASE 6** | Anomalías & Inspección AEAT | ✅ COMPLETA | 100% |
-| **FASE 7** | Copiloto IA | ⏳ PENDIENTE | 20% |
-| **FASE 8** | Validación con datos reales | ⏳ PENDIENTE | 0% |
+| **FASE 7** | Copiloto IA (Chat Tributario) | 🔄 EN PROGRESO | 75% |
+| **FASE 8** | Validación y Cierre | ⏳ PENDIENTE | 0% |
 
 ---
 
@@ -226,15 +226,47 @@ Respond to Webhook (JSON con extracted + status + confidence)
 
 ---
 
-## FASE 7 — Copiloto IA ⏳ INICIO (20%)
+## FASE 7 — Copiloto IA 🔄 EN PROGRESO (75%)
+
+**Objetivo:** Asistente conversacional tributario conectado a datos reales de Supabase + OpenAI GPT-4o-mini, sin respuestas genéricas ni mockData.
 
 | Elemento | Estado | Detalle |
 |---|---|---|
-| Página `/copilot` (UI chat) | ✅ | Interfaz presente |
-| Consultas con datos reales de Supabase | ⏳ | IA no consulta BD en tiempo real aún |
-| "¿Por qué cambió mi IVA?" | ⏳ | Pendiente |
-| "¿Qué documentos tengo pendientes?" | ⏳ | Pendiente |
-| Motor responde → IA explica | ⏳ | Arquitectura definida, sin implementar |
+| Página `/copilot` (UI chat) | ✅ | Interfaz completa con quick prompts, markdown rendering e indicador de typing |
+| Eliminación de `mockData` del chat | ✅ | `initialSummary` e `initialAlerts` eliminados de `/copilot` |
+| Endpoint `/api/copilot/chat` | ✅ | API Route SSR que agrega Supabase + llama OpenAI GPT-4o-mini |
+| Contexto fiscal real en system prompt | ✅ | IVA repercutido/soportado, top proveedores, categorías, docs pendientes, alertas |
+| Panel lateral con datos reales | ✅ | Se actualiza tras cada consulta con snapshot real del trimestre |
+| Detección automática de trimestre activo | ✅ | Calculado dinámicamente por mes del sistema |
+| Aislamiento multi-tenant | ✅ | La API valida sesión y filtra por `business_id` del usuario |
+| "¿Por qué tengo ese resultado en el 303?" | ✅ | Responde con cifras reales de `expenses` e `income` |
+| "¿Qué documentos tengo pendientes?" | ✅ | Devuelve conteo real desde tabla `documents` |
+| Historial de conversación multi-turno | ⏳ | Solo envía el mensaje actual, sin contexto de mensajes previos |
+| Streaming de respuesta (SSE) | ⏳ | Respuesta completa de una vez; streaming pendiente para mejor UX |
+| Selección manual de trimestre en chat | ⏳ | El trimestre se detecta automáticamente pero no es seleccionable desde la UI |
+
+### Arquitectura implementada
+
+```
+Usuario pregunta en /copilot
+  ↓
+/api/copilot/chat (Next.js API Route — SSR)
+  ↓                          ↓
+Supabase (SSR client)    OpenAI GPT-4o-mini
+  → expenses (trimestre)   → system prompt con
+  → income (trimestre)       cifras reales
+  → alerts (OPEN)          → temperature: 0.3
+  → documents (pendientes) → max_tokens: 600
+  ↓
+{ reply, sources, context } → panel lateral actualizado
+```
+
+### Pendiente en Fase 7
+
+- [ ] Historial multi-turno: enviar los últimos N mensajes a OpenAI como contexto
+- [ ] Streaming SSE para mejor percepción de velocidad
+- [ ] Selector de trimestre en la UI del chat
+- [ ] Exportar conversación como PDF/texto
 
 ---
 
@@ -349,6 +381,7 @@ Respond to Webhook (JSON con extracted + status + confidence)
 | 01/10/2026 | 🏆 Hito | **HUMAN-IN-THE-LOOP & CONCILIACIÓN VALIDADA**: Pantalla `/documents/[id]/review` probada en producción; la aprobación del usuario crea el apunte contable en `expenses` y registra el proveedor en `suppliers` |
 | 01/10/2026 | 📊 Finanzas | **CÁLCULO 303 CON DATOS REALES**: Dashboard computa dinámicamente el Modelo 303 agregando la tabla `expenses` y cruzando con `documents` con deduplicación canónica por `document_id` |
 | 01/10/2026 | 🧹 Mantenimiento | Limpieza de base de datos en producción: purga de usuarios y empresas de prueba temporales, dejando el entorno aislado y limpio para `serquin16@gmail.com` |
+| 01/10/2026 | 🤖 Feature | **FASE 7 — Copiloto IA operativo (75%)**: Endpoint `/api/copilot/chat` implementado con contexto fiscal real (expenses, income, alerts, docs pendientes); eliminación completa de mockData en `/copilot`; panel lateral con snapshot dinámico por trimestre |
 
 ---
 
@@ -369,8 +402,10 @@ Respond to Webhook (JSON con extracted + status + confidence)
 ### 🚀 Próximos pasos sugeridos
 | Prioridad | Feature | Descripción |
 |-----------|---------|-------------|
-| 🔴 Alta | **FASE 7 — Copiloto IA (`/copilot`) real** | Conectar el asistente conversacional con datos reales de la empresa (gastos, facturas, Modelo 303 de Supabase) + endpoint LLM (`/api/copilot/chat`) |
-| 🟡 Media | **Validación NIF/CIF/NIE** | Algoritmo determinista de validación de documento fiscal español (con letra/dígito de control) en `/settings` y formulario de revisión de facturas |
+| 🔴 Alta | **Historial multi-turno en Copiloto** | Enviar los últimos N mensajes del chat a OpenAI para que el asistente recuerde el contexto de la conversación |
+| 🔴 Alta | **Selector de trimestre en `/copilot`** | Permitir al usuario cambiar el trimestre desde la UI del chat para consultar datos históricos |
+| 🟡 Media | **Streaming SSE en Copiloto** | Usar `ReadableStream` + SSE para mostrar la respuesta de OpenAI palabra a palabra |
+| 🟡 Media | **Validación NIF/CIF/NIE** | Algoritmo determinista de validación de documento fiscal español en `/settings` y revisión de facturas |
 | 🟡 Media | **Exportación de Datos / Borrador 303** | Descarga CSV/PDF del libro registro de facturas recibidas y resumen de liquidación oficial |
 | 🟢 Baja | **Avatar personalizable** | Subida y actualización de avatar a Supabase Storage desde `/settings` |
 
