@@ -200,7 +200,7 @@ export default function DocumentsPage() {
         await supabase.from("documents").insert([
           {
             id: newDocId,
-            business_id: "00000000-0000-0000-0000-000000000000",
+            business_id: "00000000-0000-0000-0000-000000000001",
             type: "invoice",
             direction: "expense",
             storage_path: storagePath,
@@ -220,7 +220,7 @@ export default function DocumentsPage() {
       try {
         const payload = {
           documentId: newDocId,
-          businessId: "00000000-0000-0000-0000-000000000000",
+          businessId: "00000000-0000-0000-0000-000000000001",
           storagePath: storagePath,
           originalFilename: file.name,
           fileSize: file.size,

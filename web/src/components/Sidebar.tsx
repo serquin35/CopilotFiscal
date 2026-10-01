@@ -124,9 +124,9 @@ export function Sidebar() {
                 Copiloto Fiscal
               </span>
               <span className="text-[11px] text-muted-foreground flex items-center gap-1">
-                <span>Modelo 303</span>
+                <span className="font-medium text-foreground/90 truncate max-w-[110px]" title="La Corrala Escondida">La Corrala Escondida</span>
                 <span className="size-1 rounded-full bg-border" />
-                <span className="text-primary font-mono text-[10px]">3T 2026</span>
+                <span className="text-primary font-mono text-[10px]">4T 2026</span>
               </span>
             </div>
           </Link>

@@ -322,8 +322,10 @@ Respond to Webhook (JSON con extracted + status + confidence)
 | 01/10/2026 | 🧹 Refactor | Eliminación de datos mock residuales en Dashboard (`/`) y Alertas (`/alerts`), meses y saldos tributarios dinámicos |
 | 01/10/2026 | 🔔 Feature | Badges dinámicos de documentos y anomalías en Sidebar y Navbar con ocultamiento inteligente en conteo cero |
 | 01/10/2026 | 🔒 Seguridad | Credenciales OpenAI y Supabase migradas al gestor de credenciales de n8n (DT-01 resuelto) |
-| 01/10/2026 | 🗄️ Seed | Seed SQL de "La Corrala Escondida" inyectado: 8 proveedores, 21 ingresos (17.107 € base), 13 gastos (5.596 € base) Q4 2026 |
 | 01/10/2026 | 🚀 Feature | Dashboard lee tabla `income` de Supabase para calcular IVA Repercutido real → liquidación Modelo 303 completa |
+| 01/10/2026 | 🚀 Feature | Conexión de `/expenses` y Dashboard a tablas `expenses` y `suppliers`: 14 compras reales (Makro, Mahou, Cafés Baqué...) reflejadas con desglose y estado |
+| 01/10/2026 | 🎨 Branding | Identidad comercial "La Corrala Escondida" y periodo activo 4T 2026 reflejados en Sidebar, Navbar y selector de trimestres |
+| 01/10/2026 | ⏱️ Lógica | Contador dinámico de días restantes hacia el plazo legal de presentación del Modelo 303 según el trimestre seleccionado |
 
 ---
 

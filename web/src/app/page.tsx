@@ -52,15 +52,15 @@ const DEFAULT_DEADLINES: Record<string, string> = {
 };
 
 export default function DashboardPage() {
-  const [selectedQuarter, setSelectedQuarter] = useState<"1T" | "2T" | "3T" | "4T">("3T");
+  const [selectedQuarter, setSelectedQuarter] = useState<"1T" | "2T" | "3T" | "4T">("4T");
   const [documents, setDocuments] = useState<FiscalDocument[]>([]);
   const [alerts, setAlerts] = useState<AnomalyAlert[]>([]);
   const [incomeData, setIncomeData] = useState<{ vat_amount: number; base_amount: number; date: string }[]>([]);
   const [summary, setSummary] = useState<QuarterlySummary>({
-    quarter: "3T",
+    quarter: "4T",
     year: 2026,
-    deadline: "2026-10-20",
-    daysRemaining: 20,
+    deadline: "2027-01-30",
+    daysRemaining: 121,
     collectedVat: 0,
     deductibleVat: 0,
     netVat: 0,
@@ -69,9 +69,9 @@ export default function DashboardPage() {
     pendingReviewCount: 0,
     urgentAlertsCount: 0,
     monthlyBreakdown: [
-      { month: "Julio", collected: 0, deductible: 0 },
-      { month: "Agosto", collected: 0, deductible: 0 },
-      { month: "Septiembre", collected: 0, deductible: 0 },
+      { month: "Octubre", collected: 0, deductible: 0 },
+      { month: "Noviembre", collected: 0, deductible: 0 },
+      { month: "Diciembre", collected: 0, deductible: 0 },
     ],
   });
 
@@ -149,11 +149,17 @@ export default function DashboardPage() {
       // Suprimir advertencia de variable no usada (collectedBase se usará en el futuro para ingresos brutos)
       void collectedBase;
 
+      const deadlineStr = DEFAULT_DEADLINES[quarter] || "2027-01-30";
+      const targetDate = new Date(deadlineStr);
+      const today = new Date();
+      const diffTime = targetDate.getTime() - today.getTime();
+      const daysRemaining = Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+
       setSummary({
         quarter,
         year: 2026,
-        deadline: DEFAULT_DEADLINES[quarter] || "2026-10-20",
-        daysRemaining: 20,
+        deadline: deadlineStr,
+        daysRemaining,
         collectedVat: roundedCollected,
         deductibleVat: roundedDeductible,
         netVat,
@@ -200,6 +206,49 @@ export default function DashboardPage() {
       console.warn("Error consultando ingresos en Supabase:", err);
     }
 
+    // Cargar gastos contables de la tabla expenses de Supabase
+    let dbExpenses: FiscalDocument[] = [];
+    try {
+      const { data: expRows, error: expError } = await supabase
+        .from("expenses")
+        .select("*, suppliers(name, tax_id_masked)")
+        .order("date", { ascending: false });
+
+      if (!expError && expRows && expRows.length > 0) {
+        dbExpenses = expRows.map((item: Record<string, unknown>) => {
+          const sup = item.suppliers as Record<string, unknown> | null;
+          const deductPct =
+            item.deductibility_status === "NON_DEDUCTIBLE"
+              ? 0
+              : item.deductibility_status === "PARTIAL"
+              ? 50
+              : 100;
+
+          return {
+            id: String(item.id || ""),
+            filename: String(item.description || "Gasto contabilizado"),
+            fileSize: 0,
+            uploadedAt: String(item.created_at || new Date().toISOString()),
+            status: item.validation_status === "VALIDATED" ? "CONFIRMED" : "PENDING_REVIEW",
+            providerName: String(sup?.name || item.notes || "Proveedor"),
+            nif: String(sup?.tax_id_masked || "-"),
+            invoiceNumber: String(item.description || `EXP-${String(item.id || "").substring(0, 8)}`),
+            date: String(item.date || ""),
+            baseAmount: Number(item.base_amount || 0),
+            vatRate: Number(item.vat_rate || 21),
+            vatAmount: Number(item.vat_amount || 0),
+            totalAmount: Number(item.total_amount || 0),
+            category: String(item.category || "Gastos deducibles"),
+            deductiblePercentage: deductPct,
+            url: item.document_id ? `/documents/${item.document_id}/review` : undefined,
+            anomalies: [],
+          };
+        });
+      }
+    } catch (err) {
+      console.warn("Error consultando expenses en Supabase:", err);
+    }
+
     try {
       const { data: dbDocs, error } = await supabase
         .from("documents")
@@ -207,42 +256,49 @@ export default function DashboardPage() {
         .order("uploaded_at", { ascending: false });
 
       if (!error && dbDocs && dbDocs.length > 0) {
-        const mappedDbDocs: FiscalDocument[] = dbDocs.map((item: Record<string, unknown>) => {
-          const extList = item.document_extractions as Record<string, unknown>[] | null;
-          const ext = Array.isArray(extList) && extList.length > 0 ? extList[0] : null;
+        const mappedDbDocs: FiscalDocument[] = dbDocs
+          .filter((item: Record<string, unknown>) => {
+            return !dbExpenses.some(
+              (e) => e.url === `/documents/${item.id}/review` || e.id === String(item.id)
+            );
+          })
+          .map((item: Record<string, unknown>) => {
+            const extList = item.document_extractions as Record<string, unknown>[] | null;
+            const ext = Array.isArray(extList) && extList.length > 0 ? extList[0] : null;
 
-          let publicUrl = "";
-          if (item.storage_path) {
-            const { data: urlData } = supabase.storage.from("documents").getPublicUrl(String(item.storage_path));
-            publicUrl = urlData?.publicUrl || "";
-          }
+            let publicUrl = "";
+            if (item.storage_path) {
+              const { data: urlData } = supabase.storage.from("documents").getPublicUrl(String(item.storage_path));
+              publicUrl = urlData?.publicUrl || "";
+            }
 
-          const localMatch = currentDocs.find((cd) => cd.id === String(item.id));
+            const localMatch = currentDocs.find((cd) => cd.id === String(item.id));
 
-          return {
-            id: String(item.id || ""),
-            filename: String(item.original_filename || localMatch?.filename || "Documento"),
-            fileSize: Number(item.file_size_bytes) || localMatch?.fileSize || 120000,
-            uploadedAt: String(item.uploaded_at || localMatch?.uploadedAt || new Date().toISOString()),
-            status: (item.status as FiscalDocument["status"]) || localMatch?.status || "PENDING_REVIEW",
-            url: publicUrl || localMatch?.url,
-            providerName: (ext?.extracted_supplier_name as string) || localMatch?.providerName || String(item.notes || "Proveedor detectado"),
-            nif: (ext?.extracted_supplier_nif as string) || localMatch?.nif || "-",
-            invoiceNumber: (ext?.extracted_invoice_number as string) || localMatch?.invoiceNumber || `F-${String(item.id || "").substring(0, 8)}`,
-            date: (ext?.extracted_date as string) || localMatch?.date || String(item.uploaded_at || "").split("T")[0] || new Date().toISOString().split("T")[0],
-            baseAmount: Number(ext?.extracted_base_amount ?? localMatch?.baseAmount ?? 0),
-            vatRate: Number(ext?.extracted_vat_rate ?? localMatch?.vatRate ?? 21),
-            vatAmount: Number(ext?.extracted_vat_amount ?? localMatch?.vatAmount ?? 0),
-            totalAmount: Number(ext?.extracted_total_amount ?? localMatch?.totalAmount ?? 0),
-            category: (ext?.extracted_category as string) || localMatch?.category || String(item.type || "Factura"),
-            deductiblePercentage: localMatch?.deductiblePercentage ?? 100,
-            anomalies: localMatch?.anomalies || [],
-          };
-        });
+            return {
+              id: String(item.id || ""),
+              filename: String(item.original_filename || localMatch?.filename || "Documento"),
+              fileSize: Number(item.file_size_bytes) || localMatch?.fileSize || 120000,
+              uploadedAt: String(item.uploaded_at || localMatch?.uploadedAt || new Date().toISOString()),
+              status: (item.status as FiscalDocument["status"]) || localMatch?.status || "PENDING_REVIEW",
+              url: publicUrl || localMatch?.url,
+              providerName: (ext?.extracted_supplier_name as string) || localMatch?.providerName || String(item.notes || "Proveedor detectado"),
+              nif: (ext?.extracted_supplier_nif as string) || localMatch?.nif || "-",
+              invoiceNumber: (ext?.extracted_invoice_number as string) || localMatch?.invoiceNumber || `F-${String(item.id || "").substring(0, 8)}`,
+              date: (ext?.extracted_date as string) || localMatch?.date || String(item.uploaded_at || "").split("T")[0] || new Date().toISOString().split("T")[0],
+              baseAmount: Number(ext?.extracted_base_amount ?? localMatch?.baseAmount ?? 0),
+              vatRate: Number(ext?.extracted_vat_rate ?? localMatch?.vatRate ?? 21),
+              vatAmount: Number(ext?.extracted_vat_amount ?? localMatch?.vatAmount ?? 0),
+              totalAmount: Number(ext?.extracted_total_amount ?? localMatch?.totalAmount ?? 0),
+              category: (ext?.extracted_category as string) || localMatch?.category || String(item.type || "Factura"),
+              deductiblePercentage: localMatch?.deductiblePercentage ?? 100,
+              anomalies: localMatch?.anomalies || [],
+            };
+          });
 
         const combined = [
+          ...dbExpenses,
           ...mappedDbDocs,
-          ...currentDocs.filter((cd) => !mappedDbDocs.some((md) => md.id === cd.id) && !cd.id.startsWith("doc-")),
+          ...currentDocs.filter((cd) => !dbExpenses.some((de) => de.id === cd.id) && !mappedDbDocs.some((md) => md.id === cd.id) && !cd.id.startsWith("doc-")),
         ];
         setDocuments(combined);
         calculateSummary(combined, selectedQuarter, fetchedIncome);
@@ -250,6 +306,16 @@ export default function DashboardPage() {
       }
     } catch (err) {
       console.warn("Error consultando Supabase en Dashboard:", err);
+    }
+
+    if (dbExpenses.length > 0) {
+      const combined = [
+        ...dbExpenses,
+        ...currentDocs.filter((cd) => !dbExpenses.some((de) => de.id === cd.id) && !cd.id.startsWith("doc-")),
+      ];
+      setDocuments(combined);
+      calculateSummary(combined, selectedQuarter, fetchedIncome);
+      return;
     }
 
     const realOnly = currentDocs.filter((cd) => !cd.id.startsWith("doc-"));
@@ -727,9 +793,9 @@ export default function DashboardPage() {
                       <td className="py-3.5 pl-2 text-center font-sans">
                         <div className="inline-flex items-center gap-1.5">
                           <Link
-                            href={`/documents/${doc.id}/review`}
+                            href={doc.url ? doc.url : "/expenses"}
                             className="size-7 rounded-lg border border-border bg-background flex items-center justify-center hover:bg-muted hover:text-primary transition-colors text-muted-foreground"
-                            title="Revisión Humana en Detalle"
+                            title={doc.url ? "Revisión Humana en Detalle" : "Ver en Gastos"}
                           >
                             <Info className="size-3.5" />
                           </Link>

@@ -37,6 +37,49 @@ export default function ExpensesPage() {
       console.warn("Error leyendo localStorage en Expenses:", e);
     }
 
+    // 1. Cargar gastos contables reales de la tabla `expenses` de Supabase
+    let dbExpenses: FiscalDocument[] = [];
+    try {
+      const { data: expRows, error: expError } = await supabase
+        .from("expenses")
+        .select("*, suppliers(name, tax_id_masked)")
+        .order("date", { ascending: false });
+
+      if (!expError && expRows && expRows.length > 0) {
+        dbExpenses = expRows.map((item: Record<string, unknown>) => {
+          const sup = item.suppliers as Record<string, unknown> | null;
+          const deductPct =
+            item.deductibility_status === "NON_DEDUCTIBLE"
+              ? 0
+              : item.deductibility_status === "PARTIAL"
+              ? 50
+              : 100;
+
+          return {
+            id: String(item.id || ""),
+            filename: String(item.description || "Gasto contabilizado"),
+            fileSize: 0,
+            uploadedAt: String(item.created_at || new Date().toISOString()),
+            status: item.validation_status === "VALIDATED" ? "CONFIRMED" : "PENDING_REVIEW",
+            providerName: String(sup?.name || item.notes || "Proveedor"),
+            nif: String(sup?.tax_id_masked || "-"),
+            invoiceNumber: String(item.description || `EXP-${String(item.id || "").substring(0, 8)}`),
+            date: String(item.date || ""),
+            baseAmount: Number(item.base_amount || 0),
+            vatRate: Number(item.vat_rate || 21),
+            vatAmount: Number(item.vat_amount || 0),
+            totalAmount: Number(item.total_amount || 0),
+            category: String(item.category || "Gastos deducibles"),
+            deductiblePercentage: deductPct,
+            url: item.document_id ? `/documents/${item.document_id}/review` : undefined,
+          };
+        });
+      }
+    } catch (err) {
+      console.warn("Error consultando expenses en Supabase:", err);
+    }
+
+    // 2. Cargar documentos pendientes o subidos de documents
     try {
       const { data: dbDocs, error } = await supabase
         .from("documents")
@@ -44,48 +87,63 @@ export default function ExpensesPage() {
         .order("uploaded_at", { ascending: false });
 
       if (!error && dbDocs && dbDocs.length > 0) {
-        const mappedDbDocs: FiscalDocument[] = dbDocs.map((item: Record<string, unknown>) => {
-          const extList = item.document_extractions as Record<string, unknown>[] | null;
-          const ext = Array.isArray(extList) && extList.length > 0 ? extList[0] : null;
+        const mappedDbDocs: FiscalDocument[] = dbDocs
+          .filter((item: Record<string, unknown>) => {
+            return !dbExpenses.some(
+              (e) => e.url === `/documents/${item.id}/review` || e.id === String(item.id)
+            );
+          })
+          .map((item: Record<string, unknown>) => {
+            const extList = item.document_extractions as Record<string, unknown>[] | null;
+            const ext = Array.isArray(extList) && extList.length > 0 ? extList[0] : null;
 
-          let publicUrl = "";
-          if (item.storage_path) {
-            const { data: urlData } = supabase.storage.from("documents").getPublicUrl(String(item.storage_path));
-            publicUrl = urlData?.publicUrl || "";
-          }
+            let publicUrl = "";
+            if (item.storage_path) {
+              const { data: urlData } = supabase.storage.from("documents").getPublicUrl(String(item.storage_path));
+              publicUrl = urlData?.publicUrl || "";
+            }
 
-          const localMatch = currentDocs.find((cd) => cd.id === String(item.id));
+            const localMatch = currentDocs.find((cd) => cd.id === String(item.id));
 
-          return {
-            id: String(item.id || ""),
-            filename: String(item.original_filename || localMatch?.filename || "Documento"),
-            fileSize: Number(item.file_size_bytes) || localMatch?.fileSize || 120000,
-            uploadedAt: String(item.uploaded_at || localMatch?.uploadedAt || new Date().toISOString()),
-            status: (item.status as FiscalDocument["status"]) || localMatch?.status || "PENDING_REVIEW",
-            url: publicUrl || localMatch?.url,
-            providerName: (ext?.extracted_supplier_name as string) || localMatch?.providerName || String(item.notes || "Proveedor detectado"),
-            nif: (ext?.extracted_supplier_nif as string) || localMatch?.nif || "-",
-            invoiceNumber: (ext?.extracted_invoice_number as string) || localMatch?.invoiceNumber || `F-${String(item.id || "").substring(0, 8)}`,
-            date: (ext?.extracted_date as string) || localMatch?.date || String(item.uploaded_at || "").split("T")[0] || new Date().toISOString().split("T")[0],
-            baseAmount: Number(ext?.extracted_base_amount ?? localMatch?.baseAmount ?? 0),
-            vatRate: Number(ext?.extracted_vat_rate ?? localMatch?.vatRate ?? 21),
-            vatAmount: Number(ext?.extracted_vat_amount ?? localMatch?.vatAmount ?? 0),
-            totalAmount: Number(ext?.extracted_total_amount ?? localMatch?.totalAmount ?? 0),
-            category: (ext?.extracted_category as string) || localMatch?.category || String(item.type || "Gastos deducibles"),
-            deductiblePercentage: localMatch?.deductiblePercentage ?? 100,
-          };
-        });
+            return {
+              id: String(item.id || ""),
+              filename: String(item.original_filename || localMatch?.filename || "Documento"),
+              fileSize: Number(item.file_size_bytes) || localMatch?.fileSize || 120000,
+              uploadedAt: String(item.uploaded_at || localMatch?.uploadedAt || new Date().toISOString()),
+              status: (item.status as FiscalDocument["status"]) || localMatch?.status || "PENDING_REVIEW",
+              url: publicUrl || localMatch?.url,
+              providerName: (ext?.extracted_supplier_name as string) || localMatch?.providerName || String(item.notes || "Proveedor detectado"),
+              nif: (ext?.extracted_supplier_nif as string) || localMatch?.nif || "-",
+              invoiceNumber: (ext?.extracted_invoice_number as string) || localMatch?.invoiceNumber || `F-${String(item.id || "").substring(0, 8)}`,
+              date: (ext?.extracted_date as string) || localMatch?.date || String(item.uploaded_at || "").split("T")[0] || new Date().toISOString().split("T")[0],
+              baseAmount: Number(ext?.extracted_base_amount ?? localMatch?.baseAmount ?? 0),
+              vatRate: Number(ext?.extracted_vat_rate ?? localMatch?.vatRate ?? 21),
+              vatAmount: Number(ext?.extracted_vat_amount ?? localMatch?.vatAmount ?? 0),
+              totalAmount: Number(ext?.extracted_total_amount ?? localMatch?.totalAmount ?? 0),
+              category: (ext?.extracted_category as string) || localMatch?.category || String(item.type || "Gastos deducibles"),
+              deductiblePercentage: localMatch?.deductiblePercentage ?? 100,
+            };
+          });
 
-        // Solo combinamos con locales si no están en BD y no son mocks descartados
         const combined = [
+          ...dbExpenses,
           ...mappedDbDocs,
-          ...currentDocs.filter((cd) => !mappedDbDocs.some((md) => md.id === cd.id) && !cd.id.startsWith("doc-")),
+          ...currentDocs.filter((cd) => !dbExpenses.some((de) => de.id === cd.id) && !mappedDbDocs.some((md) => md.id === cd.id) && !cd.id.startsWith("doc-")),
         ];
         setDocuments(combined);
         return;
       }
     } catch (err) {
       console.warn("Error consultando Supabase en Expenses:", err);
+    }
+
+    if (dbExpenses.length > 0) {
+      const combined = [
+        ...dbExpenses,
+        ...currentDocs.filter((cd) => !dbExpenses.some((de) => de.id === cd.id) && !cd.id.startsWith("doc-")),
+      ];
+      setDocuments(combined);
+      return;
     }
 
     // Filtrar docs mock iniciales si el usuario los eliminó
@@ -354,11 +412,17 @@ export default function ExpensesPage() {
                         <StatusBadge status={doc.status} />
                       </td>
                       <td className="py-3.5 pl-2 text-right font-sans">
-                        <Link href={`/documents/${doc.id}/review`}>
-                          <Button size="sm" variant="ghost" className="text-xs h-7">
-                            Revisar
-                          </Button>
-                        </Link>
+                        {doc.url ? (
+                          <Link href={doc.url}>
+                            <Button size="sm" variant="ghost" className="text-xs h-7">
+                              Revisar
+                            </Button>
+                          </Link>
+                        ) : (
+                          <span className="text-[10px] text-muted-foreground font-mono px-2 py-1 rounded bg-muted/40 border border-border/40">
+                            Asiento
+                          </span>
+                        )}
                       </td>
                     </tr>
                   ))}

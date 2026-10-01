@@ -194,7 +194,7 @@ export default function DocumentReviewPage() {
           const { data: newSup } = await supabase
             .from("suppliers")
             .insert([{
-              business_id: "00000000-0000-0000-0000-000000000000",
+              business_id: "00000000-0000-0000-0000-000000000001",
               name: cleanName,
               normalized_name: cleanName.toUpperCase(),
               tax_id_masked: doc.nif || null,
@@ -234,7 +234,7 @@ export default function DocumentReviewPage() {
         const quarter = Math.ceil(month / 3);
 
         await supabase.from("expenses").insert([{
-          business_id: "00000000-0000-0000-0000-000000000000",
+          business_id: "00000000-0000-0000-0000-000000000001",
           document_id: doc.id,
           supplier_id: supplierId,
           date: docDate,
@@ -259,7 +259,7 @@ export default function DocumentReviewPage() {
     // 5. Auditoría
     try {
       await supabase.from("audit_events").insert([{
-        business_id: "00000000-0000-0000-0000-000000000000",
+        business_id: "00000000-0000-0000-0000-000000000001",
         entity_type: "document",
         entity_id: doc.id,
         action: "DOCUMENT_CONFIRMED",

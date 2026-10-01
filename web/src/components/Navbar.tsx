@@ -83,11 +83,11 @@ export function Navbar() {
               <span className="font-semibold tracking-tight text-foreground text-sm flex items-center gap-1.5">
                 Copiloto Fiscal
                 <span className="text-[10px] uppercase font-mono px-1.5 py-0.2 rounded bg-primary/15 text-primary font-medium">
-                  3T 2026
+                  4T 2026
                 </span>
               </span>
               <span className="text-[11px] text-muted-foreground">
-                Control AEAT &amp; Modelo 303
+                La Corrala Escondida · Control AEAT &amp; Modelo 303
               </span>
             </div>
           </Link>
