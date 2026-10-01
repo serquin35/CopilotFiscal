@@ -73,7 +73,7 @@ const WELCOME_MSG: Message = {
 // ─── Componente ───────────────────────────────────────────────────────────────
 
 export default function CopilotPage() {
-  const { business } = useAuth();
+  const { business, session, supabase } = useAuth();
   const currentYear = new Date().getFullYear();
 
   const [selectedQuarter, setSelectedQuarter] = useState<Quarter>(getCurrentQuarter());
@@ -146,9 +146,16 @@ export default function CopilotPage() {
       setIsTyping(true);
 
       try {
+        // Obtener token de sesión activo (lo refresca si hace falta)
+        const { data: { session: currentSession } } = await supabase.auth.getSession();
+        const accessToken = currentSession?.access_token ?? session?.access_token ?? "";
+
         const res = await fetch("/api/copilot/chat", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${accessToken}`,
+          },
           body: JSON.stringify({
             message: query,
             quarter: selectedQuarter,

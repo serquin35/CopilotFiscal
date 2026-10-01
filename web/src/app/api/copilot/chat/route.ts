@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase-server";
+import { createClient } from "@supabase/supabase-js";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -33,10 +33,19 @@ interface FiscalContext {
 
 // ─── Agregador de contexto fiscal ─────────────────────────────────────────────
 
-async function buildFiscalContext(quarter: string, year: number): Promise<FiscalContext | null> {
-  const supabase = createClient();
+async function buildFiscalContext(
+  token: string,
+  quarter: string,
+  year: number
+): Promise<FiscalContext | null> {
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { global: { headers: { Authorization: `Bearer ${token}` } } }
+  );
 
-  const { data: { user } } = await supabase.auth.getUser();
+  // Validar el token directamente (sin cookies)
+  const { data: { user } } = await supabase.auth.getUser(token);
   if (!user) return null;
 
   const { data: profile } = await supabase
@@ -236,10 +245,20 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "OPENAI_API_KEY no configurada" }, { status: 500 });
   }
 
-  const ctx = await buildFiscalContext(quarter, year);
+  // Extraer JWT del header Authorization: "Bearer <token>"
+  const authHeader = req.headers.get("Authorization") ?? "";
+  const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
+  if (!token) {
+    return NextResponse.json(
+      { error: "No autorizado. Inicia sesion para usar el Copiloto." },
+      { status: 401 }
+    );
+  }
+
+  const ctx = await buildFiscalContext(token, quarter, year);
   if (!ctx) {
     return NextResponse.json(
-      { error: "Sesion no valida. Inicia sesion para usar el Copiloto." },
+      { error: "Sesion no valida. Comprueba que tu sesion no haya expirado." },
       { status: 401 }
     );
   }
