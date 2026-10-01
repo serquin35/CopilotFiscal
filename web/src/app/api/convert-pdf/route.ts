@@ -67,15 +67,33 @@ export async function POST(req: NextRequest): Promise<NextResponse<ConvertPdfRes
 
     // 4. Renderizar página 1 del PDF con pdfjs-dist + canvas
     // Importaciones dinámicas para evitar problemas con el bundle de Edge Runtime
+    const canvasModule = await import("canvas");
+    const { createCanvas } = canvasModule;
+
+    // Polyfill necesario para pdfjs-dist en entorno Node.js / Vercel Serverless
+    const g = globalThis as unknown as Record<string, unknown>;
+    if (typeof g.DOMMatrix === "undefined" && canvasModule.DOMMatrix) {
+      g.DOMMatrix = canvasModule.DOMMatrix;
+    }
+    if (typeof g.ImageData === "undefined" && canvasModule.ImageData) {
+      g.ImageData = canvasModule.ImageData;
+    }
+    if (typeof g.Path2D === "undefined" && (canvasModule as Record<string, unknown>).Path2D) {
+      g.Path2D = (canvasModule as Record<string, unknown>).Path2D;
+    }
+
     const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
-    const { createCanvas } = await import("canvas");
 
     // Cargar el documento PDF desde el buffer
-    const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(pdfBuffer) });
+    const loadingTask = pdfjsLib.getDocument({
+      data: new Uint8Array(pdfBuffer),
+      useSystemFonts: true,
+      disableFontFace: true,
+    });
     const pdfDoc = await loadingTask.promise;
     const page = await pdfDoc.getPage(1);
 
-    // Escalar a 150 DPI para buena calidad de OCR (factor ~2.08 sobre 72 DPI base)
+    // Escalar a 150 DPI para buena calidad de OCR (factor ~2.0 sobre 72 DPI base)
     const SCALE = 2.0;
     const viewport = page.getViewport({ scale: SCALE });
 
@@ -87,10 +105,9 @@ export async function POST(req: NextRequest): Promise<NextResponse<ConvertPdfRes
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Renderizar la página PDF en el canvas
-    // pdfjs-dist v4+: pasa el elemento canvas (no el contexto 2D)
+    // Renderizar la página PDF en el canvas pasando canvas y canvasContext
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await page.render({ canvas: canvas as any, viewport }).promise;
+    await page.render({ canvas: canvas as any, canvasContext: ctx as any, viewport }).promise;
 
     // 5. Convertir canvas a JPEG buffer (calidad 92%)
     const jpegBuffer = canvas.toBuffer("image/jpeg", { quality: 0.92 });
