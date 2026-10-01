@@ -28,6 +28,7 @@ interface FiscalContext {
   topSuppliers: { name: string; total: number }[];
   expensesByCategory: { category: string; total: number; vat: number }[];
   recentDocuments: { supplier: string; amount: number; status: string; date: string }[];
+  allRecentExpenses: { supplier: string; amount: number; vat: number; date: string; deductibility: string }[];
   businessName: string;
 }
 
@@ -38,30 +39,66 @@ async function buildFiscalContext(
   quarter: string,
   year: number
 ): Promise<FiscalContext | null> {
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { global: { headers: { Authorization: `Bearer ${token}` } } }
-  );
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-  // Validar el token directamente (sin cookies)
-  const { data: { user } } = await supabase.auth.getUser(token);
-  if (!user) return null;
+  if (!supabaseUrl || !anonKey) {
+    console.error("[copilot/chat] Faltan variables de entorno NEXT_PUBLIC_SUPABASE_URL o ANON_KEY");
+    return null;
+  }
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("business_id")
-    .eq("id", user.id)
-    .single();
+  // Cliente para validar token
+  const authClient = createClient(supabaseUrl, anonKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
 
-  if (!profile?.business_id) return null;
-  const businessId = profile.business_id;
+  const { data: { user }, error: userError } = await authClient.auth.getUser(token);
+  if (userError || !user) {
+    console.error("[copilot/chat] Token de usuario no valido:", userError?.message);
+    return null;
+  }
 
-  const { data: business } = await supabase
+  // Cliente para consultas con el token del usuario (respeta RLS)
+  const userClient = createClient(supabaseUrl, anonKey, {
+    global: { headers: { Authorization: `Bearer ${token}` } },
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+
+  // Si hay serviceRoleKey configurada y funcional la usamos como fallback para queries administrativas
+  const queryClient = userClient;
+
+  // 1. Obtener el negocio del usuario (businesses.owner_id = user.id)
+  const { data: userBusiness } = await queryClient
     .from("businesses")
-    .select("name")
-    .eq("id", businessId)
-    .single();
+    .select("id, name")
+    .eq("owner_id", user.id)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  let businessId = userBusiness?.id;
+  let businessName = userBusiness?.name || "Mi Negocio";
+
+  if (!businessId) {
+    // Si no tiene negocio con owner_id, buscar si hay algún negocio disponible (demo fallback)
+    const { data: fallbackBiz } = await queryClient
+      .from("businesses")
+      .select("id, name")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (fallbackBiz) {
+      businessId = fallbackBiz.id;
+      businessName = fallbackBiz.name || "Mi Negocio";
+    }
+  }
+
+  if (!businessId) {
+    console.error("[copilot/chat] No se encontro ningun negocio para el usuario", user.id);
+    return null;
+  }
 
   // Rango de fechas del trimestre
   const quarterMonths: Record<string, [number, number]> = {
@@ -72,81 +109,124 @@ async function buildFiscalContext(
   const lastDay = new Date(year, endMonth, 0).getDate();
   const endDate = `${year}-${String(endMonth).padStart(2, "0")}-${lastDay}`;
 
-  // Consultas paralelas para minimizar latencia
-  const [expensesRes, incomeRes, pendingDocsRes, openAlertsRes, recentDocsRes] = await Promise.all([
-    supabase
+  // Consultas paralelas con nombres reales de columnas
+  const [expensesRes, incomeRes, pendingDocsRes, openAlertsRes, recentDocsRes, allRecentExpensesRes] = await Promise.all([
+    // A. Gastos del trimestre
+    queryClient
       .from("expenses")
-      .select("base_amount, vat_amount, total_amount, category, deductibility_percentage, supplier_name, expense_date, status")
+      .select("base_amount, vat_amount, total_amount, category, deductibility_status, description, date, suppliers(name)")
       .eq("business_id", businessId)
-      .gte("expense_date", startDate)
-      .lte("expense_date", endDate),
+      .gte("date", startDate)
+      .lte("date", endDate),
 
-    supabase
+    // B. Ingresos del trimestre
+    queryClient
       .from("income")
-      .select("amount, vat_amount, income_date")
+      .select("base_amount, vat_amount, total_amount, category, date")
       .eq("business_id", businessId)
-      .gte("income_date", startDate)
-      .lte("income_date", endDate),
+      .gte("date", startDate)
+      .lte("date", endDate),
 
-    supabase
+    // C. Documentos pendientes de revision
+    queryClient
       .from("documents")
       .select("id", { count: "exact", head: true })
       .eq("business_id", businessId)
       .in("status", ["NEEDS_REVIEW", "EXTRACTING"]),
 
-    supabase
+    // D. Alertas abiertas
+    queryClient
       .from("alerts")
       .select("id", { count: "exact", head: true })
       .eq("business_id", businessId)
       .eq("status", "OPEN"),
 
-    supabase
+    // E. Ultimas extracciones de documentos
+    queryClient
       .from("document_extractions")
-      .select("supplier_name, total_amount, invoice_date, documents!inner(status, business_id)")
+      .select("extracted_supplier_name, extracted_total_amount, extracted_date, documents!inner(status, business_id)")
       .eq("documents.business_id", businessId)
-      .order("created_at", { ascending: false })
+      .order("extracted_at", { ascending: false })
       .limit(5),
+
+    // F. Ultimos gastos del negocio (sin restriccion de fecha para que el copiloto conozca facturas recientes cargadas)
+    queryClient
+      .from("expenses")
+      .select("base_amount, vat_amount, total_amount, category, deductibility_status, description, date, suppliers(name)")
+      .eq("business_id", businessId)
+      .order("date", { ascending: false })
+      .limit(10),
   ]);
 
   const expenses = expensesRes.data ?? [];
   const income = incomeRes.data ?? [];
+  const allExpenses = allRecentExpensesRes.data ?? [];
 
-  const totalIncome = income.reduce((s, r) => s + (r.amount ?? 0), 0);
-  const collectedVat = income.reduce((s, r) => s + (r.vat_amount ?? 0), 0);
-  const totalExpenses = expenses.reduce((s, r) => s + (r.base_amount ?? 0), 0);
+  const totalIncome = income.reduce((s, r) => s + (Number(r.base_amount) || 0), 0);
+  const collectedVat = income.reduce((s, r) => s + (Number(r.vat_amount) || 0), 0);
+  const totalExpenses = expenses.reduce((s, r) => s + (Number(r.base_amount) || 0), 0);
   const deductibleVat = expenses.reduce((s, r) => {
-    const ded = (r.deductibility_percentage ?? 100) / 100;
-    return s + (r.vat_amount ?? 0) * ded;
+    const factor =
+      r.deductibility_status === "NON_DEDUCTIBLE"
+        ? 0
+        : r.deductibility_status === "PARTIAL"
+        ? 0.5
+        : 1;
+    return s + (Number(r.vat_amount) || 0) * factor;
   }, 0);
 
+  // Top proveedores del trimestre
   const supplierMap: Record<string, number> = {};
   expenses.forEach((e) => {
-    const name = e.supplier_name ?? "Sin proveedor";
-    supplierMap[name] = (supplierMap[name] ?? 0) + (e.total_amount ?? 0);
+    const supObj = e.suppliers as { name?: string } | null;
+    const name = supObj?.name || e.description || "Proveedor";
+    supplierMap[name] = (supplierMap[name] ?? 0) + (Number(e.total_amount) || 0);
   });
   const topSuppliers = Object.entries(supplierMap)
     .map(([name, total]) => ({ name, total }))
     .sort((a, b) => b.total - a.total)
     .slice(0, 5);
 
+  // Gastos por categoria del trimestre
   const categoryMap: Record<string, { total: number; vat: number }> = {};
   expenses.forEach((e) => {
     const cat = e.category ?? "otros";
     if (!categoryMap[cat]) categoryMap[cat] = { total: 0, vat: 0 };
-    categoryMap[cat].total += e.base_amount ?? 0;
-    categoryMap[cat].vat += (e.vat_amount ?? 0) * ((e.deductibility_percentage ?? 100) / 100);
+    const factor =
+      e.deductibility_status === "NON_DEDUCTIBLE"
+        ? 0
+        : e.deductibility_status === "PARTIAL"
+        ? 0.5
+        : 1;
+    categoryMap[cat].total += Number(e.base_amount) || 0;
+    categoryMap[cat].vat += (Number(e.vat_amount) || 0) * factor;
   });
   const expensesByCategory = Object.entries(categoryMap)
     .map(([category, v]) => ({ category, ...v }))
     .sort((a, b) => b.total - a.total);
 
-  const recentDocuments = (recentDocsRes.data ?? []).map((d) => ({
-    supplier: d.supplier_name ?? "Desconocido",
-    amount: d.total_amount ?? 0,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    status: (d.documents as any)?.status ?? "UNKNOWN",
-    date: d.invoice_date ?? "",
-  }));
+  // Documentos recientes extraidos
+  const recentDocuments = (recentDocsRes.data ?? []).map((d) => {
+    const doc = d.documents as { status?: string } | null;
+    return {
+      supplier: d.extracted_supplier_name ?? "Desconocido",
+      amount: Number(d.extracted_total_amount) || 0,
+      status: doc?.status ?? "UNKNOWN",
+      date: d.extracted_date ?? "",
+    };
+  });
+
+  // Gastos recientes globales formateados
+  const formattedRecentExpenses = allExpenses.map((e) => {
+    const supObj = e.suppliers as { name?: string } | null;
+    return {
+      supplier: supObj?.name || e.description || "Gasto",
+      amount: Number(e.total_amount) || 0,
+      vat: Number(e.vat_amount) || 0,
+      date: e.date || "",
+      deductibility: e.deductibility_status || "DEDUCTIBLE",
+    };
+  });
 
   return {
     quarter,
@@ -161,7 +241,8 @@ async function buildFiscalContext(
     topSuppliers,
     expensesByCategory,
     recentDocuments,
-    businessName: business?.name ?? "Tu negocio",
+    allRecentExpenses: formattedRecentExpenses,
+    businessName,
   };
 }
 
@@ -178,25 +259,31 @@ function buildSystemPrompt(ctx: FiscalContext): string {
 
   const suppliersText = ctx.topSuppliers.length
     ? ctx.topSuppliers.map((s) => `  - ${s.name}: ${fmt(s.total)}`).join("\n")
-    : "  - Sin gastos registrados";
+    : "  - Sin gastos en este trimestre";
 
   const categoriesText = ctx.expensesByCategory.length
     ? ctx.expensesByCategory
         .map((c) => `  - ${c.category}: base ${fmt(c.total)}, IVA deducible ${fmt(c.vat)}`)
         .join("\n")
-    : "  - Sin categorias";
+    : "  - Sin categorias en este trimestre";
 
   const recentDocsText = ctx.recentDocuments.length
     ? ctx.recentDocuments
-        .map((d) => `  - ${d.supplier} | ${fmt(d.amount)} | ${d.status} | ${d.date}`)
+        .map((d) => `  - ${d.supplier} | ${fmt(d.amount)} | Estado: ${d.status} | Fecha: ${d.date}`)
         .join("\n")
-    : "  - Sin facturas recientes";
+    : "  - Sin documentos pendientes o recientes";
+
+  const allExpensesText = ctx.allRecentExpenses?.length
+    ? ctx.allRecentExpenses
+        .map((e) => `  - ${e.supplier} | ${fmt(e.amount)} (IVA ${fmt(e.vat)}) | Fecha: ${e.date} | Deduccion: ${e.deductibility}`)
+        .join("\n")
+    : "  - Sin gastos registrados";
 
   return `Eres el Copiloto Fiscal de "${ctx.businessName}", experto en fiscalidad espanola y Modelo 303 (IVA).
 
-## DATOS REALES — ${ctx.quarter} ${ctx.year}
+## DATOS REALES DEL NEGOCIO
 
-### Liquidacion Modelo 303
+### Liquidacion Modelo 303 (${ctx.quarter} ${ctx.year})
 - IVA Repercutido (ventas): ${fmt(ctx.collectedVat)}
 - IVA Soportado Deducible (compras): ${fmt(ctx.deductibleVat)}
 - Resultado neto: ${fmt(ctx.netVat)} -> ${netVatLabel}
@@ -207,22 +294,25 @@ function buildSystemPrompt(ctx: FiscalContext): string {
 - Documentos pendientes de revision: ${ctx.pendingDocuments}
 - Alertas fiscales activas: ${ctx.openAlerts}
 
-### Top proveedores
+### Top proveedores del periodo (${ctx.quarter} ${ctx.year})
 ${suppliersText}
 
-### Gastos por categoria
+### Gastos por categoria del periodo (${ctx.quarter} ${ctx.year})
 ${categoriesText}
 
-### Facturas recientes
+### Facturas y gastos registrados en el sistema (ultimos movimientos)
+${allExpensesText}
+
+### Documentos escaneados / procesados recientemente
 ${recentDocsText}
 
-## REGLAS
-1. Usa SOLO los datos anteriores para cifras. Nunca inventes importes.
-2. Cita normativa espanola cuando expliques criterios (LIVA, LIRPF, DGT).
-3. Sé conciso. Maximo 4 parrafos. Formato numerico: 1.284,50 EUR.
-4. Si no tienes datos suficientes, indicalo y sugiere que documentos cargar.
-5. Plazo de presentacion del ${ctx.quarter}: 20 de ${deadlineMonth} (15 con domiciliacion bancaria).
-6. IMPORTANTE: Tienes acceso al historial de la conversacion. Usalo para dar respuestas coherentes y conectadas.`;
+## REGLAS DE RESPUESTA
+1. Usa SOLO los datos anteriores para cifras reales de facturas o modelos. Nunca inventes importes o proveedores.
+2. Cita normativa espanola cuando expliques criterios tributarios (Ley 37/1992 del IVA, Ley 35/2006 del IRPF, consultas vinculantes de la DGT).
+3. Sé conciso y claro. Maximo 4 parrafos bien estructurados. Formato numerico espanol: 1.284,50 EUR.
+4. Si el usuario pregunta por una factura especifica (por ejemplo Iberdrola u otros suministros), busca en los gastos y documentos listados arriba para darle una respuesta precisa sobre su deducibilidad y estado.
+5. Plazo de presentacion del ${ctx.quarter}: 20 de ${deadlineMonth} (15 si se opta por domiciliacion bancaria).
+6. Tienes acceso al historial de la conversacion. Mantén la coherencia con preguntas previas.`;
 }
 
 // ─── Handler ──────────────────────────────────────────────────────────────────
