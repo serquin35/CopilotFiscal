@@ -64,6 +64,11 @@ export interface QuarterlySummary {
   totalInvoices: number;
   pendingReviewCount: number;
   urgentAlertsCount: number;
+  totalSalesBase?: number;
+  totalExpensesBase?: number;
+  operatingResult?: number;
+  pendingExpensesBase?: number;
+  pendingExpensesVat?: number;
   monthlyBreakdown: {
     month: string;
     collected: number;

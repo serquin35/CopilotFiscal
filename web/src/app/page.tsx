@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { StatusBadge } from "@/components/ui/badge";
+import { StatusBadge, FiscalDataBadge } from "@/components/ui/badge";
 import { ProgressBar, VatSegmentedBar } from "@/components/ui/progress";
 import { formatCurrency, formatDate, cn } from "@/lib/utils";
 import { FiscalDocument, AnomalyAlert, QuarterlySummary } from "@/types";
@@ -68,6 +68,11 @@ export default function DashboardPage() {
     totalInvoices: 0,
     pendingReviewCount: 0,
     urgentAlertsCount: 0,
+    totalSalesBase: 0,
+    totalExpensesBase: 0,
+    operatingResult: 0,
+    pendingExpensesBase: 0,
+    pendingExpensesVat: 0,
     monthlyBreakdown: [
       { month: "Octubre", collected: 0, deductible: 0 },
       { month: "Noviembre", collected: 0, deductible: 0 },
@@ -104,12 +109,16 @@ export default function DashboardPage() {
         (d) => d.status === "PENDING_REVIEW" || d.status === "EXTRACTED" || d.status === "UPLOADED"
       );
 
+      const deductibleBase = approvedDocs.reduce((sum, d) => sum + (d.baseAmount || 0), 0);
       const deductibleVat = approvedDocs.reduce((sum, d) => {
         const pct = (d.deductiblePercentage ?? 100) / 100;
         return sum + (d.vatAmount || 0) * pct;
       }, 0);
 
-      // IVA Repercutido: suma del IVA de los ingresos (ventas) del trimestre seleccionado
+      const pendingExpensesBase = pendingDocs.reduce((sum, d) => sum + (d.baseAmount || 0), 0);
+      const pendingExpensesVat = pendingDocs.reduce((sum, d) => sum + (d.vatAmount || 0), 0);
+
+      // IVA Repercutido: suma del IVA y base de los ingresos (ventas) del trimestre seleccionado
       const quarterIncome = income.filter((row) => {
         if (!row.date) return false;
         return validIndices.includes(new Date(row.date).getMonth());
@@ -122,6 +131,10 @@ export default function DashboardPage() {
       const netVat = Number((roundedCollected - roundedDeductible).toFixed(2));
       const totalCount = activeDocs.length || 1;
       const completeness = Math.min(100, Math.round((approvedDocs.length / totalCount) * 100));
+
+      const totalSalesBase = Number(collectedBase.toFixed(2));
+      const totalExpensesBase = Number(deductibleBase.toFixed(2));
+      const operatingResult = Number((totalSalesBase - totalExpensesBase).toFixed(2));
 
       // Desglose mensual dinámico (IVA repercutido + IVA soportado por mes)
       const breakdown = quarterMonthsList.map((m) => {
@@ -146,9 +159,6 @@ export default function DashboardPage() {
       const activeAlerts = activeDocs.flatMap((d) => d.anomalies || []).filter((a) => !a.resolved);
       setAlerts(activeAlerts);
 
-      // Suprimir advertencia de variable no usada (collectedBase se usará en el futuro para ingresos brutos)
-      void collectedBase;
-
       const deadlineStr = DEFAULT_DEADLINES[quarter] || "2027-01-30";
       const targetDate = new Date(deadlineStr);
       const today = new Date();
@@ -167,6 +177,11 @@ export default function DashboardPage() {
         totalInvoices: activeDocs.length,
         pendingReviewCount: pendingDocs.length,
         urgentAlertsCount: activeAlerts.length,
+        totalSalesBase,
+        totalExpensesBase,
+        operatingResult,
+        pendingExpensesBase: Number(pendingExpensesBase.toFixed(2)),
+        pendingExpensesVat: Number(pendingExpensesVat.toFixed(2)),
         monthlyBreakdown: breakdown,
       });
     },
@@ -437,15 +452,87 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* 2. Top Metric Cards Grid */}
+      {/* 2. Panel de Trazabilidad Operativa y Naturaleza de Saldos (MVP §7.1) */}
+      <div className="grid gap-4 sm:grid-cols-3">
+        {/* Card Ventas / Ingresos */}
+        <Card className="p-4 border-border/80 bg-card/60 relative overflow-hidden flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+                Ventas del Trimestre (Base)
+              </span>
+              <FiscalDataBadge type="DATO" size="xs" />
+            </div>
+            <div className="font-mono text-2xl font-bold text-foreground">
+              {formatCurrency(summary.totalSalesBase || 0)}
+            </div>
+          </div>
+          <div className="flex items-center justify-between text-[11px] text-muted-foreground mt-3 pt-2 border-t border-border/40">
+            <span>IVA Repercutido ({selectedQuarter}):</span>
+            <span className="font-mono font-medium text-foreground">{formatCurrency(summary.collectedVat)}</span>
+          </div>
+        </Card>
+
+        {/* Card Gastos / Compras */}
+        <Card className="p-4 border-border/80 bg-card/60 relative overflow-hidden flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+                Gastos Deducibles (Base)
+              </span>
+              <FiscalDataBadge type="DATO" size="xs" />
+            </div>
+            <div className="font-mono text-2xl font-bold text-foreground">
+              {formatCurrency(summary.totalExpensesBase || 0)}
+            </div>
+          </div>
+          <div className="flex items-center justify-between text-[11px] text-muted-foreground mt-3 pt-2 border-t border-border/40">
+            <span>IVA Soportado Deducible:</span>
+            <span className="font-mono font-medium text-primary">{formatCurrency(summary.deductibleVat)}</span>
+          </div>
+        </Card>
+
+        {/* Card Resultado Operativo (EBITDA Est.) */}
+        <Card className="p-4 border-border/80 bg-card/60 relative overflow-hidden flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+                Resultado Operativo Bruto
+              </span>
+              <FiscalDataBadge type="ESTIMACION" size="xs" />
+            </div>
+            <div
+              className={cn(
+                "font-mono text-2xl font-bold",
+                (summary.operatingResult || 0) >= 0 ? "text-emerald-500" : "text-destructive"
+              )}
+            >
+              {formatCurrency(summary.operatingResult || 0)}
+            </div>
+          </div>
+          <div className="flex items-center justify-between text-[11px] text-muted-foreground mt-3 pt-2 border-t border-border/40">
+            <span>Margen antes de impuestos:</span>
+            <span className="font-mono font-medium text-foreground">
+              {summary.totalSalesBase && summary.totalSalesBase > 0
+                ? `${(((summary.operatingResult || 0) / summary.totalSalesBase) * 100).toFixed(1)}%`
+                : "0.0%"}
+            </span>
+          </div>
+        </Card>
+      </div>
+
+      {/* 3. Top Metric Cards Grid */}
       <div className="grid gap-6 md:grid-cols-3">
         {/* IVA a Liquidar Card (Main Card) */}
         <Card className="md:col-span-2 relative overflow-hidden border-border/80 bg-gradient-to-br from-card to-secondary/30">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <div>
-              <CardDescription>Resultado estimado de liquidación</CardDescription>
+              <div className="flex items-center gap-2 mb-1">
+                <CardDescription>Liquidación fiscal Modelo 303</CardDescription>
+                <FiscalDataBadge type="ESTIMACION" size="xs" />
+              </div>
               <CardTitle className={cn("text-xl mt-0.5", isDeductibleFavorable ? "text-primary" : "text-foreground")}>
-                {isDeductibleFavorable ? "IVA a Compensar (A tu favor)" : "IVA Neto a Ingresar"}
+                {isDeductibleFavorable ? "IVA a Compensar (A tu favor)" : "IVA Neto a Ingresar (AEAT)"}
               </CardTitle>
             </div>
             <div
@@ -459,7 +546,7 @@ export default function DashboardPage() {
               <TrendingDown className="size-5" />
             </div>
           </CardHeader>
-          <CardContent className="space-y-6">
+          <CardContent className="space-y-5">
             <div>
               <div
                 className={cn(
@@ -475,6 +562,58 @@ export default function DashboardPage() {
                   : "Diferencia entre IVA repercutido a tus clientes e IVA soportado en compras deducibles."}
               </p>
             </div>
+
+            {/* Trazabilidad Matemática Oficial AEAT (Casilla 71) */}
+            <div className="rounded-xl border border-border/60 bg-background/50 p-3 space-y-2.5">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-medium text-foreground flex items-center gap-1.5">
+                  <span>Fórmula Oficial Modelo 303 (Casilla 71):</span>
+                </span>
+                <span className="font-mono text-[11px] text-muted-foreground">
+                  [IVA Repercutido] − [IVA Soportado Deducible]
+                </span>
+              </div>
+              <div className="grid grid-cols-3 gap-2 pt-1 border-t border-border/30 text-center font-mono text-xs">
+                <div className="p-2 rounded-lg bg-card border border-border/50 flex flex-col items-center gap-1">
+                  <div className="flex items-center gap-1">
+                    <span className="text-[10px] text-muted-foreground">Repercutido</span>
+                    <FiscalDataBadge type="ESTIMACION" size="xs" />
+                  </div>
+                  <span className="font-semibold text-foreground text-sm">{formatCurrency(summary.collectedVat)}</span>
+                </div>
+                <div className="p-2 rounded-lg bg-card border border-border/50 flex flex-col items-center gap-1">
+                  <div className="flex items-center gap-1">
+                    <span className="text-[10px] text-muted-foreground">Soportado</span>
+                    <FiscalDataBadge type="DATO" size="xs" />
+                  </div>
+                  <span className="font-semibold text-primary text-sm">{formatCurrency(summary.deductibleVat)}</span>
+                </div>
+                <div className="p-2 rounded-lg bg-card border border-border/50 flex flex-col items-center gap-1">
+                  <div className="flex items-center gap-1">
+                    <span className="text-[10px] text-muted-foreground">Saldo Final</span>
+                    <FiscalDataBadge type="ESTIMACION" size="xs" />
+                  </div>
+                  <span className={cn("font-semibold text-sm", isDeductibleFavorable ? "text-primary" : "text-warning")}>
+                    {formatCurrency(displayAmount)}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Aviso si existen facturas pendientes de conciliar */}
+            {summary.pendingReviewCount > 0 && (
+              <div className="flex items-center justify-between rounded-xl bg-amber-500/10 border border-amber-500/25 p-3 text-xs">
+                <div className="flex items-center gap-2">
+                  <FiscalDataBadge type="PENDIENTE" size="xs" />
+                  <span className="text-foreground text-[11px]">
+                    Hay <strong>{summary.pendingReviewCount} documentos</strong> ({formatCurrency(summary.pendingExpensesVat || 0)} de IVA) pendientes de conciliación humana.
+                  </span>
+                </div>
+                <Link href="/documents" className="text-primary font-semibold hover:underline flex items-center gap-1 text-[11px] whitespace-nowrap">
+                  Conciliar <ChevronRight className="size-3" />
+                </Link>
+              </div>
+            )}
 
             {/* Segmented VAT visualizer */}
             <div className="space-y-2 pt-2 border-t border-border/40">

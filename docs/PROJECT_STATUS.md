@@ -1,8 +1,8 @@
 # PROJECT STATUS — COPILOTO FISCAL
 
-> **Versión:** 1.4
+> **Versión:** 1.5
 > **Última actualización:** 01 Octubre 2026
-> **Estado global:** FASE 5 — En progreso avanzado (90%)
+> **Estado global:** FASE 5 completada (100%) — FASE 6 (Anomalías) siguiente objetivo
 > **Autor:** Antigravity (actualización continua)
 > **Fuente de verdad:** [COPILOTO_FISCAL_MASTER_PLAN.md](../COPILOTO_FISCAL_MASTER_PLAN.md)
 
@@ -17,7 +17,7 @@
 | **FASE 2** | Núcleo financiero | ✅ COMPLETA | 100% |
 | **FASE 3** | Documentos | ✅ COMPLETA | 95% |
 | **FASE 4** | n8n + IA | 🔄 EN PROGRESO | 70% |
-| **FASE 5** | Dashboard & Visualización | 🔄 EN PROGRESO | 90% |
+| **FASE 5** | Dashboard & Visualización | ✅ COMPLETA | 100% |
 | **FASE 6** | Anomalías | 🔄 EN PROGRESO | 50% |
 | **FASE 7** | Copiloto IA | ⏳ PENDIENTE | 20% |
 | **FASE 8** | Validación con datos reales | ⏳ PENDIENTE | 0% |
@@ -196,8 +196,8 @@ Respond to Webhook (JSON con extracted + status + confidence)
 | Badges en Sidebar y Navbar | ✅ | Contadores dinámicos de documentos pendientes y anomalías (auto-ocultables en 0) |
 | Alertas activas (`/alerts`) | ✅ | Filtrado dinámico de documentos reales sin anomalías mockeadas |
 | Eliminación total de datos mock | ✅ | Limpieza de facturas dummy de ejemplo y alertas falsas |
+| Separación visual DATO/ESTIMACIÓN/PENDIENTE | ✅ | Implementado con badges oficiales y panel de trazabilidad operativa (MVP §7.1) |
 | Comparativa periodo anterior | ⏳ | Pendiente |
-| Separación visual DATO/ESTIMACIÓN/PENDIENTE | ⏳ | Definido en spec, pendiente implementar |
 | Responsive / mobile-first | ✅ | Adaptado en grid y barras laterales |
 
 ---
@@ -326,6 +326,7 @@ Respond to Webhook (JSON con extracted + status + confidence)
 | 01/10/2026 | 🚀 Feature | Conexión de `/expenses` y Dashboard a tablas `expenses` y `suppliers`: 14 compras reales (Makro, Mahou, Cafés Baqué...) reflejadas con desglose y estado |
 | 01/10/2026 | 🎨 Branding | Identidad comercial "La Corrala Escondida" y periodo activo 4T 2026 reflejados en Sidebar, Navbar y selector de trimestres |
 | 01/10/2026 | ⏱️ Lógica | Contador dinámico de días restantes hacia el plazo legal de presentación del Modelo 303 según el trimestre seleccionado |
+| 01/10/2026 | 🏆 Hito | FASE 5 COMPLETA (100%): Panel de trazabilidad operativa (Ventas, Gastos, EBITDA) y distinción visual estricta DATO vs ESTIMACIÓN vs PENDIENTE según MVP §7.1 |
 
 ---
 
