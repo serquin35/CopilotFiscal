@@ -9,8 +9,8 @@ const SUPABASE_ANON_KEY =
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
   "***REDACTED-JWT***";
 
-// Routes that don't require authentication
-const PUBLIC_ROUTES = ["/login", "/register", "/forgot-password", "/auth"];
+// Routes that don't require authentication (API routes handle their own auth/secret tokens)
+const PUBLIC_ROUTES = ["/login", "/register", "/forgot-password", "/auth", "/api"];
 
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
