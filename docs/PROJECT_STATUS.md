@@ -278,14 +278,14 @@ Respond to Webhook (JSON con extracted + status + confidence)
 |---|---|---|---|
 | DT-01 | API key OpenAI hardcodeada en WF-01 nodo HTTP | ✅ RESUELTO | F4 |
 | DT-02 | Wrapper `AiProvider.interface.ts` no conectado al pipeline real | 🔴 ALTA | F4 |
-| DT-03 | `businessId` hardcodeado como UUID cero en todo el flujo | 🟡 MEDIA | F5 |
+| DT-03 | `businessId` hardcodeado como UUID cero en todo el flujo | ✅ RESUELTO | F6.5 |
 | DT-04 | Dashboard parcialmente basado en `mockData.ts` | ✅ RESUELTO | F5 |
 | DT-05 | Seed SQL de datos DEMO no implementado | ✅ RESUELTO | F2 |
 | DT-06 | Tests RLS por tabla sin cubrir | 🟡 MEDIA | F1 |
 | DT-07 | Soporte PDF multi-página en WF-01 sin probar | 🟡 MEDIA | F4 |
 | DT-08 | WF-05 expense-processing automático no implementado | 🟠 BAJA | F4 |
 | DT-09 | Separación de entornos DEMO/STAGING/PROD | 🟠 BAJA | F8 prereq |
-| DT-10 | Supabase Auth no activado para usuarios reales | 🟠 BAJA | F8 prereq |
+| DT-10 | Supabase Auth no activado para usuarios reales | ✅ RESUELTO | F6.5 |
 
 ---
 
@@ -293,17 +293,15 @@ Respond to Webhook (JSON con extracted + status + confidence)
 
 ### 🔴 Urgente
 1. Probar WF-01 con facturas en formato PDF
-2. Separación visual DATO / ESTIMACIÓN / PENDIENTE en tarjetas de saldos fiscales
+2. Implementar WF-05: expense-processing tras aprobación human-in-the-loop
 
 ### 🟡 Esta semana
-3. Implementar WF-05: expense-processing tras aprobación human-in-the-loop
-4. Conectar `businessId` real desde sesión de usuario (DT-03)
-5. Separación visual DATO / ESTIMACIÓN / PENDIENTE en tarjetas de saldos fiscales
+3. Implementar reglas anomalías restantes (`MISSING_VAT_DATA`, `UNUSUAL_VAT_RATIO`)
+4. Copiloto IA con contexto real de Supabase (Fase 7)
 
 ### 🟠 Próximas 2 semanas
-6. Implementar reglas anomalías restantes (`MISSING_VAT_DATA`, `UNUSUAL_VAT_RATIO`)
-7. Copiloto IA con contexto real de Supabase (Fase 7)
-8. Wrapper `AiProvider` para desacoplar de OpenAI (DT-02)
+5. Wrapper `AiProvider` para desacoplar de OpenAI (DT-02)
+6. Separación de entornos DEMO/STAGING/PROD (DT-09)
 
 ---
 
@@ -331,6 +329,10 @@ Respond to Webhook (JSON con extracted + status + confidence)
 | 01/10/2026 | 🎨 Branding | Identidad comercial "La Corrala Escondida" y periodo activo 4T 2026 reflejados en Sidebar, Navbar y selector de trimestres |
 | 01/10/2026 | ⏱️ Lógica | Contador dinámico de días restantes hacia el plazo legal de presentación del Modelo 303 según el trimestre seleccionado |
 | 01/10/2026 | 🏆 Hito | FASE 5 COMPLETA (100%): Panel de trazabilidad operativa (Ventas, Gastos, EBITDA) y distinción visual estricta DATO vs ESTIMACIÓN vs PENDIENTE según MVP §7.1 |
+| 01/10/2026 | 🔐 Auth | FASE 6.5 COMPLETA: Autenticación completa con `@supabase/ssr` (Email/Password, Google OAuth, Magic Link) |
+| 01/10/2026 | 🛡️ Seguridad | Middleware SSR de protección de rutas, cookie management y auto-redirección de sesiones no autenticadas |
+| 01/10/2026 | ⚡ DB Trigger | Trigger `on_auth_user_created` en Supabase: auto-creación de `profiles` y `businesses` en registro |
+| 01/10/2026 | 🎨 UI/UX | Páginas premium `/login`, `/register`, `/forgot-password`, `/auth/callback` y badges de usuario/negocio en Navbar/Sidebar |
 
 ---
 

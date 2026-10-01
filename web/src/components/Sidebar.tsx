@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
   FileText,
@@ -14,8 +14,11 @@ import {
   Menu,
   X,
   FileCheck2,
+  LogOut,
+  Building2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/context/AuthContext";
 
 interface NavItem {
   label: string;
@@ -35,9 +38,12 @@ const BASE_NAV_ITEMS: NavItem[] = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
+  const { user, profile, business, signOut } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [docCount, setDocCount] = useState<number | null>(null);
   const [alertCount, setAlertCount] = useState<number | null>(null);
+  const [signingOut, setSigningOut] = useState(false);
 
   useEffect(() => {
     const updateCounts = () => {
@@ -82,6 +88,23 @@ export function Sidebar() {
     return item;
   });
 
+  const handleSignOut = async () => {
+    setSigningOut(true);
+    await signOut();
+    router.push("/login");
+  };
+
+  // Display info — prefer profile/business data, fallback to demo labels
+  const displayName = profile?.display_name || user?.email?.split("@")[0] || "Usuario";
+  const businessName = business?.name || "Mi Negocio";
+  const isDemo = business?.is_demo ?? false;
+  const initials = displayName
+    .split(" ")
+    .map((w) => w[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+
   return (
     <>
       {/* Mobile Top Header */}
@@ -109,7 +132,7 @@ export function Sidebar() {
         />
       )}
 
-      {/* Main Sidebar Desktop + Drawer Mobile */}
+      {/* Main Sidebar */}
       <aside
         className={cn(
           "fixed inset-y-0 left-0 z-40 flex w-64 flex-col justify-between border-r border-border bg-sidebar transition-transform duration-200 md:static md:translate-x-0",
@@ -131,9 +154,16 @@ export function Sidebar() {
                 Copiloto Fiscal
               </span>
               <span className="text-[11px] text-muted-foreground flex items-center gap-1">
-                <span className="font-medium text-foreground/90 truncate max-w-[110px]" title="La Corrala Escondida">La Corrala Escondida</span>
+                <span className="font-medium text-foreground/90 truncate max-w-[110px]" title={businessName}>
+                  {businessName}
+                </span>
                 <span className="size-1 rounded-full bg-border" />
                 <span className="text-primary font-mono text-[10px]">4T 2026</span>
+                {isDemo && (
+                  <span className="ml-1 text-[9px] px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/20 font-semibold">
+                    DEMO
+                  </span>
+                )}
               </span>
             </div>
           </Link>
@@ -197,8 +227,9 @@ export function Sidebar() {
           </nav>
         </div>
 
-        {/* Footer info & Sandbox status */}
+        {/* Footer: user card + logout */}
         <div className="p-4 border-t border-border flex flex-col gap-3">
+          {/* AEAT Sandbox status */}
           <div className="rounded-xl border border-border/60 bg-card p-3 text-xs">
             <div className="flex items-center justify-between mb-1.5">
               <span className="text-[11px] text-muted-foreground font-medium">Entorno AEAT</span>
@@ -211,6 +242,34 @@ export function Sidebar() {
               Validación legal automática sin impacto en censo real.
             </p>
           </div>
+
+          {/* User card */}
+          {user && (
+            <div className="rounded-xl border border-border/60 bg-card/50 p-3">
+              <div className="flex items-center gap-2.5 mb-2">
+                {/* Avatar */}
+                <div className="size-8 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center text-primary text-xs font-bold shrink-0">
+                  {initials}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-medium text-foreground truncate">{displayName}</p>
+                  <p className="text-[10px] text-muted-foreground truncate">{user.email}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-1 text-[10px] text-muted-foreground mb-2.5">
+                <Building2 className="size-3 shrink-0" />
+                <span className="truncate">{businessName}</span>
+              </div>
+              <button
+                onClick={handleSignOut}
+                disabled={signingOut}
+                className="w-full flex items-center justify-center gap-1.5 rounded-lg border border-border/60 bg-transparent hover:bg-destructive/10 hover:border-destructive/30 hover:text-destructive text-muted-foreground py-1.5 text-[11px] font-medium transition-all duration-200 disabled:opacity-50"
+              >
+                <LogOut className="size-3" />
+                {signingOut ? "Cerrando sesión..." : "Cerrar sesión"}
+              </button>
+            </div>
+          )}
 
           <div className="flex items-center justify-between px-1 text-[11px] text-muted-foreground">
             <span className="flex items-center gap-1">
