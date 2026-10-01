@@ -196,7 +196,7 @@ export default function CopilotPage() {
         setIsTyping(false);
       }
     },
-    [inputQuery, isTyping, messages, selectedQuarter, selectedYear, buildHistory]
+    [inputQuery, isTyping, messages, selectedQuarter, selectedYear, buildHistory, session?.access_token, supabase]
   );
 
   // ─── Render ──────────────────────────────────────────────────────────────────
