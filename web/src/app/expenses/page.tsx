@@ -6,6 +6,7 @@ import {
   Receipt,
   Download,
   Search,
+  Trash2,
 } from "lucide-react";
 import { Card, CardHeader, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -230,6 +231,75 @@ export default function ExpensesPage() {
     );
   };
 
+  const handleDeleteExpense = async (doc: FiscalDocument) => {
+    if (!currentBizId) return;
+    if (!confirm(`¿Eliminar "${doc.providerName || doc.filename}" de tus gastos? Esta acción no se puede deshacer.`)) return;
+
+    // Clasificar la fila: gasto vinculado (con documento), gasto manual o documento suelto
+    const isLinkedExpense = !!doc.documentId;
+    const isManualExpense = !doc.url;
+    const expenseId = isLinkedExpense || isManualExpense ? doc.id : undefined;
+    const documentId = isLinkedExpense
+      ? doc.documentId
+      : !isManualExpense
+        ? doc.id
+        : undefined;
+
+    setDocuments((prev) => {
+      const updated = prev.filter((d) => d.id !== doc.id);
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+      } catch {
+        // caché local opcional
+      }
+      return updated;
+    });
+
+    try {
+      if (expenseId) {
+        const { data: exp } = await supabase
+          .from("expenses")
+          .select("id, supplier_id, business_id, description, total_amount")
+          .eq("id", expenseId)
+          .maybeSingle();
+        const row = exp as Record<string, unknown> | null;
+        if (row && String(row.business_id) === currentBizId) {
+          await supabase.from("expenses").delete().eq("id", expenseId);
+          const supId = row.supplier_id ? String(row.supplier_id) : null;
+          if (supId) {
+            const { count } = await supabase
+              .from("expenses")
+              .select("id", { count: "exact", head: true })
+              .eq("supplier_id", supId);
+            if (!count) {
+              await supabase.from("suppliers").delete().eq("id", supId).eq("business_id", currentBizId);
+            }
+          }
+          await supabase.from("audit_events").insert([{
+            business_id: currentBizId,
+            entity_type: "expense",
+            entity_id: expenseId,
+            action: "EXPENSE_DELETED",
+            actor_type: "user",
+            metadata: {
+              description: String(row.description || doc.filename),
+              total_amount: Number(row.total_amount || 0),
+            },
+          }]);
+        }
+      }
+      if (documentId) {
+        await supabase.from("expenses").delete().eq("document_id", documentId);
+        await supabase.from("document_extractions").delete().eq("document_id", documentId);
+        await supabase.from("documents").delete().eq("id", documentId);
+      }
+    } catch (err) {
+      console.warn("Error borrando gasto en Supabase:", err);
+    }
+
+    window.dispatchEvent(new Event("fiscal_docs_updated"));
+  };
+
   return (
     <div className="flex flex-col gap-8">
       {/* Header */}
@@ -432,6 +502,7 @@ export default function ExpensesPage() {
                         <StatusBadge status={doc.status} />
                       </td>
                       <td className="py-3.5 pl-2 text-right font-sans">
+                        <div className="flex items-center justify-end gap-1">
                         {doc.url ? (
                           <Link href={doc.url}>
                             <Button size="sm" variant="ghost" className="text-xs h-7">
@@ -443,6 +514,14 @@ export default function ExpensesPage() {
                             Asiento
                           </span>
                         )}
+                        <button
+                          onClick={() => handleDeleteExpense(doc)}
+                          title="Eliminar gasto"
+                          className="size-7 rounded-md border border-border/60 text-muted-foreground hover:text-destructive hover:border-destructive/40 flex items-center justify-center transition-colors"
+                        >
+                          <Trash2 className="size-3.5" />
+                        </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
