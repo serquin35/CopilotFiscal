@@ -11,6 +11,7 @@ import { Card, CardHeader, CardDescription, CardContent } from "@/components/ui/
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/badge";
 import { formatCurrency, formatDate } from "@/lib/utils";
+import { buildExpensesCSV, bookFilename, downloadTextFile } from "@/lib/exportBook";
 import { FiscalDocument } from "@/types";
 import { useAuth } from "@/context/AuthContext";
 
@@ -217,25 +218,16 @@ export default function ExpensesPage() {
   });
 
   const exportCSV = () => {
-    const headers = "ID,Proveedor,NIF,Factura,Fecha,Base,IVA_Tipo,IVA_Cuota,Total,Categoria,Deducibilidad\n";
-    const rows = filteredDocs
-      .map(
-        (d) =>
-          `"${d.id}","${d.providerName || ""}","${d.nif || ""}","${d.invoiceNumber || ""}","${
-            d.date || ""
-          }",${d.baseAmount || 0},${d.vatRate || 0},${d.vatAmount || 0},${d.totalAmount || 0},"${
-            d.category || ""
-          }",${d.deductiblePercentage ?? 100}%`
-      )
-      .join("\n");
-    const blob = new Blob([headers + rows], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.setAttribute("download", `gastos_copiloto_fiscal_3T_2026.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const csv = buildExpensesCSV(filteredDocs, {
+      businessName: business?.name || "negocio",
+      rulesVersion: "DEMO_v1",
+      generatedAt: new Date().toISOString(),
+    });
+    downloadTextFile(
+      bookFilename(business?.name || "negocio", `${filteredDocs.length}regs`),
+      csv,
+      "text/csv"
+    );
   };
 
   return (
@@ -254,15 +246,27 @@ export default function ExpensesPage() {
           </p>
         </div>
 
+        <div className="flex gap-2 self-start sm:self-auto">
+        <Link href="/expenses/print">
+          <Button
+            variant="secondary"
+            size="sm"
+            className="gap-2 text-xs"
+          >
+            <Receipt className="size-3.5" />
+            <span>Borrador 303 (PDF)</span>
+          </Button>
+        </Link>
         <Button
           variant="secondary"
           size="sm"
-          className="gap-2 text-xs self-start sm:self-auto"
+          className="gap-2 text-xs"
           onClick={exportCSV}
         >
           <Download className="size-3.5" />
           <span>Exportar Libro CSV</span>
         </Button>
+        </div>
       </div>
 
       {/* KPI Cards */}
