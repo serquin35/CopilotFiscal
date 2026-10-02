@@ -21,6 +21,7 @@ export * from './calculators/SnapshotCalculator.js';
 // Validadores
 export * from './validators/ExpenseValidator.js';
 export * from './validators/DocumentValidator.js';
+export * from './validators/NifValidator.js';
 
 // Detección de anomalías
 export * from './anomaly/AnomalyDetector.js';

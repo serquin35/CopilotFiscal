@@ -19,6 +19,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Button } from "@/components/ui/button";
 import { Badge, StatusBadge } from "@/components/ui/badge";
 import { formatCurrency } from "@/lib/utils";
+import { validateNif, maskNif } from "@/lib/nif-validator";
 import { initialDocuments } from "@/lib/mockData";
 import { FiscalDocument } from "@/types";
 import { useAuth } from "@/context/AuthContext";
@@ -69,6 +70,7 @@ export default function DocumentReviewPage() {
     doc.status === "APPROVED";
   const isRejected = doc.status === "REJECTED";
   const isReadOnly = isAlreadyValidated || isRejected;
+  const nifCheck = validateNif(doc.nif, { allowDemo: isDemo });
 
   useEffect(() => {
     async function loadDocument() {
@@ -170,6 +172,10 @@ export default function DocumentReviewPage() {
       setActionFeedback("Esta factura ya fue validada previamente.");
       return;
     }
+    if (!nifCheck.valid) {
+      setActionFeedback(`NIF inválido (${nifCheck.code}): ${nifCheck.message}`);
+      return;
+    }
     setIsSaving(true);
     const updatedDoc: FiscalDocument = { ...doc, status: "CONFIRMED" };
     setDoc(updatedDoc);
@@ -222,7 +228,7 @@ export default function DocumentReviewPage() {
               business_id: currentBizId || "00000000-0000-0000-0000-000000000001",
               name: cleanName,
               normalized_name: cleanName.toUpperCase(),
-              tax_id_masked: doc.nif || null,
+              tax_id_masked: maskNif(doc.nif),
               category: doc.category || "General",
               country: "ES",
               is_verified: true,
@@ -606,10 +612,21 @@ export default function DocumentReviewPage() {
                     disabled={isReadOnly}
                     value={doc.nif || ""}
                     onChange={(e) => handleFieldChange("nif", e.target.value)}
-                    className={`w-full h-8 font-mono rounded-lg border border-border bg-background px-2.5 text-xs text-foreground focus:ring-1 focus:ring-ring ${
-                      isReadOnly ? "opacity-80 cursor-not-allowed bg-muted/40" : ""
+                    className={`w-full h-8 font-mono rounded-lg border bg-background px-2.5 text-xs text-foreground focus:ring-1 focus:ring-ring ${
+                      isReadOnly
+                        ? "opacity-80 cursor-not-allowed bg-muted/40 border-border"
+                        : nifCheck.valid
+                        ? "border-border"
+                        : "border-destructive/60"
                     }`}
                   />
+                  <p
+                    className={`text-[11px] mt-1 font-medium ${
+                      nifCheck.valid ? "text-primary" : "text-destructive"
+                    }`}
+                  >
+                    {nifCheck.valid ? `✅ ${nifCheck.message}` : `❌ ${nifCheck.message}`}
+                  </p>
                 </div>
                 <div>
                   <label className="text-xs text-muted-foreground block mb-1">
@@ -803,13 +820,16 @@ export default function DocumentReviewPage() {
                     variant="primary"
                     className="w-full gap-2 text-xs h-10 shadow-sm"
                     onClick={handleApprove}
-                    disabled={isSaving}
+                    disabled={isSaving || !nifCheck.valid}
+                    title={nifCheck.valid ? "Conciliar factura" : nifCheck.message}
                   >
                     <CheckCircle2 className="size-4" />
                     <span>
                       {isSaving
                         ? "Conciliando en Supabase..."
-                        : "Aprobar Extracción & Conciliar en Modelo 303"}
+                        : nifCheck.valid
+                        ? "Aprobar Extracción & Conciliar en Modelo 303"
+                        : "Corrige el NIF para aprobar"}
                     </span>
                   </Button>
 
