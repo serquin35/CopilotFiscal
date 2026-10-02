@@ -65,6 +65,8 @@ export default function DashboardPage() {
   const [alerts, setAlerts] = useState<AnomalyAlert[]>([]);
   const [incomeData, setIncomeData] = useState<{ vat_amount: number; base_amount: number; date: string }[]>([]);
   const [isSeedingSample, setIsSeedingSample] = useState(false);
+  const [dataQuarters, setDataQuarters] = useState<string[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [summary, setSummary] = useState<QuarterlySummary>({
     quarter: "4T",
     year: 2026,
@@ -239,6 +241,7 @@ export default function DashboardPage() {
   const loadDashboardData = useCallback(async () => {
     if (!currentBizId) return;
 
+    let loadFailed = false;
     let currentDocs: FiscalDocument[] = [];
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
@@ -267,22 +270,28 @@ export default function DashboardPage() {
           date: String(r.date || ""),
         }));
         setIncomeData(fetchedIncome);
+      } else if (incomeError) {
+        loadFailed = true;
       }
     } catch (err) {
+      loadFailed = true;
       console.warn("Error consultando ingresos en Supabase:", err);
     }
 
     // 2. Cargar proveedores filtrados por business_id
     let fetchedSuppliers: AnomalyEngineSupplier[] = [];
     try {
-      const { data: supRows } = await supabase
+      const { data: supRows, error: supError } = await supabase
         .from("suppliers")
         .select("id, name, tax_id_masked")
         .eq("business_id", currentBizId);
-      if (supRows) {
+      if (supError) {
+        loadFailed = true;
+      } else if (supRows) {
         fetchedSuppliers = supRows as AnomalyEngineSupplier[];
       }
     } catch (err) {
+      loadFailed = true;
       console.warn("Error consultando suppliers en Supabase:", err);
     }
 
@@ -317,11 +326,15 @@ export default function DashboardPage() {
         .eq("business_id", currentBizId)
         .order("date", { ascending: false });
 
-      if (!expError && expRows && expRows.length > 0) {
+      if (expError) {
+        throw new Error(`expenses: ${expError.message}`);
+      }
+      if (expRows && expRows.length > 0) {
         rawExpensesList = expRows as AnomalyEngineExpense[];
         expRowsList = expRows as Record<string, unknown>[];
       }
     } catch (err) {
+      loadFailed = true;
       console.warn("Error consultando expenses en Supabase:", err);
     }
 
@@ -334,10 +347,13 @@ export default function DashboardPage() {
         .eq("business_id", currentBizId)
         .order("uploaded_at", { ascending: false });
 
-      if (!error && dbDocs && dbDocs.length > 0) {
+      if (error) {
+        loadFailed = true;
+      } else if (dbDocs && dbDocs.length > 0) {
         dbDocsList = dbDocs as Record<string, unknown>[];
       }
     } catch (err) {
+      loadFailed = true;
       console.warn("Error consultando Supabase documents en Dashboard:", err);
     }
 
@@ -463,6 +479,28 @@ export default function DashboardPage() {
     const combined = [...mappedDbDocs, ...manualExpenses, ...localPendingDocs];
     setDocuments(combined);
     calculateSummary(combined, selectedQuarter, fetchedIncome, rawExpensesList, fetchedSuppliers);
+
+    // Trimestres con gastos validados: permite avisar si el usuario mira un
+    // trimestre vacío teniendo datos en otro (falso "0 €").
+    const quarters = new Set<string>();
+    for (const exp of expRowsList) {
+      if (exp.validation_status !== "VALIDATED") continue;
+      const q =
+        typeof exp.fiscal_period_quarter === "number"
+          ? exp.fiscal_period_quarter
+          : Math.ceil((new Date(String(exp.date || "")).getMonth() + 1) / 3);
+      const y =
+        typeof exp.fiscal_period_year === "number"
+          ? exp.fiscal_period_year
+          : new Date(String(exp.date || "")).getFullYear();
+      if (q >= 1 && q <= 4 && Number.isFinite(y)) quarters.add(`${q}T ${y}`);
+    }
+    setDataQuarters(Array.from(quarters).sort());
+    setLoadError(
+      loadFailed
+        ? "No se pudieron cargar tus datos de Supabase (sesión o permisos). Cierra sesión y entra de nuevo; si persiste, revisa tu conexión."
+        : null
+    );
   }, [calculateSummary, currentBizId, selectedQuarter, STORAGE_KEY, supabase]);
 
   const handleLoadSampleData = async () => {
@@ -729,6 +767,50 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
+
+      {/* Banner de error de carga: un 0 € por fallo nunca debe parecer un 0 € real */}
+      {loadError && (
+        <div className="rounded-2xl border border-destructive/40 bg-destructive/10 p-4 flex items-start gap-3">
+          <XCircle className="size-5 text-destructive shrink-0 mt-0.5" />
+          <div>
+            <h3 className="text-sm font-semibold text-foreground">No se pudieron cargar tus datos</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">{loadError}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Banner de trimestre vacío con datos en otro trimestre */}
+      {!loadError &&
+        dataQuarters.length > 0 &&
+        !dataQuarters.includes(`${selectedQuarter} ${summary.year}`) && (
+          <div className="rounded-2xl border border-warning/40 bg-warning/10 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="size-5 text-warning shrink-0 mt-0.5" />
+              <div>
+                <h3 className="text-sm font-semibold text-foreground">
+                  Estás viendo {selectedQuarter} {summary.year} sin gastos validados
+                </h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Tienes facturas conciliadas en: {dataQuarters.join(" · ")}. Cámbiate de trimestre para verlas.
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2 shrink-0">
+              {dataQuarters.map((q) => (
+                <button
+                  key={q}
+                  onClick={() => {
+                    const m = q.match(/^([1-4])T/);
+                    if (m) handleSelectQuarter(`${m[1]}T` as "1T" | "2T" | "3T" | "4T");
+                  }}
+                  className="rounded-lg border border-warning/40 bg-card px-3 py-1.5 text-xs font-mono font-medium text-foreground hover:bg-warning/20 transition-colors"
+                >
+                  Ver {q}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
       {/* 2. Panel de Trazabilidad Operativa y Naturaleza de Saldos (MVP §7.1) */}
       <div className="grid gap-4 sm:grid-cols-3">
