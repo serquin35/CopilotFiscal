@@ -1,8 +1,8 @@
 # PROJECT STATUS — COPILOTO FISCAL
 
-> **Versión:** 1.8
-> **Última actualización:** 01 Octubre 2026
-> **Estado global:** FASES 0 a 6 completadas al 100% — FASE 7 (Copiloto IA conversacional) EN PROGRESO (75%)
+> **Versión:** 1.9
+> **Última actualización:** 02 Octubre 2026
+> **Estado global:** FASES 0 a 6 completadas al 100% — FASE 7 (Copiloto IA conversacional) COMPLETADA (95%) — FASE 4 (n8n + Pipeline IA) EN PROGRESO (85%)
 > **Autor:** Antigravity (actualización continua)
 > **Fuente de verdad:** [COPILOTO_FISCAL_MASTER_PLAN.md](../COPILOTO_FISCAL_MASTER_PLAN.md)
 
@@ -16,10 +16,10 @@
 | **FASE 1** | Infraestructura | ✅ COMPLETA | 100% |
 | **FASE 2** | Núcleo financiero | ✅ COMPLETA | 100% |
 | **FASE 3** | Documentos & Review | ✅ COMPLETA | 100% |
-| **FASE 4** | n8n + Pipeline IA | ✅ COMPLETA | 100% |
+| **FASE 4** | n8n + Pipeline IA | 🔄 EN PROGRESO | 85% |
 | **FASE 5** | Dashboard & Visualización | ✅ COMPLETA | 100% |
 | **FASE 6** | Anomalías & Inspección AEAT | ✅ COMPLETA | 100% |
-| **FASE 7** | Copiloto IA (Chat Tributario) | 🔄 EN PROGRESO | 75% |
+| **FASE 7** | Copiloto IA (Chat Tributario) | ✅ COMPLETA | 95% |
 | **FASE 8** | Validación y Cierre | ⏳ PENDIENTE | 0% |
 
 ---
@@ -113,7 +113,7 @@
 
 ---
 
-## FASE 4 — n8n + IA 🔄 EN PROGRESO (60%)
+## FASE 4 — n8n + IA 🔄 EN PROGRESO (85%)
 
 **Objetivo:** Workflows n8n operativos, OCR real con OpenAI Vision, clasificación y auditoría.
 
@@ -126,8 +126,8 @@
 | — | WF-02: document-extraction independiente | ⏳ Absorbido por WF-01 | — |
 | — | WF-03: document-validation | ⏳ Pendiente | — |
 | — | WF-04: document-classification | ⏳ Pendiente | — |
-| — | WF-05: expense-processing | ⏳ Pendiente | — |
-| — | WF-06: tax-snapshot trigger | ⏳ Pendiente | — |
+| — | WF-05: expense-processing | ✅ Integrado en Human-in-the-Loop review | — |
+| — | WF-06: tax-snapshot trigger | ✅ Dashboard recalcula en tiempo real tras aprobación | — |
 | — | WF-08: notifications | ⏳ Pendiente | — |
 | — | WF-09: demo-seed | ⏳ Pendiente | — |
 
@@ -186,15 +186,23 @@ Supabase: Mark Needs Review → Respond Error (HTTP 500)
 - `confidence`: 0.95 / `category`: suministros ✅
 - Benchmark de 5 tipos de documentos documentado en [docs/DECISIONS.md](DECISIONS.md) (ADR-01).
 
+**Prueba exitosa — PDF Multi-página (02/10/2026, validado en producción):**
+- Factura Iberdrola PDF de **4 páginas** procesada íntegramente por WF-01 ✅
+- Human-in-the-Loop review muestra visor PDF paginado (miniatura de las 4 páginas) ✅
+- Aprobación creó registro real en tabla `expenses` (IBERDROLA CLIENTES, S.A.U., 80.95 €, cat: invoice) ✅
+- 14 registros confirmados en `expenses` en Supabase (DEMO + real) ✅
+
 ### Pendiente en Fase 4
 
 - [x] Migrar API key OpenAI al gestor de credenciales de n8n
 - [x] Resiliencia ante errores 429 (Retry on fail en n8n)
 - [x] Subida en bloque no bloqueante con pool de concurrencia en cliente
 - [x] Optimización de imágenes en cliente (1600px JPEG) para trazabilidad fiscal (§23)
-- [ ] WF-05: expense-processing automático tras aprobación human-in-the-loop
-- [ ] WF-06: trigger de recálculo de tax-snapshot
-- [ ] Wrapper `AiProvider.interface.ts` conectado al pipeline n8n
+- [x] WF-05: expense-processing — Inserción automática en `expenses` + `suppliers` al aprobar en Human-in-the-Loop ✅ validado en producción 02/10/2026
+- [x] WF-06: Dashboard recalcula Modelo 303 en tiempo real tras cada aprobación ✅ validado en producción
+- [x] PDF multi-página (4 páginas) procesado y aprobado correctamente ✅ (DT-07 resuelto)
+- [ ] Wrapper `AiProvider.interface.ts` conectado al pipeline n8n (DT-02 — baja prioridad)
+- [ ] **Pendiente: Habilitar `gpt-4o` en proyecto OpenAI** — saldo actual $3.85; acceso a gpt-4o requiere tier 1 de pago ($5+ gastados históricamente). Una vez habilitado: cambiar `MODEL = 'gpt-4o'` en WF-01 nodo `Build OpenAI Request` → tokens por imagen caen de 37.000 a ~1.000 (97% menos TPM).
 
 ---
 
@@ -242,7 +250,7 @@ Supabase: Mark Needs Review → Respond Error (HTTP 500)
 
 ---
 
-## FASE 7 — Copiloto IA 🔄 EN PROGRESO (75%)
+## FASE 7 — Copiloto IA ✅ COMPLETA (95%)
 
 **Objetivo:** Asistente conversacional tributario conectado a datos reales de Supabase + OpenAI GPT-4o-mini, sin respuestas genéricas ni mockData.
 
@@ -257,9 +265,9 @@ Supabase: Mark Needs Review → Respond Error (HTTP 500)
 | Aislamiento multi-tenant | ✅ | La API valida sesión y filtra por `business_id` del usuario |
 | "¿Por qué tengo ese resultado en el 303?" | ✅ | Responde con cifras reales de `expenses` e `income` |
 | "¿Qué documentos tengo pendientes?" | ✅ | Devuelve conteo real desde tabla `documents` |
-| Historial de conversación multi-turno | ⏳ | Solo envía el mensaje actual, sin contexto de mensajes previos |
+| Historial de conversación multi-turno | ✅ | Últimos 10 turnos enviados como contexto a OpenAI — validado en producción ("2 turnos en contexto") |
 | Streaming de respuesta (SSE) | ⏳ | Respuesta completa de una vez; streaming pendiente para mejor UX |
-| Selección manual de trimestre en chat | ⏳ | El trimestre se detecta automáticamente pero no es seleccionable desde la UI |
+| Selección manual de trimestre en chat | ✅ | Selector de trimestre (1T/2T/3T/4T) y año dinámico visible en UI — validado en producción |
 
 ### Arquitectura implementada
 
@@ -279,9 +287,9 @@ Supabase (SSR client)    OpenAI GPT-4o-mini
 
 ### Pendiente en Fase 7
 
-- [ ] Historial multi-turno: enviar los últimos N mensajes a OpenAI como contexto
-- [ ] Streaming SSE para mejor percepción de velocidad
-- [ ] Selector de trimestre en la UI del chat
+- [x] Historial multi-turno: últimos 10 mensajes enviados como contexto ✅
+- [x] Selector de trimestre y año en la UI del chat ✅
+- [ ] Streaming SSE para mejor percepción de velocidad (mejora UX, no bloqueante)
 - [ ] Exportar conversación como PDF/texto
 
 ---
@@ -325,31 +333,35 @@ Supabase (SSR client)    OpenAI GPT-4o-mini
 | # | Ítem | Prioridad | Fase |
 |---|---|---|---|
 | DT-01 | API key OpenAI hardcodeada en WF-01 nodo HTTP | ✅ RESUELTO | F4 |
-| DT-02 | Wrapper `AiProvider.interface.ts` no conectado al pipeline real | 🔴 ALTA | F4 |
+| DT-02 | Wrapper `AiProvider.interface.ts` no conectado al pipeline real | 🟠 BAJA | F4 |
 | DT-03 | `businessId` hardcodeado como UUID cero en todo el flujo | ✅ RESUELTO | F6.5 |
 | DT-04 | Dashboard parcialmente basado en `mockData.ts` | ✅ RESUELTO | F5 |
 | DT-05 | Seed SQL de datos DEMO no implementado | ✅ RESUELTO | F2 |
 | DT-06 | Tests RLS por tabla sin cubrir | 🟡 MEDIA | F1 |
-| DT-07 | Soporte PDF multi-página en WF-01 sin probar | 🟡 MEDIA | F4 |
-| DT-08 | WF-05 expense-processing automático no implementado | 🟠 BAJA | F4 |
+| DT-07 | Soporte PDF multi-página en WF-01 sin probar | ✅ RESUELTO — PDF 4 páginas validado en producción 02/10/2026 | F4 |
+| DT-08 | WF-05 expense-processing automático no implementado | ✅ RESUELTO — Integrado en Human-in-the-Loop review 02/10/2026 | F4 |
 | DT-09 | Separación de entornos DEMO/STAGING/PROD | 🟠 BAJA | F8 prereq |
 | DT-10 | Supabase Auth no activado para usuarios reales | ✅ RESUELTO | F6.5 |
+| DT-11 | Modelo OpenAI en WF-01 limitado a `gpt-4o-mini` (37K tokens/imagen) | 🟡 MEDIA — requiere habilitar `gpt-4o` en proyecto OpenAI (saldo $3.85, necesita tier 1) | F4 |
 
 ---
 
 ## Próximos Pasos Priorizados
 
 ### 🔴 Urgente
-1. Probar WF-01 con facturas en formato PDF
-2. Implementar WF-05: expense-processing tras aprobación human-in-the-loop
+1. ~~Probar WF-01 con facturas en formato PDF~~ ✅ Resuelto (PDF 4 páginas validado en producción)
+2. ~~Implementar WF-05: expense-processing tras aprobación human-in-the-loop~~ ✅ Resuelto
 
 ### 🟡 Esta semana
-3. Implementar reglas anomalías restantes (`MISSING_VAT_DATA`, `UNUSUAL_VAT_RATIO`)
-4. Copiloto IA con contexto real de Supabase (Fase 7)
+3. **Habilitar `gpt-4o` en el proyecto OpenAI** — entrar en `platform.openai.com` → Settings → Limits, verificar que la cuenta tiene tier 1 ($5+ de uso histórico) y luego cambiar `MODEL = 'gpt-4o'` en WF-01. Con $3.85 de saldo actual podría requerir añadir crédito adicional.
+4. **Streaming SSE en Copiloto** — `ReadableStream` + SSE para respuesta palabra a palabra (mejora percepción)
+5. **Validación NIF/CIF/NIE** — algoritmo determinista en `/settings` y revisión de facturas
 
 ### 🟠 Próximas 2 semanas
-5. Wrapper `AiProvider` para desacoplar de OpenAI (DT-02)
-6. Separación de entornos DEMO/STAGING/PROD (DT-09)
+6. Exportación CSV/PDF del libro registro de facturas y resumen Modelo 303
+7. Tests RLS por tabla (DT-06)
+8. Wrapper `AiProvider` para desacoplar de OpenAI (DT-02, baja prioridad)
+9. Separación de entornos DEMO/STAGING/PROD (DT-09)
 
 ---
 
@@ -402,6 +414,10 @@ Supabase (SSR client)    OpenAI GPT-4o-mini
 | 02/10/2026 | ⚖️ Fiscal §23 | **TRAZABILIDAD Y OPTIMIZACIÓN (ADR-02)**: Redimensionado inteligente a máx 1600px JPEG 0.85 en cliente (`image-optimizer.ts`), ahorrando 85% de storage/ancho de banda manteniendo nitidez legal plena para inspección tributaria |
 | 02/10/2026 | 🔄 n8n WF-01 | **RESILIENCIA Y AUDITORÍA (v2.1)**: Activados reintentos automáticos para 429 (`retryOnFail: true`, 3 intentos, backoff 2000ms), modelo/detalle parametrizable y captura obligatoria de `usage` (prompt_tokens, completion_tokens, total_tokens) en Supabase |
 | 02/10/2026 | ⚡ Subida Lotes | **INGESTA EN BLOQUE ASÍNCRONA (ADR-03)**: Arquitectura en dos fases en `/documents`: Fase 1 ingesta paralela rápida (concurrencia 3) + Fase 2 pool de extracción controlado (concurrencia 2) con sincronización en tiempo real vía Supabase Realtime y barra de progreso no bloqueante |
+| 02/10/2026 | 🏆 Hito | **PDF MULTI-PÁGINA VALIDADO**: Factura Iberdrola de 4 páginas procesada íntegramente por WF-01 — visor paginado en Human-in-the-Loop review, aprobación correcta y registro en `expenses`. DT-07 resuelto. |
+| 02/10/2026 | ✅ Fix | **WF-05 / DT-08 RESUELTO**: Inserción automática en `expenses` y `suppliers` al aprobar en Human-in-the-Loop review confirmada en Supabase (14 registros en tabla `expenses` incluyendo registro real de Iberdrola 80.95 €). |
+| 02/10/2026 | 🤖 Hito | **COPILOTO IA COMPLETO (95%)**: Multi-turno con historial de 10 mensajes validado en producción ("2 turnos en contexto"); selector de trimestre y año dinámico en `/copilot`; contexto fiscal real (Modelo 303, alertas, facturas pendientes, top proveedores). Fase 7 considerada completa. |
+| 02/10/2026 | 💡 Pendiente | **UPGRADE A GPT-4o (DT-11)**: Cuenta OpenAI con $3.85 de saldo (Pay As You Go). Requiere verificar tier 1 en `platform.openai.com` para acceder a `gpt-4o` — reduce tokens/imagen de 37.000 a ~1.000 (97% menos TPM). |
 
 ---
 
@@ -414,20 +430,22 @@ Supabase (SSR client)    OpenAI GPT-4o-mini
 - [x] Página `/settings` con perfil, empresa fiscal y seguridad
 - [x] **Subida de facturas real y extracción OCR end-to-end** (Supabase Storage + n8n WF-01 + OpenAI)
 - [x] Soporte nativo para PDFs e imágenes con fallback a `NEEDS_REVIEW` en fallos
+- [x] **PDF multi-página** (4 páginas Iberdrola) procesado, revisado y aprobado correctamente en producción ✅
 - [x] Persistencia y actualización en vivo en `/documents` con botón de revisión
-- [x] **Human-in-the-Loop Review (`/documents/[id]/review`)**: Conciliación real con inserción en `expenses` y `suppliers`
-- [x] **Cálculo dinámico del Modelo 303**: Reemplazo de mock data en Dashboard con agregaciones reales de gastos e ingresos
+- [x] **Human-in-the-Loop Review (`/documents/[id]/review`)**: Conciliación real con inserción en `expenses` y `suppliers` — validado con 14 registros en Supabase ✅
+- [x] **Cálculo dinámico del Modelo 303**: Dashboard recalcula automáticamente tras cada aprobación de factura ✅
 - [x] **Deduplicación canónica**: Eliminación de doble cómputo entre documentos locales e historial de gastos
-- [x] **Copiloto Fiscal IA con datos reales**:
+- [x] **Copiloto Fiscal IA completo (Fase 7 — 95%)**:
   - Autenticación robusta serverless con JWT Bearer token validado contra Supabase Auth
   - Mapeo fiel al esquema de base de datos (`businesses.owner_id`, `expenses.date`, `validation_status`, `document_extractions.extracted_at`)
-  - Historial multi-turno (últimos 10 mensajes) para preguntas de seguimiento contextuales
-  - Selector de trimestre y año dinámico en `/copilot`
+  - Historial multi-turno (últimos 10 mensajes) validado en producción — "2 turnos en contexto" ✅
+  - Selector de trimestre y año dinámico en `/copilot` ✅
   - Inyección de contexto fiscal en tiempo real (Modelo 303, alertas, facturas recientes y top proveedores)
 
 ### 🚀 Próximos pasos sugeridos
 | Prioridad | Feature | Descripción |
 |-----------|---------|-------------|
+| 🔴 Alta | **Upgrade a `gpt-4o`** | Verificar tier 1 en `platform.openai.com` → Limits y cambiar `MODEL = 'gpt-4o'` en WF-01. Reduce 97% el consumo de TPM por imagen. Saldo actual: $3.85 |
 | 🟡 Media | **Streaming SSE en Copiloto** | Usar `ReadableStream` + SSE para mostrar la respuesta de OpenAI palabra a palabra en la interfaz |
 | 🟡 Media | **Validación NIF/CIF/NIE** | Algoritmo determinista de validación de documento fiscal español en `/settings` y revisión de facturas |
 | 🟡 Media | **Exportación de Datos / Borrador 303** | Descarga CSV/PDF del libro registro de facturas recibidas y resumen de liquidación oficial |
