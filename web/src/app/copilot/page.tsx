@@ -81,9 +81,11 @@ export default function CopilotPage() {
   const [messages, setMessages] = useState<Message[]>([WELCOME_MSG]);
   const [inputQuery, setInputQuery] = useState("");
   const [isTyping, setIsTyping] = useState(false);
+  const [isStreaming, setIsStreaming] = useState(false);
   const [snapshot, setSnapshot] = useState<FiscalSnapshot | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -126,24 +128,45 @@ export default function CopilotPage() {
     []
   );
 
-  // ── Enviar mensaje ───────────────────────────────────────────────────────────
+  // ── Enviar mensaje (streaming SSE con fallback a respuesta completa) ──────────
+
+  const handleStop = useCallback(() => {
+    abortRef.current?.abort();
+  }, []);
 
   const handleSend = useCallback(
     async (textToSend?: string) => {
       const query = textToSend || inputQuery;
       if (!query.trim() || isTyping) return;
 
+      const stamp = () =>
+        new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
       const userMsg: Message = {
         id: `usr-${Date.now()}`,
         sender: "user",
         content: query,
-        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        timestamp: stamp(),
       };
 
       const nextMessages = [...messages, userMsg];
       setMessages(nextMessages);
       if (!textToSend) setInputQuery("");
       setIsTyping(true);
+      setIsStreaming(false);
+
+      const copId = `cop-${Date.now()}`;
+      setMessages((prev) => [...prev, { id: copId, sender: "copilot", content: "", timestamp: stamp() }]);
+
+      const controller = new AbortController();
+      abortRef.current = controller;
+      let acc = "";
+      let gotDelta = false;
+
+      const patchCopilot = (content: string, sources?: string[]) =>
+        setMessages((prev) =>
+          prev.map((m) => (m.id === copId ? { ...m, content, ...(sources ? { sources } : {}) } : m))
+        );
 
       try {
         // Obtener token de sesión activo (lo refresca si hace falta)
@@ -152,6 +175,7 @@ export default function CopilotPage() {
 
         const res = await fetch("/api/copilot/chat", {
           method: "POST",
+          signal: controller.signal,
           headers: {
             "Content-Type": "application/json",
             "Authorization": `Bearer ${accessToken}`,
@@ -161,39 +185,75 @@ export default function CopilotPage() {
             quarter: selectedQuarter,
             year: selectedYear,
             history: buildHistory(nextMessages), // historial INCLUYENDO el mensaje actual
+            stream: true,
           }),
         });
 
-        const data = await res.json();
-
-        if (!res.ok || data.error) {
-          throw new Error(data.error ?? `HTTP ${res.status}`);
+        const ctype = res.headers.get("content-type") || "";
+        if (res.ok && ctype.includes("text/event-stream") && res.body) {
+          const reader = res.body.getReader();
+          const decoder = new TextDecoder();
+          let buf = "";
+          for (;;) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buf += decoder.decode(value, { stream: true });
+            const chunks = buf.split("\n\n");
+            buf = chunks.pop() ?? "";
+            for (const chunk of chunks) {
+              const line = chunk.trim();
+              if (!line.startsWith("data:")) continue;
+              try {
+                const evt = JSON.parse(line.slice(5).trim());
+                if (typeof evt.delta === "string" && evt.delta) {
+                  acc += evt.delta;
+                  gotDelta = true;
+                  setIsStreaming(true);
+                  patchCopilot(acc);
+                }
+                if (evt.done) {
+                  if (evt.context) setSnapshot(evt.context);
+                  patchCopilot(acc, evt.sources ?? []);
+                }
+              } catch {
+                // fragmento parcial: se recompone con el siguiente chunk
+              }
+            }
+          }
+          if (!gotDelta) {
+            // Stream vacío: degradar a error legible
+            throw new Error("respuesta vacía del servidor");
+          }
+        } else {
+          // Fallback: respuesta completa JSON (servidor sin SSE o error HTTP con JSON)
+          const data = await res.json();
+          if (!res.ok || data.error) {
+            throw new Error(data.error ?? `HTTP ${res.status}`);
+          }
+          if (data.context) setSnapshot(data.context);
+          patchCopilot(data.reply ?? "Sin respuesta del servidor.", data.sources ?? []);
         }
-
-        if (data.context) setSnapshot(data.context);
-
-        const copilotMsg: Message = {
-          id: `cop-${Date.now()}`,
-          sender: "copilot",
-          content: data.reply ?? "Sin respuesta del servidor.",
-          timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-          sources: data.sources ?? [],
-        };
-
-        setMessages((prev) => [...prev, copilotMsg]);
       } catch (err) {
-        const errorMsg: Message = {
-          id: `err-${Date.now()}`,
-          sender: "copilot",
-          content: `⚠️ **Error al conectar con el Copiloto**: ${
-            err instanceof Error ? err.message : "Error desconocido"
-          }. Comprueba tu sesión e inténtalo de nuevo.`,
-          timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-          isError: true,
-        };
-        setMessages((prev) => [...prev, errorMsg]);
+        if (controller.signal.aborted) {
+          patchCopilot(acc ? `${acc}\n\n*(Respuesta detenida por el usuario.)*` : "*(Respuesta detenida.)*");
+        } else if (!gotDelta) {
+          const errorMsg: Message = {
+            id: `err-${Date.now()}`,
+            sender: "copilot",
+            content: `⚠️ **Error al conectar con el Copiloto**: ${
+              err instanceof Error ? err.message : "Error desconocido"
+            }. Comprueba tu sesión e inténtalo de nuevo.`,
+            timestamp: stamp(),
+            isError: true,
+          };
+          setMessages((prev) => [...prev.filter((m) => m.id !== copId), errorMsg]);
+        } else {
+          patchCopilot(`${acc}\n\n⚠️ Conexión interrumpida; respuesta parcial.`);
+        }
       } finally {
         setIsTyping(false);
+        setIsStreaming(false);
+        abortRef.current = null;
       }
     },
     [inputQuery, isTyping, messages, selectedQuarter, selectedYear, buildHistory, session?.access_token, supabase]
@@ -361,7 +421,7 @@ export default function CopilotPage() {
                 </div>
               ))}
 
-              {isTyping && (
+              {isTyping && !isStreaming && (
                 <div className="flex gap-3 text-xs justify-start items-center">
                   <div className="size-8 rounded-xl bg-primary/15 text-primary border border-primary/20 flex items-center justify-center shrink-0">
                     <Sparkles className="size-4 animate-spin" />
@@ -392,6 +452,17 @@ export default function CopilotPage() {
                   className="flex-1 h-10 rounded-xl border border-border bg-background px-3.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
                   disabled={isTyping}
                 />
+                {isTyping ? (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="default"
+                    className="gap-1.5 h-10 px-4 text-xs font-semibold"
+                    onClick={handleStop}
+                  >
+                    <span>Detener</span>
+                  </Button>
+                ) : (
                 <Button
                   type="submit"
                   variant="primary"
@@ -402,6 +473,7 @@ export default function CopilotPage() {
                   <span>Enviar</span>
                   <Send className="size-3.5" />
                 </Button>
+                )}
               </form>
 
               {/* Indicador de contexto activo */}
