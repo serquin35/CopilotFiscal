@@ -148,7 +148,7 @@ Is PDF? (Switch de formato binario vs imagen)
 Build OpenAI Request (Modelo y detalle configurables dinámicamente)
   ↓
 OpenAI: Extract Invoice Data
-  → GPT-4o-mini Vision (o modelo configurado)
+  → GPT-4o Vision (Tier 1 confirmado, activo desde 02/10/2026)
   → Retry on fail: 3 intentos, backoff 2000ms (resiliencia ante 429)  [FIX 02/10/2026]
   → Credencial n8n: CopilotoFiscal (sin claves en raw)  [MIGRADO 01/10/2026]
   ↓
@@ -342,15 +342,16 @@ Supabase (SSR client)    OpenAI GPT-4o-mini
 | DT-08 | WF-05 expense-processing automático no implementado | ✅ RESUELTO — Integrado en Human-in-the-Loop review 02/10/2026 | F4 |
 | DT-09 | Separación de entornos DEMO/STAGING/PROD | 🟠 BAJA | F8 prereq |
 | DT-10 | Supabase Auth no activado para usuarios reales | ✅ RESUELTO | F6.5 |
-| DT-11 | Modelo OpenAI en WF-01 limitado a `gpt-4o-mini` (37K tokens/imagen) | 🟡 MEDIA — requiere habilitar `gpt-4o` en proyecto OpenAI (saldo $3.85, necesita tier 1) | F4 |
+| DT-11 | Modelo OpenAI en WF-01 limitado a `gpt-4o-mini` (37K tokens/imagen) | ✅ RESUELTO — `gpt-4o` habilitado (Tier 1) y activado en WF-01 el 02/10/2026. Tokens/imagen: de 37.000 a ~1.000 (97% menos TPM). |
 
 ---
 
 ## Próximos Pasos Priorizados
 
 ### 🔴 Urgente
-1. ~~Probar WF-01 con facturas en formato PDF~~ ✅ Resuelto (PDF 4 páginas validado en producción)
-2. ~~Implementar WF-05: expense-processing tras aprobación human-in-the-loop~~ ✅ Resuelto
+1. ~~Probar WF-01 con facturas en formato PDF~~ ✅ Resuelto
+2. ~~Implementar WF-05~~ ✅ Resuelto
+3. ~~Upgrade a `gpt-4o`~~ ✅ Resuelto — Tier 1 confirmado, activo en WF-01 desde 02/10/2026
 
 ### 🟡 Esta semana
 3. **Habilitar `gpt-4o` en el proyecto OpenAI** — entrar en `platform.openai.com` → Settings → Limits, verificar que la cuenta tiene tier 1 ($5+ de uso histórico) y luego cambiar `MODEL = 'gpt-4o'` en WF-01. Con $3.85 de saldo actual podría requerir añadir crédito adicional.
