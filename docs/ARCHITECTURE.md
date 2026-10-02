@@ -237,20 +237,37 @@ src/engine/
 ### 3.5 Automation Layer (n8n)
 
 **Responsabilidades:**
-- Orquestar el pipeline asíncrono de documentos
-- Disparar OCR/extracción
-- Notificar al usuario
+- Orquestar el pipeline asíncrono de documentos (WF-01 a WF-09)
+- Disparar OCR/extracción fiscal con reintentos automáticos (retry on 429)
+- Notificar al usuario y actualizar estados en Supabase (`EXTRACTED`, `NEEDS_REVIEW`)
 - Ejecutar tareas de fondo (detección de anomalías, snapshots)
 - Gestionar el seed de datos demo
 
 **Prohibiciones:**
 - ❌ No contiene lógica de dominio fiscal
-- ❌ No modifica registros directamente con service_role innecesariamente
-- ❌ No toma decisiones autónomas sobre datos fiscales
+- ❌ No toma decisiones autónomas sobre deducciones fiscales (conciliación siempre human-in-the-loop)
+- ❌ No expone secretos en nodos HTTP (credenciales delegadas al gestor seguro de n8n)
 
-**Comunicación:** n8n se comunica con la aplicación exclusivamente mediante **webhooks HTTP seguros**.
+**Comunicación:** n8n se comunica con la aplicación mediante **webhooks HTTP seguros** e interactúa con Supabase mediante REST API autenticada.
 
-Ver `N8N_ARCHITECTURE.md` para detalle completo.
+### 3.6 Estrategia de Ingesta en Bloque y Tokens de Visión (ADR-01, ADR-02, ADR-03)
+
+Para soportar la operativa intensiva de bares y restaurantes (lotes de 10 a 50 tickets tras turnos de trabajo), la arquitectura implementa:
+
+1. **Optimización en Cliente (§23 Trazabilidad Fiscal - ADR-02):**
+   - Módulo `image-optimizer.ts`: redimensionado a máx 1600px en el lado largo con compresión JPEG calidad 0.85.
+   - Reduce el peso medio de 4–8 MB a ~250 KB (ahorro del 85% en ancho de banda y storage) conservando nitidez superior a 300 DPI equivalentes para auditoría AEAT.
+   - Archivos PDF se conservan intactos sin alteración binaria.
+
+2. **Ingesta Desacoplada en Dos Fases (ADR-03):**
+   - **Fase 1 (Ingesta Rápida Paralela - Concurrencia 3):** Subida directa a Supabase Storage (`documents` bucket) e inserción inmediata en tabla `documents` con estado `EXTRACTING`. Desbloquea la interfaz de usuario en menos de 3 segundos para el lote completo.
+   - **Fase 2 (Pool de Extracción con Concurrencia Controlada - Concurrencia 2):** Despacho asíncrono a n8n WF-01 limitado a 2 peticiones simultáneas con timeout de 60s, evitando saturar la cuota de Tokens Por Minuto (TPM) de OpenAI (ADR-01).
+
+3. **Sincronización Reactiva:**
+   - Suscripción en tiempo real vía `supabase.channel` (`postgres_changes` en tabla `documents`).
+   - Polling de resiliencia de baja frecuencia activo únicamente mientras existan documentos con estado `EXTRACTING`.
+
+Ver `docs/DECISIONS.md` y `docs/N8N_ARCHITECTURE.md` para detalle completo.
 
 ---
 

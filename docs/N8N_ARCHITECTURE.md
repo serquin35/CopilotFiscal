@@ -58,52 +58,51 @@
 
 ## 3. Contratos de Webhook — Detalle por Workflow
 
-### WF-01: `document-intake`
+### WF-01: `document-intake-and-extraction` (Pipeline Unificado v2.1)
 
-**Trigger:** Webhook desde Next.js API Route al subir un documento a Supabase Storage.
+> **ID en producción:** `zrKXQ5YJ8lLwHRL7`  
+> **Nombre:** `[Copilot Fiscal] WF-01: Document Intake & Extraction Pipeline`  
+> **Topología:** 13 nodos con branching inteligente de binarios PDF vs imágenes  
+> **Referencias de Arquitectura:** [ADR-01 (Tokens)](DECISIONS.md#adr-01-consumo-de-tokens-de-visión-en-extracción-de-facturas-wf-01), [ADR-02 (Storage 1600px)](DECISIONS.md#adr-02-almacenamiento-de-imágenes-originales-vs-comprimidas-23-trazabilidad), [ADR-03 (Batch Pool)](DECISIONS.md#adr-03-estrategia-de-subida-en-bloque-asíncrona-pool-de-concurrencia-vs-bloqueante)
 
-**Endpoint:** `POST /webhook/document-intake`
+**Trigger:** Webhook directo desde el cliente Next.js (`/documents`).
+
+**Endpoint Webhook:** `POST /webhook/copilot-document-intake`
 
 **Payload de entrada:**
 ```json
 {
-  "eventId": "evt_abc123",
-  "businessId": "uuid",
-  "documentId": "uuid",
-  "storagePath": "documents/business-uuid/filename.pdf",
-  "originalFilename": "factura-proveedor-enero.pdf",
-  "mimeType": "application/pdf",
-  "fileSizeBytes": 245678,
-  "uploadedBy": "user-uuid",
-  "uploadedAt": "2026-09-30T10:00:00Z"
+  "documentId": "uuid-v4",
+  "businessId": "uuid-v4",
+  "storagePath": "uuid-filename.jpg",
+  "originalFilename": "ticket_gasolina.jpg",
+  "fileSize": 245678,
+  "mimeType": "image/jpeg",
+  "fileUrl": "https://rqcpwxucgkcodccrykpv.supabase.co/storage/v1/object/public/documents/...",
+  "model": "gpt-4o-mini",
+  "detail": "high",
+  "uploadedAt": "2026-10-02T10:00:00Z"
 }
 ```
 
-**Validaciones internas:**
-- `eventId` no procesado anteriormente (idempotencia por tabla `n8n_processed_events`)
-- `businessId` y `documentId` existen en Supabase
-- `storagePath` accesible desde n8n
-
-**Acciones:**
-1. Verificar idempotencia por `eventId`
-2. Actualizar `documents.status` → `EXTRACTING`
-3. Registrar `audit_event`: `EXTRACTION_STARTED`
-4. Disparar WF-02 (document-extraction) de forma asíncrona
-
-**Payload de respuesta:**
-```json
-{
-  "received": true,
-  "eventId": "evt_abc123",
-  "nextWorkflow": "document-extraction",
-  "processedAt": "2026-09-30T10:00:01Z"
-}
-```
-
-**Manejo de errores:**
-- Si `documentId` no existe → responder 404, registrar error en `audit_events`
-- Si ya procesado (`eventId` duplicado) → responder 200 con `{"duplicate": true}`
-- Si Supabase no disponible → responder 503, no reintentar automáticamente hasta confirmación
+**Flujo de Nodos (13 Nodos):**
+1. **Webhook: Document Intake**: Recibe el payload del documento.
+2. **Validate & Normalize Input**: Valida UUID v4, campos obligatorios y detecta flag `isPdf`.
+3. **Supabase: Set EXTRACTING**: Actualiza el estado a `EXTRACTING` en tabla `documents`.
+4. **Is PDF? (If Node)**:
+   - **Rama True (PDF)**: Nodo `Download PDF` descarga el binario directamente desde Supabase Storage; `Build OpenAI Request` lo empaqueta como `file` con `data:application/pdf;base64,...` (sin intermediarios Vercel).
+   - **Rama False (Imagen)**: `Build OpenAI Request` construye el payload con `image_url` y `detail: 'high'` (optimizado previamente a máx 1600px en cliente).
+5. **OpenAI: Extract Invoice Data**:
+   - Conexión predefinida n8n: `CopilotoFiscal` (OpenAI API key segura).
+   - **Resiliencia ante cuotas TPM (429)**: `retryOnFail: true`, `maxTries: 3`, `waitBetweenTries: 2000` con timeout de 120s.
+6. **Process & Validate Output**:
+   - Parseo JSON estricto con campos normalizados (`supplier_name`, `supplier_nif`, `invoice_number`, `date`, `base_amount`, `vat_rate`, `vat_amount`, `total_amount`, `category`, `description`).
+   - Captura de métricas de tokens (`usage.prompt_tokens`, `usage.completion_tokens`, `usage.total_tokens`) y modelo utilizado.
+   - Si faltan datos críticos o el parseo falla, asigna status `NEEDS_REVIEW`.
+7. **Supabase: Save Extraction**: Guarda registro en `document_extractions` con `raw_payload`, `model` y desglose de importes.
+8. **Supabase: Update Doc Status**: Actualiza estado final (`EXTRACTED` o `NEEDS_REVIEW`).
+9. **Respond to Webhook**: Retorna JSON con `success: true`, campos extraídos y `usage`.
+10. **Rama de Errores (Supabase: Mark Needs Review + Respond Error)**: Si la descarga de PDF o la llamada a OpenAI fallan tras todos los reintentos, marca el documento como `NEEDS_REVIEW` en DB y responde HTTP 500 para control del cliente.
 
 ---
 

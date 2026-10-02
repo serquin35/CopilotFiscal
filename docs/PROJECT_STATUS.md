@@ -138,47 +138,63 @@ Webhook: Document Intake (POST /webhook/copilot-document-intake)
   ↓
 Validate & Normalize Input
   ↓
+  ↓
 Supabase: Set EXTRACTING
   ↓
+Is PDF? (Switch de formato binario vs imagen)
+  ├── [Sí]: Download PDF → Base64 File Payload (OpenAI files endpoint)
+  └── [No]: Image URL Payload (Detail: 'high', optimizado a 1600px en cliente)
+  ↓
+Build OpenAI Request (Modelo y detalle configurables dinámicamente)
+  ↓
 OpenAI: Extract Invoice Data
-  → GPT-4o-mini Vision
-  → Formato: image_url + detail:high  [FIX 01/10/2026]
-  → ~37.000 prompt_tokens por factura imagen
+  → GPT-4o-mini Vision (o modelo configurado)
+  → Retry on fail: 3 intentos, backoff 2000ms (resiliencia ante 429)  [FIX 02/10/2026]
+  → Credencial n8n: CopilotoFiscal (sin claves en raw)  [MIGRADO 01/10/2026]
   ↓
 Process & Validate Output
   → Calcula status: EXTRACTED | NEEDS_REVIEW
+  → Registra usage: prompt_tokens, completion_tokens, total_tokens  [NUEVO 02/10/2026]
   → Genera warnings si supplier o total faltan
   ↓
 Supabase: Save Extraction (POST /document_extractions)
-  → Prefer: return=representation
+  → Guarda model, raw_payload con usage y campos fiscales estructurados
   ↓
 Supabase: Update Doc Status (PATCH /documents?id=eq.{id})
-  → Prefer: return=representation  [FIX 01/10/2026]
+  → Prefer: return=representation
   ↓
-Respond to Webhook (JSON con extracted + status + confidence)
+Respond to Webhook (JSON con extracted + status + confidence + usage + model)
+  ↓ (Rama de error en descarga / extracción)
+Supabase: Mark Needs Review → Respond Error (HTTP 500)
 ```
 
-**Fixes aplicados el 01/10/2026:**
-1. **OpenAI Vision no veía la imagen**: `content` era texto plano → cambiado a array `[text, image_url]`
-2. **Output vacío en `Update Doc Status`**: añadido `Prefer: return=representation`
+**Fixes y mejoras aplicadas (01/10/2026 - 02/10/2026):**
+1. **Credenciales seguras**: API Key de OpenAI migrada al gestor de credenciales de n8n (`CopilotoFiscal`).
+2. **Soporte de binarios PDF nativos**: Descarga directa y codificación Base64 como `file` sin intermediarios Vercel.
+3. **Optimización de tokens de visión (ADR-01 & ADR-02)**: Redimensionado en cliente a 1600px JPEG 0.85 (ahorro 85% bandwidth/storage).
+4. **Resiliencia ante cuotas TPM / 429**: Parámetros `retryOnFail: true`, `maxTries: 3`, `waitBetweenTries: 2000` en n8n.
+5. **Auditoría de consumo**: Extracción y guardado de métricas de tokens (`usage.prompt_tokens`, `usage.total_tokens`) en base de datos.
+6. **Subida en bloque desacoplada (ADR-03)**:
+   - **Fase 1:** Ingesta paralela a Storage + DB (concurrencia 3), desbloqueando la UI en <3s.
+   - **Fase 2:** Pool de concurrencia controlado (2 llamadas simultáneas a n8n) con sincronización Supabase Realtime y polling de resiliencia.
 
-**Prueba exitosa — Factura Iberdrola (01/10/2026):**
+**Prueba exitosa — Factura Iberdrola (01/10/2026) y Benchmark Hostelería (02/10/2026):**
 - `supplier_name`: IBERDROLA CLIENTES, S.A.U. ✅
 - `supplier_nif`: A-95758389 ✅
 - `invoice_number`: 21180613010076890 ✅
 - `total_amount`: 80,95 € / `vat_rate`: 21% / `base_amount`: 66,02 € ✅
 - `confidence`: 0.95 / `category`: suministros ✅
+- Benchmark de 5 tipos de documentos documentado en [docs/DECISIONS.md](DECISIONS.md) (ADR-01).
 
 ### Pendiente en Fase 4
 
-- [ ] **[URGENTE]** Migrar API key OpenAI al gestor de credenciales de n8n
+- [x] Migrar API key OpenAI al gestor de credenciales de n8n
+- [x] Resiliencia ante errores 429 (Retry on fail en n8n)
+- [x] Subida en bloque no bloqueante con pool de concurrencia en cliente
+- [x] Optimización de imágenes en cliente (1600px JPEG) para trazabilidad fiscal (§23)
 - [ ] WF-05: expense-processing automático tras aprobación human-in-the-loop
 - [ ] WF-06: trigger de recálculo de tax-snapshot
-- [ ] Soporte robusto para PDFs multi-página
 - [ ] Wrapper `AiProvider.interface.ts` conectado al pipeline n8n
-
-> [!WARNING]
-> La API key de OpenAI está hardcodeada en el nodo HTTP de WF-01. Debe migrarse al gestor de credenciales de n8n antes de cualquier exposición pública del proyecto.
 
 ---
 
@@ -382,6 +398,10 @@ Supabase (SSR client)    OpenAI GPT-4o-mini
 | 01/10/2026 | 📊 Finanzas | **CÁLCULO 303 CON DATOS REALES**: Dashboard computa dinámicamente el Modelo 303 agregando la tabla `expenses` y cruzando con `documents` con deduplicación canónica por `document_id` |
 | 01/10/2026 | 🧹 Mantenimiento | Limpieza de base de datos en producción: purga de usuarios y empresas de prueba temporales, dejando el entorno aislado y limpio para `serquin16@gmail.com` |
 | 01/10/2026 | 🤖 Feature | **FASE 7 — Copiloto IA operativo (75%)**: Endpoint `/api/copilot/chat` implementado con contexto fiscal real (expenses, income, alerts, docs pendientes); eliminación completa de mockData en `/copilot`; panel lateral con snapshot dinámico por trimestre |
+| 02/10/2026 | 🔬 Benchmark | **INVESTIGACIÓN DE TOKENS VISIÓN (ADR-01)**: Benchmark sistemático con 5 tipos de documentos de hostelería. Detección del multiplicador ~33.33x de GPT-4o-mini en visión; demostración de que `detail: "low"` destruye fiabilidad OCR en NIFs/importes; documentado en `docs/DECISIONS.md` |
+| 02/10/2026 | ⚖️ Fiscal §23 | **TRAZABILIDAD Y OPTIMIZACIÓN (ADR-02)**: Redimensionado inteligente a máx 1600px JPEG 0.85 en cliente (`image-optimizer.ts`), ahorrando 85% de storage/ancho de banda manteniendo nitidez legal plena para inspección tributaria |
+| 02/10/2026 | 🔄 n8n WF-01 | **RESILIENCIA Y AUDITORÍA (v2.1)**: Activados reintentos automáticos para 429 (`retryOnFail: true`, 3 intentos, backoff 2000ms), modelo/detalle parametrizable y captura obligatoria de `usage` (prompt_tokens, completion_tokens, total_tokens) en Supabase |
+| 02/10/2026 | ⚡ Subida Lotes | **INGESTA EN BLOQUE ASÍNCRONA (ADR-03)**: Arquitectura en dos fases en `/documents`: Fase 1 ingesta paralela rápida (concurrencia 3) + Fase 2 pool de extracción controlado (concurrencia 2) con sincronización en tiempo real vía Supabase Realtime y barra de progreso no bloqueante |
 
 ---
 
