@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
+import { validateNif } from "@/lib/nif-validator";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Tab = "profile" | "empresa" | "preferencias" | "seguridad";
@@ -288,6 +289,14 @@ function TabEmpresa({ onToast }: { onToast: (t: Toast) => void }) {
 
   const save = async () => {
     if (!business) return;
+    const trimmedNif = nif.trim();
+    if (trimmedNif !== "") {
+      const check = validateNif(trimmedNif, { allowDemo: business.is_demo ?? false });
+      if (!check.valid) {
+        onToast({ type: "error", msg: `NIF inválido: ${check.message}` });
+        return;
+      }
+    }
     setSaving(true);
     const { error } = await supabase
       .from("businesses")
@@ -377,13 +386,24 @@ function TabEmpresa({ onToast }: { onToast: (t: Toast) => void }) {
               required
             />
           </div>
-          <FieldInput
-            label="NIF / CIF"
-            value={nif}
-            onChange={setNif}
-            placeholder="B12345678 o 12345678A"
-            hint="Identificación fiscal. Indispensable para el Modelo 303."
-          />
+          <div>
+            <FieldInput
+              label="NIF / CIF"
+              value={nif}
+              onChange={setNif}
+              placeholder="B12345678 o 12345678A"
+              hint="Identificación fiscal. Indispensable para el Modelo 303."
+            />
+            {nif.trim() !== "" &&
+              (() => {
+                const check = validateNif(nif, { allowDemo: business?.is_demo ?? false });
+                return (
+                  <p className={`text-[11px] mt-1 font-medium ${check.valid ? "text-primary" : "text-destructive"}`}>
+                    {check.valid ? `✅ ${check.message}` : `❌ ${check.message}`}
+                  </p>
+                );
+              })()}
+          </div>
           <FieldSelect
             label="Forma jurídica"
             value={legalForm}

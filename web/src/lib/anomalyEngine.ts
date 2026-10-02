@@ -1,4 +1,5 @@
 import { AnomalyAlert, FiscalDocument } from "@/types";
+import { validateNif } from "@/lib/nif-validator";
 
 export interface AnomalyEngineExpense {
   id: string;
@@ -127,6 +128,38 @@ export function detectFiscalAnomalies(context: AnomalyEngineContext): AnomalyAle
           documentId: doc.id,
           filename: doc.filename,
           statedNif: doc.nif,
+        },
+        entityType: "document",
+        entityId: doc.id,
+        source: "system",
+      });
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // 2b. REGLA: INVALID_NIF (NIF presente pero con checksum erroneo - tipico OCR)
+  // Se permite DEMO (semilla B00000001) para no generar ruido en simulacion.
+  // ---------------------------------------------------------------------------
+  for (const doc of documents) {
+    const nif = (doc.nif || "").trim();
+    if (!nif || nif === "-" || nif.toLowerCase() === "sin nif" || nif.length < 5) continue;
+    const check = validateNif(nif, { allowDemo: true });
+    if (!check.valid) {
+      alerts.push({
+        id: `anom-badnif-doc-${doc.id}`,
+        documentId: doc.id,
+        title: "NIF/CIF con dígito de control erróneo",
+        description: `El NIF "${doc.nif}" del documento "${doc.filename}" no cuadra matemáticamente (${check.code}). Suele ser un error de OCR. Corrígelo en revisión antes de conciliar; sin NIF válido el IVA no es deducible.`,
+        severity: "medium",
+        type: "INVALID_NIF",
+        createdAt: doc.uploadedAt || new Date().toISOString(),
+        resolved: false,
+        evidence: {
+          documentId: doc.id,
+          filename: doc.filename,
+          statedNif: doc.nif,
+          normalizedNif: check.normalized,
+          code: check.code,
         },
         entityType: "document",
         entityId: doc.id,
