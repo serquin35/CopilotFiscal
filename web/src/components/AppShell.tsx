@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation";
 import { Sidebar } from "@/components/Sidebar";
 import { Navbar } from "@/components/Navbar";
+import { EnvBanner } from "@/components/EnvBanner";
 
 // These routes show a full-page auth layout without Sidebar/Navbar
 const AUTH_ROUTES = ["/login", "/register", "/forgot-password", "/auth"];
@@ -19,6 +20,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <div className="flex flex-col md:flex-row min-h-screen">
       <Sidebar />
       <div className="flex-1 flex flex-col min-w-0 h-screen overflow-y-auto">
+        <EnvBanner />
         {/* Mobile navbar */}
         <div className="md:hidden">
           <Navbar />
