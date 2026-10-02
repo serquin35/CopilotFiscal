@@ -25,12 +25,14 @@ import { initialDocuments } from "@/lib/mockData";
 import { FiscalDocument } from "@/types";
 import { useAuth } from "@/context/AuthContext";
 import { optimizeImage } from "@/lib/image-optimizer";
+import { sha256Hex } from "@/lib/file-hash";
 
 interface BatchProgress {
   total: number;
   uploaded: number;
   extracted: number;
   errors: number;
+  duplicates: number;
   isProcessing: boolean;
   phase: "OPTIMIZING" | "UPLOADING" | "EXTRACTING" | "COMPLETED" | "IDLE";
   currentMessage: string;
@@ -80,6 +82,7 @@ export default function DocumentsPage() {
     uploaded: 0,
     extracted: 0,
     errors: 0,
+    duplicates: 0,
     isProcessing: false,
     phase: "IDLE",
     currentMessage: "",
@@ -271,6 +274,12 @@ export default function DocumentsPage() {
     const fileList = Array.from(files);
     if (fileList.length === 0) return;
 
+    // Sin negocio cargado no se sube nada: evita huérfanos en UUID cero.
+    if (!currentBizId) {
+      setUploadStatus("Tu negocio aún está cargando. Espera unos segundos e inténtalo de nuevo.");
+      return;
+    }
+
     setIsUploading(true);
     const n8nWebhookUrl =
       process.env.NEXT_PUBLIC_N8N_WEBHOOK_URL ||
@@ -282,6 +291,7 @@ export default function DocumentsPage() {
       uploaded: 0,
       extracted: 0,
       errors: 0,
+      duplicates: 0,
       isProcessing: true,
       phase: "UPLOADING",
       currentMessage: `Optimizando e ingiriendo ${fileList.length} archivo${fileList.length > 1 ? "s" : ""}...`,
@@ -306,6 +316,28 @@ export default function DocumentsPage() {
         try {
           // Optimización de imagen en cliente (ADR-01 & ADR-02)
           const { file: fileToUpload } = await optimizeImage(file, 1600, 0.85);
+
+          // Hash SHA-256 del fichero final + aviso inmediato si ya existe
+          const fileHash = await sha256Hex(fileToUpload);
+          const { data: dup } = await supabase
+            .from("documents")
+            .select("id, original_filename")
+            .eq("business_id", currentBizId)
+            .eq("hash_sha256", fileHash)
+            .limit(1)
+            .maybeSingle();
+
+          if (dup) {
+            setBatchProgress((prev) => ({
+              ...prev,
+              uploaded: prev.uploaded + 1,
+              duplicates: prev.duplicates + 1,
+              currentMessage: `Duplicado omitido: ${file.name} (ya existe como ${String(
+                (dup as Record<string, unknown>).original_filename || "documento"
+              )})`,
+            }));
+            return null;
+          }
 
           const newDocUUID = crypto.randomUUID();
           const sanitizedName = fileToUpload.name.replace(/[^a-zA-Z0-9._-]/g, "_");
@@ -351,13 +383,14 @@ export default function DocumentsPage() {
             await supabase.from("documents").insert([
               {
                 id: newDocUUID,
-                business_id: currentBizId || "00000000-0000-0000-0000-000000000001",
+                business_id: currentBizId,
                 type: "invoice",
                 direction: "expense",
                 storage_path: storagePath,
                 original_filename: file.name,
                 file_size_bytes: fileToUpload.size,
                 mime_type: fileToUpload.type || "application/pdf",
+                hash_sha256: fileHash,
                 status: "EXTRACTING",
                 notes: filePublicUrl ? `URL: ${filePublicUrl}` : "Subido desde panel web",
               },
@@ -407,7 +440,7 @@ export default function DocumentsPage() {
       try {
         const payload = {
           documentId: doc.docId,
-          businessId: currentBizId || "00000000-0000-0000-0000-000000000001",
+          businessId: currentBizId,
           storagePath: doc.storagePath,
           originalFilename: doc.filename,
           fileSize: doc.fileSize,
@@ -511,8 +544,8 @@ export default function DocumentsPage() {
       phase: "COMPLETED",
       isProcessing: false,
       currentMessage: `Lote completado: ${prev.extracted} extraídos con éxito${
-        prev.errors > 0 ? `, ${prev.errors} para revisión manual` : ""
-      }.`,
+        prev.duplicates > 0 ? `, ${prev.duplicates} duplicado${prev.duplicates > 1 ? "s" : ""} omitido${prev.duplicates > 1 ? "s" : ""}` : ""
+      }${prev.errors > 0 ? `, ${prev.errors} para revisión manual` : ""}.`,
     }));
 
     window.dispatchEvent(new Event("fiscal_docs_updated"));

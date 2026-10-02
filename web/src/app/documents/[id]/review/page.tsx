@@ -176,6 +176,10 @@ export default function DocumentReviewPage() {
       setActionFeedback(`NIF inválido (${nifCheck.code}): ${nifCheck.message}`);
       return;
     }
+    if (!currentBizId) {
+      setActionFeedback("Tu negocio aún está cargando. Espera unos segundos e inténtalo de nuevo.");
+      return;
+    }
     setIsSaving(true);
     const updatedDoc: FiscalDocument = { ...doc, status: "CONFIRMED" };
     setDoc(updatedDoc);
@@ -214,7 +218,7 @@ export default function DocumentReviewPage() {
         const { data: existingSup } = await supabase
           .from("suppliers")
           .select("id")
-          .eq("business_id", currentBizId || "00000000-0000-0000-0000-000000000001")
+          .eq("business_id", currentBizId)
           .ilike("name", `%${cleanName}%`)
           .limit(1)
           .maybeSingle();
@@ -225,7 +229,7 @@ export default function DocumentReviewPage() {
           const { data: newSup } = await supabase
             .from("suppliers")
             .insert([{
-              business_id: currentBizId || "00000000-0000-0000-0000-000000000001",
+              business_id: currentBizId,
               name: cleanName,
               normalized_name: cleanName.toUpperCase(),
               tax_id_masked: maskNif(doc.nif),
@@ -247,7 +251,7 @@ export default function DocumentReviewPage() {
       const { data: existingExp } = await supabase
         .from("expenses")
         .select("id")
-        .eq("business_id", currentBizId || "00000000-0000-0000-0000-000000000001")
+        .eq("business_id", currentBizId)
         .eq("document_id", doc.id)
         .maybeSingle();
 
@@ -266,7 +270,7 @@ export default function DocumentReviewPage() {
         const quarter = Math.ceil(month / 3);
 
         await supabase.from("expenses").insert([{
-          business_id: currentBizId || "00000000-0000-0000-0000-000000000001",
+          business_id: currentBizId,
           document_id: doc.id,
           supplier_id: supplierId,
           date: docDate,
@@ -291,7 +295,7 @@ export default function DocumentReviewPage() {
     // 5. Auditoría
     try {
       await supabase.from("audit_events").insert([{
-        business_id: currentBizId || "00000000-0000-0000-0000-000000000001",
+        business_id: currentBizId,
         entity_type: "document",
         entity_id: doc.id,
         action: "DOCUMENT_CONFIRMED",
