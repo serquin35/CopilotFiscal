@@ -2,6 +2,7 @@ export type DocumentStatus =
   | "UPLOADED"
   | "EXTRACTING"
   | "EXTRACTED"
+  | "NEEDS_REVIEW"
   | "PENDING_REVIEW"
   | "REVIEWED"
   | "CONFIRMED"

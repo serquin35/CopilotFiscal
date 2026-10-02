@@ -12,14 +12,53 @@ import {
   Check,
   Trash2,
   RotateCcw,
+  Loader2,
+  CheckCircle2,
+  Sparkles,
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/badge";
+import { ProgressBar } from "@/components/ui/progress";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { initialDocuments } from "@/lib/mockData";
 import { FiscalDocument } from "@/types";
 import { useAuth } from "@/context/AuthContext";
+import { optimizeImage } from "@/lib/image-optimizer";
+
+interface BatchProgress {
+  total: number;
+  uploaded: number;
+  extracted: number;
+  errors: number;
+  isProcessing: boolean;
+  phase: "OPTIMIZING" | "UPLOADING" | "EXTRACTING" | "COMPLETED" | "IDLE";
+  currentMessage: string;
+}
+
+// Pool de concurrencia genérico para controlar la tasa de peticiones simultáneas
+async function runConcurrencyPool<T, R>(
+  items: T[],
+  concurrency: number,
+  worker: (item: T, index: number) => Promise<R>
+): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let currentIndex = 0;
+
+  async function next(): Promise<void> {
+    while (currentIndex < items.length) {
+      const idx = currentIndex++;
+      results[idx] = await worker(items[idx], idx);
+    }
+  }
+
+  const workers = Array.from(
+    { length: Math.min(concurrency, items.length) },
+    () => next()
+  );
+  await Promise.all(workers);
+  return results;
+}
 
 export default function DocumentsPage() {
   const { business, supabase } = useAuth();
@@ -36,6 +75,15 @@ export default function DocumentsPage() {
   const [isDragging, setIsDragging] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [batchProgress, setBatchProgress] = useState<BatchProgress>({
+    total: 0,
+    uploaded: 0,
+    extracted: 0,
+    errors: 0,
+    isProcessing: false,
+    phase: "IDLE",
+    currentMessage: "",
+  });
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // 1. Cargar documentos guardados localmente y desde Supabase al iniciar
@@ -118,6 +166,54 @@ export default function DocumentsPage() {
     loadDocuments();
   }, [loadDocuments]);
 
+  // 2. Suscripción Supabase Realtime a cambios de estado en tabla documents
+  useEffect(() => {
+    if (!currentBizId || isDemo) return;
+
+    const channel = supabase
+      .channel(`documents-realtime-${currentBizId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "documents",
+          filter: `business_id=eq.${currentBizId}`,
+        },
+        (payload) => {
+          const updatedRow = payload.new as { id?: string; status?: FiscalDocument["status"] };
+          if (updatedRow?.id) {
+            setDocuments((prev) => {
+              const updated = prev.map((d) =>
+                d.id === updatedRow.id
+                  ? { ...d, status: updatedRow.status || d.status }
+                  : d
+              );
+              localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+              return updated;
+            });
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [currentBizId, isDemo, STORAGE_KEY, supabase]);
+
+  // 3. Polling de respaldo de baja frecuencia solo si hay documentos en estado EXTRACTING
+  useEffect(() => {
+    const hasExtracting = documents.some((d) => d.status === "EXTRACTING");
+    if (!hasExtracting || isDemo) return;
+
+    const interval = setInterval(() => {
+      loadDocuments();
+    }, 4000);
+
+    return () => clearInterval(interval);
+  }, [documents, isDemo, loadDocuments]);
+
   const handleDeleteDocument = async (id: string, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -157,87 +253,166 @@ export default function DocumentsPage() {
     setIsDragging(false);
   };
 
+  /**
+   * PROCESAMIENTO EN BLOQUE DESACOPLADO EN DOS FASES (ADR-01, ADR-02, ADR-03)
+   *
+   * Fase 1 (Ingesta Rápida Paralela - Concurrencia 3):
+   *   - Optimiza y escala imágenes en cliente a máx 1600px JPEG (~250 KB)
+   *   - Sube a Supabase Storage
+   *   - Registra en DB con status EXTRACTING
+   *   - Desbloquea la interfaz inmediatamente y añade los ítems a la tabla
+   *
+   * Fase 2 (Pool de Extracción n8n - Concurrencia 2):
+   *   - Procesa llamadas a n8n con concurrencia máxima 2 para no saturar cuota TPM de OpenAI
+   *   - Timeout controlado de 60s
+   *   - Actualiza estado a EXTRACTED o NEEDS_REVIEW en tiempo real
+   */
   const processUploadedFiles = async (files: FileList | File[]) => {
+    const fileList = Array.from(files);
+    if (fileList.length === 0) return;
+
     setIsUploading(true);
     const n8nWebhookUrl =
       process.env.NEXT_PUBLIC_N8N_WEBHOOK_URL ||
       process.env.NEXT_N8N_WEBHOOK_URL ||
       "https://n8n.cheosdesign.info/webhook/copilot-document-intake";
 
-    for (const file of Array.from(files)) {
-      setUploadStatus(`Subiendo ${file.name} a Supabase Storage...`);
+    setBatchProgress({
+      total: fileList.length,
+      uploaded: 0,
+      extracted: 0,
+      errors: 0,
+      isProcessing: true,
+      phase: "UPLOADING",
+      currentMessage: `Optimizando e ingiriendo ${fileList.length} archivo${fileList.length > 1 ? "s" : ""}...`,
+    });
 
-      const newDocUUID = crypto.randomUUID();
-      const sanitizedName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-      const storagePath = `${newDocUUID}-${sanitizedName}`;
+    // ----------------------------------------------------
+    // FASE 1: Ingesta Paralela a Storage + DB (Concurrencia: 3)
+    // ----------------------------------------------------
+    interface IngestedDoc {
+      docId: string;
+      storagePath: string;
+      filename: string;
+      fileSize: number;
+      mimeType: string;
+      filePublicUrl: string;
+    }
 
-      let filePublicUrl = "";
+    const ingestedDocs: (IngestedDoc | null)[] = await runConcurrencyPool(
+      fileList,
+      3,
+      async (file) => {
+        try {
+          // Optimización de imagen en cliente (ADR-01 & ADR-02)
+          const { file: fileToUpload } = await optimizeImage(file, 1600, 0.85);
 
-      // 1. Subida a Supabase Storage (Bucket "documents")
-      try {
-        const { error: storageError } = await supabase.storage
-          .from("documents")
-          .upload(storagePath, file, { cacheControl: "3600", upsert: true });
+          const newDocUUID = crypto.randomUUID();
+          const sanitizedName = fileToUpload.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+          const storagePath = `${newDocUUID}-${sanitizedName}`;
 
-        if (!storageError) {
-          const { data: urlData } = supabase.storage
-            .from("documents")
-            .getPublicUrl(storagePath);
-          filePublicUrl = urlData?.publicUrl || "";
-        }
-      } catch (err) {
-        console.warn("Storage upload warn:", err);
-      }
+          let filePublicUrl = "";
 
-      // 2. Crear documento provisional en UI
-      const newDocId = newDocUUID;
-      const newDoc: FiscalDocument = {
-        id: newDocId,
-        filename: file.name,
-        fileSize: file.size,
-        uploadedAt: new Date().toISOString(),
-        status: "EXTRACTING",
-        category: "Procesando con IA...",
-        url: filePublicUrl,
-      };
+          // Subida a Supabase Storage
+          try {
+            const { error: storageError } = await supabase.storage
+              .from("documents")
+              .upload(storagePath, fileToUpload, { cacheControl: "3600", upsert: true });
 
-      setDocuments((prev) => {
-        const updated = [newDoc, ...prev];
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-        return updated;
-      });
+            if (!storageError) {
+              const { data: urlData } = supabase.storage
+                .from("documents")
+                .getPublicUrl(storagePath);
+              filePublicUrl = urlData?.publicUrl || "";
+            }
+          } catch (err) {
+            console.warn("Storage upload warn:", err);
+          }
 
-      // 3. Insertar registro en Supabase DB
-      try {
-        await supabase.from("documents").insert([
-          {
-            id: newDocId,
-            business_id: currentBizId || "00000000-0000-0000-0000-000000000001",
-            type: "invoice",
-            direction: "expense",
-            storage_path: storagePath,
-            original_filename: file.name,
-            file_size_bytes: file.size,
-            mime_type: file.type || "application/pdf",
+          // Documento provisional en UI (aparece inmediatamente en estado EXTRACTING)
+          const newDoc: FiscalDocument = {
+            id: newDocUUID,
+            filename: file.name,
+            fileSize: fileToUpload.size,
+            uploadedAt: new Date().toISOString(),
             status: "EXTRACTING",
-            notes: filePublicUrl ? `URL: ${filePublicUrl}` : "Subido desde panel web",
-          },
-        ]);
-      } catch (err) {
-        console.warn("DB insert warn:", err);
-      }
+            category: "Procesando con IA...",
+            url: filePublicUrl,
+          };
 
-      // 4. Disparar Webhook real de n8n
-      setUploadStatus(`Extrayendo datos fiscales con OpenAI Vision...`);
+          setDocuments((prev) => {
+            const updated = [newDoc, ...prev];
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+            return updated;
+          });
+
+          // Inserción en Supabase DB
+          try {
+            await supabase.from("documents").insert([
+              {
+                id: newDocUUID,
+                business_id: currentBizId || "00000000-0000-0000-0000-000000000001",
+                type: "invoice",
+                direction: "expense",
+                storage_path: storagePath,
+                original_filename: file.name,
+                file_size_bytes: fileToUpload.size,
+                mime_type: fileToUpload.type || "application/pdf",
+                status: "EXTRACTING",
+                notes: filePublicUrl ? `URL: ${filePublicUrl}` : "Subido desde panel web",
+              },
+            ]);
+          } catch (err) {
+            console.warn("DB insert warn:", err);
+          }
+
+          setBatchProgress((prev) => ({
+            ...prev,
+            uploaded: prev.uploaded + 1,
+            currentMessage: `Subido ${prev.uploaded + 1}/${fileList.length}: ${file.name}`,
+          }));
+
+          return {
+            docId: newDocUUID,
+            storagePath,
+            filename: file.name,
+            fileSize: fileToUpload.size,
+            mimeType: fileToUpload.type || "application/pdf",
+            filePublicUrl,
+          };
+        } catch (err) {
+          console.error("Error en ingesta de archivo:", file.name, err);
+          setBatchProgress((prev) => ({
+            ...prev,
+            uploaded: prev.uploaded + 1,
+            errors: prev.errors + 1,
+          }));
+          return null;
+        }
+      }
+    );
+
+    const validIngested = ingestedDocs.filter((d): d is IngestedDoc => d !== null);
+
+    // ----------------------------------------------------
+    // FASE 2: Pool de Extracción con Concurrencia Controlada (Máx 2 llamadas simultáneas)
+    // ----------------------------------------------------
+    setBatchProgress((prev) => ({
+      ...prev,
+      phase: "EXTRACTING",
+      currentMessage: `Extrayendo datos fiscales con IA (${validIngested.length} en cola)...`,
+    }));
+
+    await runConcurrencyPool(validIngested, 2, async (doc) => {
       try {
         const payload = {
-          documentId: newDocId,
+          documentId: doc.docId,
           businessId: currentBizId || "00000000-0000-0000-0000-000000000001",
-          storagePath: storagePath,
-          originalFilename: file.name,
-          fileSize: file.size,
-          mimeType: file.type || "application/pdf",
-          fileUrl: filePublicUrl,
+          storagePath: doc.storagePath,
+          originalFilename: doc.filename,
+          fileSize: doc.fileSize,
+          mimeType: doc.mimeType,
+          fileUrl: doc.filePublicUrl,
           uploadedAt: new Date().toISOString(),
         };
 
@@ -245,24 +420,23 @@ export default function DocumentsPage() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
+          signal: AbortSignal.timeout(60000),
         });
 
         if (response.ok) {
           const result = await response.json();
-          setUploadStatus("¡Extracción OpenAI completada con éxito!");
-
           const ext = result.extracted || {};
-          const status = (result.status === "EXTRACTED" ? "EXTRACTED" : "PENDING_REVIEW") as FiscalDocument["status"];
+          const status = (result.status === "EXTRACTED" ? "EXTRACTED" : "NEEDS_REVIEW") as FiscalDocument["status"];
 
           setDocuments((prev) => {
             const updated = prev.map((d) =>
-              d.id === newDocId
+              d.id === doc.docId
                 ? {
                     ...d,
                     status: status,
                     providerName: ext.supplier_name || "Proveedor detectado",
                     nif: ext.supplier_nif || "-",
-                    invoiceNumber: ext.invoice_number || `F-${newDocUUID.slice(-4).toUpperCase()}`,
+                    invoiceNumber: ext.invoice_number || `F-${doc.docId.slice(-4).toUpperCase()}`,
                     date: ext.date || new Date().toISOString().split("T")[0],
                     baseAmount: Number(ext.base_amount || 0),
                     vatRate: Number(ext.vat_rate || 21),
@@ -271,26 +445,83 @@ export default function DocumentsPage() {
                     category: ext.category || "Factura",
                     aiNotes: result.warnings && result.warnings.length > 0
                       ? result.warnings.join(". ")
-                      : "Extracción OpenAI completada satisfactoriamente.",
-                    url: filePublicUrl || d.url,
+                      : "Extracción OpenAI completada con éxito.",
+                    url: doc.filePublicUrl || d.url,
                   }
                 : d
             );
             localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-            window.dispatchEvent(new Event("fiscal_docs_updated"));
             return updated;
           });
+
+          setBatchProgress((prev) => ({
+            ...prev,
+            extracted: prev.extracted + 1,
+            currentMessage: `Extracción completada (${prev.extracted + 1}/${validIngested.length})`,
+          }));
         } else {
-          setUploadStatus(`n8n respondió HTTP ${response.status}. Documento guardado.`);
+          // n8n respondió con error (ej: 500) -> marcar como NEEDS_REVIEW
+          setDocuments((prev) => {
+            const updated = prev.map((d) =>
+              d.id === doc.docId
+                ? {
+                    ...d,
+                    status: "NEEDS_REVIEW" as FiscalDocument["status"],
+                    aiNotes: `Respuesta n8n HTTP ${response.status}. Pendiente de revisión manual.`,
+                  }
+                : d
+            );
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+            return updated;
+          });
+
+          setBatchProgress((prev) => ({
+            ...prev,
+            errors: prev.errors + 1,
+            currentMessage: `Revisión requerida para ${doc.filename}`,
+          }));
         }
       } catch (fetchErr: unknown) {
+        // Timeout o fallo de red
         const errMsg = fetchErr instanceof Error ? fetchErr.message : "error de red";
-        setUploadStatus("Guardado localmente (Webhook: " + errMsg + ")");
+        setDocuments((prev) => {
+          const updated = prev.map((d) =>
+            d.id === doc.docId
+              ? {
+                  ...d,
+                  status: "NEEDS_REVIEW" as FiscalDocument["status"],
+                  aiNotes: `Webhook n8n (${errMsg}). Pendiente de revisión manual.`,
+                }
+              : d
+          );
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+          return updated;
+        });
+
+        setBatchProgress((prev) => ({
+          ...prev,
+          errors: prev.errors + 1,
+        }));
       }
-    }
+    });
 
     setIsUploading(false);
-    setTimeout(() => setUploadStatus(null), 5000);
+    setBatchProgress((prev) => ({
+      ...prev,
+      phase: "COMPLETED",
+      isProcessing: false,
+      currentMessage: `Lote completado: ${prev.extracted} extraídos con éxito${
+        prev.errors > 0 ? `, ${prev.errors} para revisión manual` : ""
+      }.`,
+    }));
+
+    window.dispatchEvent(new Event("fiscal_docs_updated"));
+
+    // Ocultar banner de lote después de 7 segundos
+    setTimeout(() => {
+      setBatchProgress((prev) => ({ ...prev, phase: "IDLE" }));
+      setUploadStatus(null);
+    }, 7000);
   };
 
   const handleDrop = (e: React.DragEvent) => {
@@ -352,7 +583,7 @@ export default function DocumentsPage() {
           isDragging
             ? "border-primary bg-primary/10 scale-[1.01]"
             : "border-border/80 bg-card hover:border-primary/50 hover:bg-card/80"
-        }`}
+        } ${isUploading ? "opacity-80 cursor-wait" : ""}`}
       >
         <input
           type="file"
@@ -364,33 +595,118 @@ export default function DocumentsPage() {
           disabled={isUploading}
         />
         <div className="flex size-14 items-center justify-center rounded-2xl bg-primary/15 text-primary mb-4 border border-primary/20">
-          <UploadCloud className="size-7" />
+          {isUploading ? (
+            <Loader2 className="size-7 animate-spin" />
+          ) : (
+            <UploadCloud className="size-7" />
+          )}
         </div>
         <h3 className="text-base font-semibold text-foreground">
-          Arrastra aquí tus facturas o haz clic para examinar
+          {isUploading
+            ? "Procesando documentos en segundo plano..."
+            : "Arrastra aquí tus facturas o haz clic para examinar"}
         </h3>
         <p className="text-xs text-muted-foreground mt-1 max-w-md">
-          Soporta archivos PDF multipágina, imágenes JPG y PNG de tickets. Límite máximo: 25 MB por archivo.
+          Soporta subida en bloque de tickets y facturas (PDF multipágina, JPG, PNG). Optimización automática de resolución en cliente (§23).
         </p>
-        <div className="flex items-center gap-4 mt-4 text-[11px] font-mono text-muted-foreground">
+        <div className="flex flex-wrap items-center justify-center gap-3 mt-4 text-[11px] font-mono text-muted-foreground">
+          <span className="flex items-center gap-1">
+            <Check className="size-3 text-primary" /> Redimensionado Inteligente (1600px)
+          </span>
           <span className="flex items-center gap-1">
             <Check className="size-3 text-primary" /> Supabase Storage
           </span>
           <span className="flex items-center gap-1">
-            <Check className="size-3 text-primary" /> Webhook n8n
+            <Check className="size-3 text-primary" /> Pool Asíncrono n8n
           </span>
           <span className="flex items-center gap-1">
-            <Check className="size-3 text-primary" /> Persistencia Local &amp; DB
+            <Check className="size-3 text-primary" /> Realtime Sync
           </span>
         </div>
 
-        {uploadStatus && (
+        {uploadStatus && !batchProgress.isProcessing && (
           <div className="mt-4 inline-flex items-center gap-2 rounded-xl bg-primary/20 text-primary px-3 py-1.5 text-xs font-medium border border-primary/30 animate-pulse">
             <Clock className="size-3.5 animate-spin" />
             <span>{uploadStatus}</span>
           </div>
         )}
       </div>
+
+      {/* 2.1 Batch Progress Card (Two-phase batch upload - ADR-03) */}
+      {batchProgress.phase !== "IDLE" && (
+        <div className="rounded-2xl border border-primary/30 bg-primary/5 p-4 md:p-6 backdrop-blur-md transition-all shadow-sm">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/20 text-primary">
+                {batchProgress.phase === "COMPLETED" ? (
+                  <CheckCircle2 className="size-5 text-primary" />
+                ) : (
+                  <Loader2 className="size-5 animate-spin text-primary" />
+                )}
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h4 className="text-sm font-semibold text-foreground">
+                    {batchProgress.phase === "UPLOADING" && "Fase 1: Ingesta rápida y optimización de imágenes"}
+                    {batchProgress.phase === "EXTRACTING" && "Fase 2: Extracción fiscal con IA (Pool de concurrencia)"}
+                    {batchProgress.phase === "COMPLETED" && "Lote completado con éxito"}
+                  </h4>
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary font-mono font-medium">
+                    {Math.min(
+                      100,
+                      Math.round(
+                        ((batchProgress.uploaded * 0.4 + batchProgress.extracted * 0.6) /
+                          (batchProgress.total || 1)) *
+                          100
+                      )
+                    )}%
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {batchProgress.currentMessage}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 self-start md:self-center text-xs font-mono">
+              <span className="px-2.5 py-1 rounded-md bg-background/80 border border-border text-foreground">
+                Subidos: <strong className="text-primary">{batchProgress.uploaded}</strong>/{batchProgress.total}
+              </span>
+              <span className="px-2.5 py-1 rounded-md bg-background/80 border border-border text-foreground">
+                Extraídos: <strong className="text-primary">{batchProgress.extracted}</strong>/{batchProgress.total}
+              </span>
+              {batchProgress.errors > 0 && (
+                <span className="px-2.5 py-1 rounded-md bg-warning/15 border border-warning/30 text-warning font-semibold">
+                  Revisión: {batchProgress.errors}
+                </span>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-4">
+            <ProgressBar
+              value={Math.min(
+                100,
+                Math.round(
+                  ((batchProgress.uploaded * 0.4 + batchProgress.extracted * 0.6) /
+                    (batchProgress.total || 1)) *
+                    100
+                )
+              )}
+              className="h-2"
+            />
+          </div>
+
+          {batchProgress.phase === "EXTRACTING" && (
+            <p className="text-[11px] text-muted-foreground mt-3 flex items-center gap-1.5">
+              <Sparkles className="size-3 text-primary shrink-0" />
+              <span>
+                <strong>Proceso no bloqueante:</strong> Puedes continuar navegando y validando facturas. La tabla se actualiza automáticamente en segundo plano conforme la IA finaliza cada documento.
+              </span>
+            </p>
+          )}
+        </div>
+      )}
 
       {/* 3. Document Repository List */}
       <Card>

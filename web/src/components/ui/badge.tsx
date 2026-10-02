@@ -50,6 +50,7 @@ export function StatusBadge({ status }: { status: string }) {
       return <Badge variant="success">Aprobada</Badge>;
     case "PENDING_REVIEW":
     case "PENDING":
+    case "NEEDS_REVIEW":
       return <Badge variant="warning">Pendiente revisión</Badge>;
     case "EXTRACTING":
       return <Badge variant="muted">Extrayendo datos...</Badge>;
