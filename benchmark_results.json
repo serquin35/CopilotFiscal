@@ -1,0 +1,422 @@
+[
+  {
+    "model": "gpt-4o-mini",
+    "detail": "high",
+    "file": "doc1_recibo_iberdrola.jpg",
+    "durationMs": 2380,
+    "promptTokens": 37004,
+    "completionTokens": 121,
+    "totalTokens": 37125,
+    "costUsd": 0.0056232,
+    "extracted": {
+      "supplier_name": "IBERDROLA CLIENTES, S.A.U.",
+      "supplier_nif": "A-95758389",
+      "invoice_number": "21180613010076890",
+      "date": "2026-04-13",
+      "base_amount": 66.02,
+      "vat_rate": 21,
+      "vat_amount": 14.05,
+      "total_amount": 80.95,
+      "category": "suministros",
+      "description": "Factura de electricidad",
+      "confidence": 95
+    }
+  },
+  {
+    "model": "gpt-4o-mini",
+    "detail": "auto",
+    "file": "doc1_recibo_iberdrola.jpg",
+    "durationMs": 2349,
+    "promptTokens": 37004,
+    "completionTokens": 121,
+    "totalTokens": 37125,
+    "costUsd": 0.0056232,
+    "extracted": {
+      "supplier_name": "IBERDROLA CLIENTES, S.A.U.",
+      "supplier_nif": "A-95758389",
+      "invoice_number": "21180613010076890",
+      "date": "2026-04-13",
+      "base_amount": 66.02,
+      "vat_rate": 21,
+      "vat_amount": 14.05,
+      "total_amount": 80.95,
+      "category": "suministros",
+      "description": "Factura de electricidad",
+      "confidence": 95
+    }
+  },
+  {
+    "model": "gpt-4o-mini",
+    "detail": "low",
+    "file": "doc1_recibo_iberdrola.jpg",
+    "durationMs": 2110,
+    "promptTokens": 3002,
+    "completionTokens": 120,
+    "totalTokens": 3122,
+    "costUsd": 0.0005223,
+    "extracted": {
+      "supplier_name": "IBERDROLA CLIENTES, S.A.U.",
+      "supplier_nif": "A95758389",
+      "invoice_number": "1218016310078960",
+      "date": "2026-04-03",
+      "base_amount": 66.62,
+      "vat_rate": 21,
+      "vat_amount": 14.03,
+      "total_amount": 80.95,
+      "category": "suministros",
+      "description": "Factura de electricidad",
+      "confidence": 95
+    }
+  },
+  {
+    "model": "gpt-4o",
+    "detail": "high",
+    "file": "doc1_recibo_iberdrola.jpg",
+    "error": "Project `proj_SEq1uqislbIupc5TmgJv6jMy` does not have access to model `gpt-4o`",
+    "durationMs": 429
+  },
+  {
+    "model": "gpt-4o",
+    "detail": "auto",
+    "file": "doc1_recibo_iberdrola.jpg",
+    "error": "Project `proj_SEq1uqislbIupc5TmgJv6jMy` does not have access to model `gpt-4o`",
+    "durationMs": 153
+  },
+  {
+    "model": "gpt-4o",
+    "detail": "low",
+    "file": "doc1_recibo_iberdrola.jpg",
+    "error": "Project `proj_SEq1uqislbIupc5TmgJv6jMy` does not have access to model `gpt-4o`",
+    "durationMs": 169
+  },
+  {
+    "model": "gpt-4o-mini",
+    "detail": "high",
+    "file": "doc4_ticket_bar.png",
+    "durationMs": 2686,
+    "promptTokens": 25670,
+    "completionTokens": 127,
+    "totalTokens": 25797,
+    "costUsd": 0.0039267,
+    "extracted": {
+      "supplier_name": "TABERNA EL BARRIL S.L.",
+      "supplier_nif": "B-84920194",
+      "invoice_number": "T-2026/0491",
+      "date": "2026-09-24",
+      "base_amount": 36,
+      "vat_rate": 10,
+      "vat_amount": 3.6,
+      "total_amount": 39.6,
+      "category": "alimentacion",
+      "description": "Factura simplificada por consumo en restaurante",
+      "confidence": 0.95
+    }
+  },
+  {
+    "model": "gpt-4o-mini",
+    "detail": "auto",
+    "file": "doc4_ticket_bar.png",
+    "durationMs": 2251,
+    "promptTokens": 25670,
+    "completionTokens": 128,
+    "totalTokens": 25798,
+    "costUsd": 0.0039273,
+    "extracted": {
+      "supplier_name": "TABERNA EL BARRIL S.L.",
+      "supplier_nif": "B-84920194",
+      "invoice_number": "T-2026/0491",
+      "date": "2026-09-24",
+      "base_amount": 36,
+      "vat_rate": 10,
+      "vat_amount": 3.6,
+      "total_amount": 39.6,
+      "category": "alimentacion",
+      "description": "Factura simplificada de consumo en taberna",
+      "confidence": 0.95
+    }
+  },
+  {
+    "model": "gpt-4o-mini",
+    "detail": "low",
+    "file": "doc4_ticket_bar.png",
+    "durationMs": 1799,
+    "promptTokens": 3002,
+    "completionTokens": 124,
+    "totalTokens": 3126,
+    "costUsd": 0.0005247,
+    "extracted": {
+      "supplier_name": "TABERNA EL BARRIL S.L.",
+      "supplier_nif": "B-849201994",
+      "invoice_number": "T-2026/0491",
+      "date": "2022-09-24",
+      "base_amount": 36,
+      "vat_rate": 10,
+      "vat_amount": 3.6,
+      "total_amount": 39.6,
+      "category": "alimentacion",
+      "description": "Comida y bebida en restaurante",
+      "confidence": 0.95
+    }
+  },
+  {
+    "model": "gpt-4o",
+    "detail": "high",
+    "file": "doc4_ticket_bar.png",
+    "error": "Project `proj_SEq1uqislbIupc5TmgJv6jMy` does not have access to model `gpt-4o`",
+    "durationMs": 395
+  },
+  {
+    "model": "gpt-4o",
+    "detail": "auto",
+    "file": "doc4_ticket_bar.png",
+    "error": "Project `proj_SEq1uqislbIupc5TmgJv6jMy` does not have access to model `gpt-4o`",
+    "durationMs": 153
+  },
+  {
+    "model": "gpt-4o",
+    "detail": "low",
+    "file": "doc4_ticket_bar.png",
+    "error": "Project `proj_SEq1uqislbIupc5TmgJv6jMy` does not have access to model `gpt-4o`",
+    "durationMs": 146
+  },
+  {
+    "model": "gpt-4o-mini",
+    "detail": "high",
+    "file": "doc5_ticket_borroso.jpg",
+    "durationMs": 2131,
+    "promptTokens": 25670,
+    "completionTokens": 141,
+    "totalTokens": 25811,
+    "costUsd": 0.0039350999999999995,
+    "extracted": {
+      "supplier_name": "DISTRIBUIDORA BEBIDAS DEL SUR S.L.",
+      "supplier_nif": "B-91283746",
+      "invoice_number": "F-8831",
+      "date": "2026-09-15",
+      "base_amount": 236,
+      "vat_rate": 21,
+      "vat_amount": 49.56,
+      "total_amount": 285.56,
+      "category": "bebidas",
+      "description": "Barril Cerveza 50L x 2 y Cajas Refrescos x 4",
+      "confidence": 1
+    }
+  },
+  {
+    "model": "gpt-4o-mini",
+    "detail": "auto",
+    "file": "doc5_ticket_borroso.jpg",
+    "durationMs": 2464,
+    "promptTokens": 25670,
+    "completionTokens": 141,
+    "totalTokens": 25811,
+    "costUsd": 0.0039350999999999995,
+    "extracted": {
+      "supplier_name": "DISTRIBUIDORA BEBIDAS DEL SUR S.L.",
+      "supplier_nif": "B-91283746",
+      "invoice_number": "F-8831",
+      "date": "2026-09-15",
+      "base_amount": 236,
+      "vat_rate": 21,
+      "vat_amount": 49.56,
+      "total_amount": 285.56,
+      "category": "bebidas",
+      "description": "Barril Cerveza 50L x 2 y Cajas Refrescos x 4",
+      "confidence": 1
+    }
+  },
+  {
+    "model": "gpt-4o-mini",
+    "detail": "low",
+    "file": "doc5_ticket_borroso.jpg",
+    "durationMs": 2247,
+    "promptTokens": 3002,
+    "completionTokens": 135,
+    "totalTokens": 3137,
+    "costUsd": 0.0005313,
+    "extracted": {
+      "supplier_name": "DISTRIBUIDORA BEBIDAS DEL SUR S.L.",
+      "supplier_nif": "B-91283746",
+      "invoice_number": "F-8831",
+      "date": "2026-09-15",
+      "base_amount": 236,
+      "vat_rate": 21,
+      "vat_amount": 49.56,
+      "total_amount": 285.56,
+      "category": "bebidas",
+      "description": "Barril Cerveza 50L y Cajas Refrescos",
+      "confidence": 1
+    }
+  },
+  {
+    "model": "gpt-4o",
+    "detail": "high",
+    "file": "doc5_ticket_borroso.jpg",
+    "error": "Project `proj_SEq1uqislbIupc5TmgJv6jMy` does not have access to model `gpt-4o`",
+    "durationMs": 138
+  },
+  {
+    "model": "gpt-4o",
+    "detail": "auto",
+    "file": "doc5_ticket_borroso.jpg",
+    "error": "Project `proj_SEq1uqislbIupc5TmgJv6jMy` does not have access to model `gpt-4o`",
+    "durationMs": 138
+  },
+  {
+    "model": "gpt-4o",
+    "detail": "low",
+    "file": "doc5_ticket_borroso.jpg",
+    "error": "Project `proj_SEq1uqislbIupc5TmgJv6jMy` does not have access to model `gpt-4o`",
+    "durationMs": 139
+  },
+  {
+    "model": "gpt-4o-mini",
+    "detail": "high",
+    "file": "doc6_ticket_letra_pequena.png",
+    "durationMs": 3002,
+    "promptTokens": 37004,
+    "completionTokens": 131,
+    "totalTokens": 37135,
+    "costUsd": 0.0056292,
+    "extracted": {
+      "supplier_name": "MAKRO DISTRIBUCION MAYORISTA S.A.",
+      "supplier_nif": "A-28045612",
+      "invoice_number": "03-2026-99482",
+      "date": "2026-09-28",
+      "base_amount": 378,
+      "vat_rate": 9.01,
+      "vat_amount": 34.09,
+      "total_amount": 412.09,
+      "category": "alimentacion",
+      "description": "Compra de productos alimenticios y de limpieza.",
+      "confidence": 0.95
+    }
+  },
+  {
+    "model": "gpt-4o-mini",
+    "detail": "auto",
+    "file": "doc6_ticket_letra_pequena.png",
+    "durationMs": 1910,
+    "promptTokens": 37004,
+    "completionTokens": 131,
+    "totalTokens": 37135,
+    "costUsd": 0.0056292,
+    "extracted": {
+      "supplier_name": "MAKRO DISTRIBUCION MAYORISTA S.A.",
+      "supplier_nif": "A-28045612",
+      "invoice_number": "03-2026-99482",
+      "date": "2026-09-28",
+      "base_amount": 378,
+      "vat_rate": 9.01,
+      "vat_amount": 34.09,
+      "total_amount": 412.09,
+      "category": "alimentacion",
+      "description": "Compra de productos alimenticios y de limpieza.",
+      "confidence": 0.95
+    }
+  },
+  {
+    "model": "gpt-4o-mini",
+    "detail": "low",
+    "file": "doc6_ticket_letra_pequena.png",
+    "durationMs": 1570,
+    "promptTokens": 3002,
+    "completionTokens": 92,
+    "totalTokens": 3094,
+    "costUsd": 0.0005055,
+    "extracted": {
+      "supplier_name": "MAKRO DISTRIBUCION MAYORISTA S.A.",
+      "supplier_nif": "A-20658112",
+      "invoice_number": "2020-69442",
+      "date": "2023-08-28",
+      "base_amount": 378.4,
+      "vat_rate": 10,
+      "vat_amount": 34.9,
+      "total_amount": 412.09,
+      "category": "alimentacion",
+      "description": "Compra de productos alimenticios",
+      "confidence": 0.95
+    }
+  },
+  {
+    "model": "gpt-4o",
+    "detail": "high",
+    "file": "doc6_ticket_letra_pequena.png",
+    "error": "Project `proj_SEq1uqislbIupc5TmgJv6jMy` does not have access to model `gpt-4o`",
+    "durationMs": 161
+  },
+  {
+    "model": "gpt-4o",
+    "detail": "auto",
+    "file": "doc6_ticket_letra_pequena.png",
+    "error": "Project `proj_SEq1uqislbIupc5TmgJv6jMy` does not have access to model `gpt-4o`",
+    "durationMs": 150
+  },
+  {
+    "model": "gpt-4o",
+    "detail": "low",
+    "file": "doc6_ticket_letra_pequena.png",
+    "error": "Project `proj_SEq1uqislbIupc5TmgJv6jMy` does not have access to model `gpt-4o`",
+    "durationMs": 166
+  },
+  {
+    "model": "gpt-4o-mini",
+    "detail": "high",
+    "file": "doc3_factura_pdf.pdf",
+    "durationMs": 3179,
+    "promptTokens": 3191,
+    "completionTokens": 89,
+    "totalTokens": 3280,
+    "costUsd": 0.00053205,
+    "extracted": {
+      "supplier_name": "IBERDROLA CLIENTES, S.A.U.",
+      "supplier_nif": "A-95758389",
+      "invoice_number": "21180613010076890",
+      "date": "2018-06-13",
+      "base_amount": 66.9,
+      "vat_rate": 21,
+      "vat_amount": 14.05,
+      "total_amount": 80.95,
+      "category": "suministros",
+      "description": "Factura de electricidad",
+      "confidence": 0.95
+    }
+  },
+  {
+    "model": "gpt-4o-mini",
+    "detail": "auto",
+    "file": "doc3_factura_pdf.pdf",
+    "durationMs": 3221,
+    "promptTokens": 3191,
+    "completionTokens": 89,
+    "totalTokens": 3280,
+    "costUsd": 0.00053205,
+    "extracted": {
+      "supplier_name": "IBERDROLA CLIENTES, S.A.U.",
+      "supplier_nif": "A-95758389",
+      "invoice_number": "21180613010076890",
+      "date": "2018-06-13",
+      "base_amount": 66.9,
+      "vat_rate": 21,
+      "vat_amount": 14.05,
+      "total_amount": 80.95,
+      "category": "suministros",
+      "description": "Factura de electricidad",
+      "confidence": 0.95
+    }
+  },
+  {
+    "model": "gpt-4o",
+    "detail": "high",
+    "file": "doc3_factura_pdf.pdf",
+    "error": "Project `proj_SEq1uqislbIupc5TmgJv6jMy` does not have access to model `gpt-4o`",
+    "durationMs": 200
+  },
+  {
+    "model": "gpt-4o",
+    "detail": "auto",
+    "file": "doc3_factura_pdf.pdf",
+    "error": "Project `proj_SEq1uqislbIupc5TmgJv6jMy` does not have access to model `gpt-4o`",
+    "durationMs": 218
+  }
+]
