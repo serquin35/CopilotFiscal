@@ -11,6 +11,7 @@ import {
   UploadCloud,
   ChevronRight,
   TrendingDown,
+  TrendingUp,
   Info,
   Sparkles,
   Loader2,
@@ -58,6 +59,52 @@ const DEFAULT_DEADLINES: Record<string, string> = {
   "4T": "2027-01-30",
 };
 
+const QUARTER_ORDER = ["1T", "2T", "3T", "4T"] as const;
+
+function previousQuarter(q: (typeof QUARTER_ORDER)[number]): { quarter: (typeof QUARTER_ORDER)[number]; yearDelta: number } {
+  const i = QUARTER_ORDER.indexOf(q);
+  if (i === 0) return { quarter: "4T", yearDelta: -1 };
+  return { quarter: QUARTER_ORDER[i - 1], yearDelta: 0 };
+}
+
+interface QuarterTotals {
+  sales: number;
+  expenses: number;
+  result: number;
+}
+
+// Totales deterministas de un trimestre (solo aprobados; sin fallback).
+function totalsForQuarter(
+  docs: FiscalDocument[],
+  income: { vat_amount: number; base_amount: number; date: string }[],
+  quarter: (typeof QUARTER_ORDER)[number]
+): QuarterTotals {
+  const validIndices = QUARTER_MONTHS[quarter].map((m) => m.idx);
+  const approved = docs.filter(
+    (d) =>
+      !d.id.startsWith("doc-") &&
+      d.date &&
+      validIndices.includes(new Date(d.date).getMonth()) &&
+      (d.status === "CONFIRMED" || d.status === "REVIEWED" || d.status === "APPROVED")
+  );
+  const sales = income
+    .filter((r) => r.date && validIndices.includes(new Date(r.date).getMonth()))
+    .reduce((s, r) => s + (r.base_amount || 0), 0);
+  const expenses = approved.reduce((s, d) => s + (d.baseAmount || 0), 0);
+  return {
+    sales: Number(sales.toFixed(2)),
+    expenses: Number(expenses.toFixed(2)),
+    result: Number((sales - expenses).toFixed(2)),
+  };
+}
+
+function formatDelta(cur: number, prev: number): string | null {
+  if (prev === 0) return null;
+  const pct = ((cur - prev) / Math.abs(prev)) * 100;
+  const sign = pct > 0 ? "+" : "";
+  return `${sign}${pct.toFixed(1).replace(".", ",")}%`;
+}
+
 export default function DashboardPage() {
   const { business, user, profile, supabase } = useAuth();
   const [selectedQuarter, setSelectedQuarter] = useState<"1T" | "2T" | "3T" | "4T">("4T");
@@ -67,6 +114,7 @@ export default function DashboardPage() {
   const [isSeedingSample, setIsSeedingSample] = useState(false);
   const [dataQuarters, setDataQuarters] = useState<string[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [prevTotals, setPrevTotals] = useState<(QuarterTotals & { label: string }) | null>(null);
   const [summary, setSummary] = useState<QuarterlySummary>({
     quarter: "4T",
     year: 2026,
@@ -480,6 +528,13 @@ export default function DashboardPage() {
     setDocuments(combined);
     calculateSummary(combined, selectedQuarter, fetchedIncome, rawExpensesList, fetchedSuppliers);
 
+    // Comparativa con el trimestre anterior (MVP §7.1, sin fallback)
+    const prev = previousQuarter(selectedQuarter);
+    setPrevTotals({
+      ...totalsForQuarter(combined, fetchedIncome, prev.quarter),
+      label: `${prev.quarter} ${2026 + prev.yearDelta}`,
+    });
+
     // Trimestres con gastos validados: permite avisar si el usuario mira un
     // trimestre vacío teniendo datos en otro (falso "0 €").
     const quarters = new Set<string>();
@@ -635,6 +690,11 @@ export default function DashboardPage() {
   const handleSelectQuarter = (q: "1T" | "2T" | "3T" | "4T") => {
     setSelectedQuarter(q);
     calculateSummary(documents, q, incomeData);
+    const prev = previousQuarter(q);
+    setPrevTotals({
+      ...totalsForQuarter(documents, incomeData, prev.quarter),
+      label: `${prev.quarter} ${2026 + prev.yearDelta}`,
+    });
   };
 
   const handleQuickApprove = async (docId: string) => {
@@ -880,6 +940,49 @@ export default function DashboardPage() {
           </div>
         </Card>
       </div>
+
+      {/* 2b. Comparativa con el trimestre anterior (MVP §7.1) */}
+      {prevTotals && (
+        <Card className="p-4 border-border/80 bg-card/60">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+              Comparativa vs {prevTotals.label}
+            </span>
+            <FiscalDataBadge type="ESTIMACION" size="xs" />
+          </div>
+          <div className="grid gap-3 sm:grid-cols-3 text-xs">
+            {(
+              [
+                { label: "Ventas", cur: summary.totalSalesBase || 0, prev: prevTotals.sales, invert: false },
+                { label: "Gastos", cur: summary.totalExpensesBase || 0, prev: prevTotals.expenses, invert: true },
+                { label: "Resultado", cur: summary.operatingResult || 0, prev: prevTotals.result, invert: false },
+              ] as const
+            ).map((row) => {
+              const delta = formatDelta(row.cur, row.prev);
+              const good = delta === null ? null : row.invert ? delta.startsWith("-") : delta.startsWith("+");
+              return (
+                <div key={row.label} className="flex items-center justify-between rounded-lg border border-border/40 px-3 py-2">
+                  <span className="text-muted-foreground">{row.label}</span>
+                  <span className="flex items-center gap-1.5 font-mono font-medium">
+                    {delta === null ? (
+                      <span className="text-muted-foreground">s/d</span>
+                    ) : (
+                      <>
+                        {good ? (
+                          <TrendingUp className="size-3.5 text-emerald-500" />
+                        ) : (
+                          <TrendingDown className="size-3.5 text-destructive" />
+                        )}
+                        <span className={good ? "text-emerald-500" : "text-destructive"}>{delta}</span>
+                      </>
+                    )}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      )}
 
       {/* 3. Top Metric Cards Grid */}
       <div className="grid gap-6 md:grid-cols-3">
