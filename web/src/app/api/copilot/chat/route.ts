@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { getAiProvider } from "@/lib/ai/MockAiProvider";
+import type { ChatMessage } from "@/lib/ai/AiProvider";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -330,11 +332,6 @@ export async function POST(req: NextRequest): Promise<Response> {
     return NextResponse.json({ error: "El campo 'message' es requerido" }, { status: 400 });
   }
 
-  const openAiKey = process.env.OPENAI_API_KEY;
-  if (!openAiKey && process.env.OPENAI_MOCK_STREAM !== "1") {
-    return NextResponse.json({ error: "OPENAI_API_KEY no configurada" }, { status: 500 });
-  }
-
   // Extraer JWT del header Authorization: "Bearer <token>"
   const authHeader = req.headers.get("Authorization") ?? "";
   const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
@@ -355,7 +352,7 @@ export async function POST(req: NextRequest): Promise<Response> {
 
   // Construir array de mensajes: system + historial (max 10 turnos) + mensaje actual
   const historySlice = history.slice(-10); // Ultimos 10 mensajes para no inflar el contexto
-  const openAiMessages = [
+  const openAiMessages: ChatMessage[] = [
     { role: "system" as const, content: buildSystemPrompt(ctx) },
     ...historySlice.map((h) => ({ role: h.role, content: h.content })),
     { role: "user" as const, content: message },
@@ -378,70 +375,31 @@ export async function POST(req: NextRequest): Promise<Response> {
     year: ctx.year,
   };
 
-  // ── Modo mock (dev sin cuota OpenAI): stream local con datos reales del contexto ──
-  if (process.env.OPENAI_MOCK_STREAM === "1") {
-    const fmt = (n: number) =>
-      n.toLocaleString("es-ES", { style: "currency", currency: "EUR" });
-    const mockReply =
-      `Según tus datos reales del ${ctx.quarter} ${ctx.year}: IVA repercutido ${fmt(ctx.collectedVat)}, ` +
-      `IVA soportado deducible ${fmt(ctx.deductibleVat)} y resultado neto ${fmt(ctx.netVat)}. ` +
-      `Tienes ${ctx.pendingDocuments} documento(s) pendiente(s) y ${ctx.openAlerts} alerta(s) activa(s). ` +
-      `(Respuesta simulada sin coste: activa OPENAI_API_KEY para el copiloto completo.)`;
-    if (!stream) {
-      return NextResponse.json({ reply: mockReply, sources, context: snapshot });
-    }
-    const encoder = new TextEncoder();
-    const words = mockReply.split(" ");
-    const readable = new ReadableStream({
-      async start(controller) {
-        for (const w of words) {
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ delta: w + " " })}\n\n`));
-          await new Promise((r) => setTimeout(r, 30));
-        }
-        controller.enqueue(
-          encoder.encode(`data: ${JSON.stringify({ done: true, sources, context: snapshot })}\n\n`)
-        );
-        controller.close();
-      },
-    });
-    return new Response(readable, {
-      headers: {
-        "Content-Type": "text/event-stream; charset=utf-8",
-        "Cache-Control": "no-cache, no-transform",
-        Connection: "keep-alive",
-      },
-    });
+  // Proveedor IA desacoplado (mock si OPENAI_MOCK_STREAM=1, OpenAI si hay API key)
+  let provider;
+  try {
+    provider = await getAiProvider();
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Proveedor IA no disponible";
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 
-  // ── Modo streaming SSE: reemite deltas de OpenAI al cliente ──
+  // ── Modo streaming SSE: reemite deltas del proveedor al cliente ──
   if (stream) {
     let upstream: Response;
     try {
-      upstream = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${openAiKey}`,
-        },
-      body: JSON.stringify({
-        model: "gpt-4o",
-        temperature: 0.3,
-        max_tokens: 600,
-        stream: true,
-        messages: openAiMessages,
-      }),
-      });
+      upstream = await provider.completeStream(openAiMessages);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Error de red";
-      console.error("[copilot/chat] OpenAI fetch error:", msg);
-      return NextResponse.json({ error: `Error al conectar con OpenAI: ${msg}` }, { status: 502 });
+      console.error("[copilot/chat] provider stream error:", msg);
+      return NextResponse.json({ error: `Error al conectar con IA: ${msg}` }, { status: 502 });
     }
 
     if (!upstream.ok || !upstream.body) {
       const errBody = await upstream.text().catch(() => "");
-      console.error("[copilot/chat] OpenAI error:", upstream.status, errBody);
+      console.error("[copilot/chat] provider upstream error:", upstream.status, errBody);
       return NextResponse.json(
-        { error: `OpenAI devolvio error ${upstream.status}` },
+        { error: `IA devolvio error ${upstream.status}` },
         { status: 502 }
       );
     }
@@ -497,41 +455,17 @@ export async function POST(req: NextRequest): Promise<Response> {
     });
   }
 
-  let openAiResponse: Response;
+  let completion;
   try {
-    openAiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${openAiKey}`,
-      },
-      body: JSON.stringify({
-        model: "gpt-4o",
-        temperature: 0.3,
-        max_tokens: 600,
-        messages: openAiMessages,
-      }),
-    });
+    completion = await provider.complete(openAiMessages);
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Error de red";
-    console.error("[copilot/chat] OpenAI fetch error:", msg);
-    return NextResponse.json({ error: `Error al conectar con OpenAI: ${msg}` }, { status: 502 });
+    console.error("[copilot/chat] provider error:", msg);
+    return NextResponse.json({ error: `Error al conectar con IA: ${msg}` }, { status: 502 });
   }
-
-  if (!openAiResponse.ok) {
-    const errBody = await openAiResponse.text();
-    console.error("[copilot/chat] OpenAI error:", openAiResponse.status, errBody);
-    return NextResponse.json(
-      { error: `OpenAI devolvio error ${openAiResponse.status}` },
-      { status: 502 }
-    );
-  }
-
-  const openAiData = await openAiResponse.json();
-  const reply = openAiData.choices?.[0]?.message?.content ?? "";
 
   return NextResponse.json({
-    reply,
+    reply: completion.text ?? "",
     sources,
     context: snapshot,
   });

@@ -1,0 +1,130 @@
+{
+  "name": "[Copilot Fiscal] WF-08: Deadline Reminders",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "weeks",
+              "weeksInterval": 1,
+              "triggerAtDay": 1,
+              "triggerAtHour": 8
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 0],
+      "id": "schedule-weekly",
+      "name": "Schedule: Weekly Check"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://rqcpwxucgkcodccrykpv.supabase.co/rest/v1/businesses?select=id,name&deleted_at=is.null",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_SERVICE_ROLE_KEY || 'your-supabase-key' }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY || 'your-supabase-key' }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [240, 0],
+      "id": "http-list-businesses",
+      "name": "Supabase: List Businesses"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all().map((i) => i.json);\nconst businesses = Array.isArray(items[0]) ? items[0] : items;\n\n// Vencimientos Modelo 303 por trimestre (año del periodo)\nfunction deadlinesFor(year) {\n  return [\n    { label: '1T', deadline: new Date(`${year}-04-20`) },\n    { label: '2T', deadline: new Date(`${year}-07-20`) },\n    { label: '3T', deadline: new Date(`${year}-10-20`) },\n    { label: '4T', deadline: new Date(`${year + 1}-01-30`) }\n  ];\n}\n\nconst now = new Date();\nconst alerts = [];\n\nfor (const b of businesses) {\n  if (!b || !b.id) continue;\n  const cands = [...deadlinesFor(now.getFullYear()), ...deadlinesFor(now.getFullYear() + 1)]\n    .filter((d) => d.deadline.getTime() >= now.getTime() - 86400000)\n    .sort((a, z) => a.deadline - z.deadline);\n  const next = cands[0];\n  if (!next) continue;\n  const days = Math.ceil((next.deadline - now) / 86400000);\n  if (days <= 30) {\n    alerts.push({\n      json: {\n        business_id: b.id,\n        severity: days <= 7 ? 'high' : 'medium',\n        type: 'PERIOD_DEADLINE',\n        title: `Vence el Modelo 303 (${next.label}) en ${days} días`,\n        description: `El plazo de presentación del Modelo 303 del trimestre ${next.label} termina el ${next.deadline.toISOString().split('T')[0]}. Revisa y concilia tus facturas pendientes.`,\n        evidence: { quarter: next.label, deadline: next.deadline.toISOString().split('T')[0], daysRemaining: days },\n        entity_type: 'period',\n        entity_id: null,\n        source: 'n8n',\n        status: 'OPEN'\n      }\n    });\n  }\n}\n\nreturn alerts;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [480, 0],
+      "id": "code-build-deadlines",
+      "name": "Build Deadline Alerts"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://rqcpwxucgkcodccrykpv.supabase.co/rest/v1/alerts",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_SERVICE_ROLE_KEY || 'your-supabase-key' }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY || 'your-supabase-key' }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [720, 0],
+      "id": "http-insert-alerts",
+      "name": "Supabase: Insert Alerts"
+    }
+  ],
+  "connections": {
+    "Schedule: Weekly Check": {
+      "main": [
+        [
+          {
+            "node": "Supabase: List Businesses",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase: List Businesses": {
+      "main": [
+        [
+          {
+            "node": "Build Deadline Alerts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Deadline Alerts": {
+      "main": [
+        [
+          {
+            "node": "Supabase: Insert Alerts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}
