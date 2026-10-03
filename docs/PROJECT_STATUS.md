@@ -131,7 +131,7 @@
 |---|---|---|---|
 | `KpaghIxvPx5XLabD` o posterior | WF-01: Document Intake & Extraction Pipeline | ✅ OPERATIVO | 13 |
 | `upm1rKUB4hJXvuvS` | WF-07: Anomaly & Deadline Monitor | ✅ ACTIVO | 4 |
-| *(pendiente de confirmar ID vigente)* | WF-08: Deadline Reminders | 🟡 CREADO 03/10/2026 (repo), ACTIVO en n8n cloud (confirmado 03/10; la version cloud incluye nodo List Open Deadline anti-duplicados, ausente en el JSON del repo: exportar y commitear) | 4 |
+| *(pendiente de confirmar ID vigente)* | WF-08: Deadline Reminders | 🟡 CREADO 03/10/2026 (repo), ACTIVO en n8n cloud (confirmado 03/10; la version cloud incluye nodo List Open Deadline anti-duplicados, JSON vigente commiteado y verificado 03/10 (simulacion: 0 duplicados / 3 inserciones); queda visibilizar en UI (DT-16)) | 4 |
 
 > ⚠️ IDs WF-01: se han visto `KpaghIxvPx5XLabD` (01/10) y otro distinto
 > (02/10). **Pendiente de verificar cuál es el activo** y desactivar el
@@ -369,7 +369,7 @@ Todo cambio posterior sin fichero de migración = DT-22.
 | DT-13 | Fuga service_role en historial (GitGuardian #37833997) | ✅ MITIGADO 03/10/2026 — Rotación a `sb_*` + `Disable legacy keys` + purga historial (force-push) + `AGENTS.md` + hook pre-commit | SEG |
 | DT-14 | PDF con VARIOS tickets/facturas en un solo archivo | 🔴 ABIERTA | DT-07 solo validó un PDF multipágina de UNA factura | F3 |
 | DT-15 | Duplicados por contenido (misma factura, otra foto) | 🟡 MEDIA | Hash solo detecta el mismo archivo; falta proveedor+fecha+total / NIF+número | F3 |
-| DT-16 | `PERIOD_DEADLINE` invisible en UI + JSON repo desfasado vs cloud | 🟡 MEDIA | WF-08 ACTIVO en cloud (03/10) con nodo anti-duplicados List Open Deadline; pendiente exportar JSON vigente al repo; `/alerts`, widget y badge no renderizan filas n8n; sin anti-duplicados | F4 |
+| DT-16 | `PERIOD_DEADLINE` invisible en UI + JSON repo desfasado vs cloud | 🟡 MEDIA | WF-08 ACTIVO en cloud (03/10) con anti-duplicados; JSON vigente commiteado y verificado con simulacion; `/alerts`, widget y badge no renderizan filas n8n; sin anti-duplicados | F4 |
 | DT-17 | Bucket `documents` público | 🟠 BAJA | Solo aceptable en DEMO; Fase 8 exige privado + signed URLs (WF-01 usa URL pública) | F8 prereq |
 | DT-18 | Webhook WF-01 sin autenticación | 🟡 MEDIA | Añadir header secreto o Header Auth | F4 |
 | DT-19 | Barrido de documentos atascados en EXTRACTING | 🟢 BAJA | Solo hay polling con la página abierta; sin sweeper servidor | F4 |
@@ -384,7 +384,7 @@ Todo cambio posterior sin fichero de migración = DT-22.
 | # | Ítem | Ref | Prioridad |
 |---|---|---|---|
 | 10 | Cierre administrativo GitGuardian: marcar revocado + purga caché GitHub + re-clonado del tester | DT-13 | Alta |
-| 11 | Exportar JSON vigente de WF-08 + visibilizar PERIOD_DEADLINE (/alerts, widget, badge) + anti-duplicados | DT-16 | Media |
+| 11 | Visibilizar PERIOD_DEADLINE (/alerts, widget, badge) | DT-16 | Media |
 | 12 | Ejecutar matriz RLS + test 2-usuarios; crear migraciones de la deriva de BD | DT-06, DT-22 | Media |
 | 13 | Desactivar WF-01 antiguo (Kpagh); vigente zrKXQ5YJ8lLwHRL7 (03/10) | — | Media |
 | 14 | Crear bucket storage avatars (SQL) para activar el avatar de settings | — | Baja |
@@ -455,6 +455,7 @@ Todo cambio posterior sin fichero de migración = DT-22.
 
 | 03/10/2026 | Docs | **AUDITORIA v2.1**: comparativa trimestres, AiProvider, WF-08/WF-10, avatar, matriz RLS, SECURITY/AI_POLICY/TESTING, ADR-04 a 09; F4 95% (falta publicar WF-08), SEG mitigado. |
 ---
+| 03/10/2026 | n8n | **WF-08 VIGENTE**: JSON cloud (5 nodos, anti-duplicados, credencial Supabase Copilot) commiteado tras simular logica (0 duplicados / 3 inserciones); version propia retirada. |
 
 ## 🗺️ Estado actual y próximos pasos
 
