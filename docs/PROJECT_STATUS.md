@@ -387,7 +387,7 @@ Todo cambio posterior sin fichero de migración = DT-22.
 | 11 | Visibilizar PERIOD_DEADLINE (/alerts, widget, badge) | DT-16 | Media |
 | 12 | Ejecutar matriz RLS + test 2-usuarios; crear migraciones de la deriva de BD | DT-06, DT-22 | Media |
 | 13 | Desactivar WF-01 antiguo (Kpagh); vigente zrKXQ5YJ8lLwHRL7 (03/10) | — | Media |
-| 14 | Crear bucket storage avatars (SQL) para activar el avatar de settings | — | Baja |
+| 14 | Bucket avatars creado y avatar funcionando en /settings (verificado 03/10) | — | Baja |
 | 15 | PDF multi-factura, duplicados por contenido | DT-14, DT-15 | Baja |
 | 16 | Webhook WF-01 con auth, sweeper EXTRACTING, concurrencia n8n, retirar convert-pdf, bucket privado | DT-17–DT-21 | Baja |
 | 17 | Backlog: exportar conversación del chat (descartado de F7, ADR-09) | — | Baja |
