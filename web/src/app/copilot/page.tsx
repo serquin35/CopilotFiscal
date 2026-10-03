@@ -267,7 +267,7 @@ export default function CopilotPage() {
       <div className="flex flex-col gap-1">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-xs font-semibold uppercase tracking-widest text-primary">
-            Motor Explicativo OpenAI gpt-4o-mini
+            Motor Explicativo OpenAI gpt-4o
           </span>
           <span className="size-2 rounded-full bg-primary animate-pulse" />
 

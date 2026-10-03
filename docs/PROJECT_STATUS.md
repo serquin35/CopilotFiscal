@@ -41,7 +41,7 @@
 
 **Decisiones arquitectónicas tomadas:**
 - Stack: Next.js 14 + TypeScript + Supabase + n8n self-hosted
-- IA: GPT-4o-mini (OpenAI Vision) como proveedor inicial vía HTTP directo
+- IA: GPT-4o (OpenAI Vision) como proveedor inicial vía HTTP directo
 - OCR: integrado en pipeline de Vision de OpenAI (no OCR separado)
 - Hosting: Vercel (`corrala.vercel.app`) + n8n en `n8n.cheosdesign.info`
 
@@ -152,7 +152,7 @@ Is PDF? (Switch de formato binario vs imagen)
 Build OpenAI Request (Modelo y detalle configurables dinámicamente)
   ↓
 OpenAI: Extract Invoice Data
-  → GPT-4o-mini Vision (o modelo configurado)
+  → GPT-4o Vision (activo en WF-01, copiloto y `.env.example` desde 03/10/2026)
   → Retry on fail: 3 intentos, backoff 2000ms (resiliencia ante 429)  [FIX 02/10/2026]
   → Credencial n8n: CopilotoFiscal (sin claves en raw)  [MIGRADO 01/10/2026]
   ↓
@@ -206,7 +206,7 @@ Supabase: Mark Needs Review → Respond Error (HTTP 500)
 - [x] WF-06: Dashboard recalcula Modelo 303 en tiempo real tras cada aprobación ✅ validado en producción
 - [x] PDF multi-página (4 páginas) procesado y aprobado correctamente ✅ (DT-07 resuelto)
 - [ ] Wrapper `AiProvider.interface.ts` conectado al pipeline n8n (DT-02 — baja prioridad)
-- [ ] **Pendiente: Habilitar `gpt-4o` en proyecto OpenAI** — saldo actual $3.85; acceso a gpt-4o requiere tier 1 de pago ($5+ gastados históricamente). Una vez habilitado: cambiar `MODEL = 'gpt-4o'` en WF-01 nodo `Build OpenAI Request` → tokens por imagen caen de 37.000 a ~1.000 (97% menos TPM).
+- [x] **Modelo `gpt-4o` activo** — WF-01 (nodo `Build OpenAI Request`), copiloto (`/api/copilot/chat`) y etiqueta UI en `gpt-4o` desde 03/10/2026 ✅
 
 ---
 
@@ -260,13 +260,13 @@ Supabase: Mark Needs Review → Respond Error (HTTP 500)
 
 ## FASE 7 — Copiloto IA ✅ COMPLETA (95%)
 
-**Objetivo:** Asistente conversacional tributario conectado a datos reales de Supabase + OpenAI GPT-4o-mini, sin respuestas genéricas ni mockData.
+**Objetivo:** Asistente conversacional tributario conectado a datos reales de Supabase + OpenAI GPT-4o, sin respuestas genéricas ni mockData.
 
 | Elemento | Estado | Detalle |
 |---|---|---|
 | Página `/copilot` (UI chat) | ✅ | Interfaz completa con quick prompts, markdown rendering e indicador de typing |
 | Eliminación de `mockData` del chat | ✅ | `initialSummary` e `initialAlerts` eliminados de `/copilot` |
-| Endpoint `/api/copilot/chat` | ✅ | API Route SSR que agrega Supabase + llama OpenAI GPT-4o-mini |
+| Endpoint `/api/copilot/chat` | ✅ | API Route SSR que agrega Supabase + llama OpenAI GPT-4o |
 | Contexto fiscal real en system prompt | ✅ | IVA repercutido/soportado, top proveedores, categorías, docs pendientes, alertas |
 | Panel lateral con datos reales | ✅ | Se actualiza tras cada consulta con snapshot real del trimestre |
 | Detección automática de trimestre activo | ✅ | Calculado dinámicamente por mes del sistema |
@@ -284,7 +284,7 @@ Usuario pregunta en /copilot
   ↓
 /api/copilot/chat (Next.js API Route — SSR)
   ↓                          ↓
-Supabase (SSR client)    OpenAI GPT-4o-mini
+Supabase (SSR client)    OpenAI GPT-4o
   → expenses (trimestre)   → system prompt con
   → income (trimestre)       cifras reales
   → alerts (OPEN)          → temperature: 0.3
@@ -350,7 +350,7 @@ Supabase (SSR client)    OpenAI GPT-4o-mini
 | DT-08 | WF-05 expense-processing automático no implementado | ✅ RESUELTO — Integrado en Human-in-the-Loop review 02/10/2026 | F4 |
 | DT-09 | Separación de entornos DEMO/STAGING/PROD | 🟠 BAJA — Banner DEMO global (`EnvBanner`) ✅ 03/10/2026; separación total pendiente | F8 prereq |
 | DT-10 | Supabase Auth no activado para usuarios reales | ✅ RESUELTO | F6.5 |
-| DT-11 | Upgrade a `gpt-4o` bloqueado por permisos del proyecto OpenAI | 🟡 MEDIA — `gpt-4o` no está en la lista de modelos permitidos del proyecto (`proj_SEq1uqislbIupc5TmgJv6jMy`). Requiere Tier 2 ($50+ de gasto histórico en la cuenta). Activo: `gpt-4o-mini`. | F4 |
+| DT-11 | Upgrade a `gpt-4o` | ✅ RESUELTO 03/10/2026 — `gpt-4o` activo en WF-01, copiloto y docs. Revertida la vuelta atrás a mini no autorizada. | F4 |
 | DT-12 | Falsos "0 €" en dashboard (trimestre vacío + errores silenciosos) | ✅ RESUELTO 03/10/2026 — Banner trimestre-con-datos + banner error visible | F5 |
 | DT-13 | Fuga service_role en historial (GitGuardian #37833997) | ✅ RESUELTO 03/10/2026 — Rotación a `sb_*` + `Disable legacy keys` + purga historial (force-push) + `AGENTS.md` + hook pre-commit | SEG |
 
@@ -361,10 +361,9 @@ Supabase (SSR client)    OpenAI GPT-4o-mini
 ### 🔴 Urgente
 1. ~~Probar WF-01 con facturas en formato PDF~~ ✅ Resuelto
 2. ~~Implementar WF-05~~ ✅ Resuelto
-3. ~~Upgrade a `gpt-4o`~~ ⚠️ Revertido — `gpt-4o` no disponible en el proyecto OpenAI actual (requiere Tier 2). Activo: `gpt-4o-mini` + pool de concurrencia como protección ante 429.
+3. ~~Upgrade a `gpt-4o`~~ ✅ Resuelto 03/10/2026 — activo en WF-01, copiloto y UI
 
 ### 🟡 Esta semana
-3. ~~Habilitar `gpt-4o` en el proyecto OpenAI~~ — Bloqueado (requiere Tier 2, ver DT-11). No perseguir.
 4. ~~Streaming SSE en Copiloto~~ ✅ Resuelto 03/10/2026
 5. ~~Validación NIF/CIF/NIE~~ ✅ Resuelto 03/10/2026
 
@@ -437,6 +436,7 @@ Supabase (SSR client)    OpenAI GPT-4o-mini
 | 03/10/2026 | 🤖 Feature | **SSE COPILOTO**: streaming palabra a palabra + Detener + fallback + `OPENAI_MOCK_STREAM=1`; FASE 7 al 100% |
 | 03/10/2026 | 🔒 Seguridad | **INCIDENTE GitGuardian #37833997**: service_role filtrada en historial WF-01 → migración a `sb_*`, `Disable legacy keys` (401 verificado), purga historial con force-push, `AGENTS.md` + hook pre-commit + `check-keys.mjs` (DT-13) |
 | 03/10/2026 | 🧹 Seguridad | **RLS/DEMO**: smoke test `supabase/tests/rls_smoke.sql` + banner DEMO global (`EnvBanner`) |
+| 03/10/2026 | 🔄 Modelo | **GPT-4o ACTIVO en todo**: WF-01 + copiloto + etiqueta UI + `.env.example`; revertida vuelta a mini no autorizada (DT-11 cerrado) |
 
 ---
 
@@ -467,7 +467,6 @@ Supabase (SSR client)    OpenAI GPT-4o-mini
 |-----------|---------|-------------|
 | 🟡 Media | **Comparativa periodo anterior** | Último hueco de F5/MVP §7.1 |
 | 🟡 Media | **Tests RLS exhaustivos** | Por tabla (el smoke ya existe) |
-| 🟡 Media | **Exportar conversación copiloto** | PDF/texto del chat |
 | 🟢 Baja | **Wrapper `AiProvider`** | Desacoplar de OpenAI (DT-02) |
 | 🟢 Baja | **Avatar personalizable** | Subida de avatar a Storage desde `/settings` |
 

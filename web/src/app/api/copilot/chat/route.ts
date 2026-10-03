@@ -423,13 +423,13 @@ export async function POST(req: NextRequest): Promise<Response> {
           "Content-Type": "application/json",
           Authorization: `Bearer ${openAiKey}`,
         },
-        body: JSON.stringify({
-          model: "gpt-4o-mini",
-          temperature: 0.3,
-          max_tokens: 600,
-          stream: true,
-          messages: openAiMessages,
-        }),
+      body: JSON.stringify({
+        model: "gpt-4o",
+        temperature: 0.3,
+        max_tokens: 600,
+        stream: true,
+        messages: openAiMessages,
+      }),
       });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Error de red";
@@ -506,7 +506,7 @@ export async function POST(req: NextRequest): Promise<Response> {
         Authorization: `Bearer ${openAiKey}`,
       },
       body: JSON.stringify({
-        model: "gpt-4o-mini",
+        model: "gpt-4o",
         temperature: 0.3,
         max_tokens: 600,
         messages: openAiMessages,
