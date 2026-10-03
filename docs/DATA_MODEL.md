@@ -689,3 +689,18 @@ $$ LANGUAGE SQL STABLE SECURITY DEFINER;
 ---
 
 *Documento generado durante FASE 0. Las migraciones reales se crearán en Fase 1.*
+
+---
+
+## Deriva aplicada en vivo (03/10/2026 — pendiente de migración versionada, ver DT-22)
+
+Solo existe `supabase/migrations/20260930000000_initial_schema.sql`. Estos
+cambios se aplicaron fuera de migraciones:
+
+- `businesses`: +`nif`, `vat_regime`, `fiscal_address`, `fiscal_city`,
+  `fiscal_zip`, `phone`, `website` (columnas 13 → ~20 en vivo).
+- `profiles`: +`phone` (6 → 7 en vivo).
+- Realtime en `documents` activado desde el Dashboard (sin `CREATE PUBLICATION`
+  en migración).
+- En migración SÍ versionado: trigger `on_auth_user_created`,
+  columna `hash_sha256` + índice, `deleted_at` en `businesses`.

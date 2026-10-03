@@ -104,3 +104,53 @@ Se decide almacenar **únicamente la versión optimizada** (redimensionada a un 
 ### Solución Adoptada (Fase B): Ingesta Desacoplada en Dos Fases
 - **Fase 1 (Ingesta):** Subida rápida paralela a Supabase Storage (3-4 concurrentes) + inserción inmediata en tabla `documents` con status `EXTRACTING`. La UI se desbloquea en menos de 3 segundos.
 - **Fase 2 (Extracción):** Pool de concurrencia en cliente (2-3 llamadas simultáneas a n8n), escuchando las actualizaciones en tiempo real vía Supabase Realtime / polling de resiliencia.
+
+---
+
+## ADR-04: Modelo IA activo `gpt-4o` (03/10/2026)
+
+**Hechos:** el commit `ad0ca8d` fijó `gpt-4o` como defecto en WF-01
+(`Build OpenAI Request`), `/api/copilot/chat` y etiqueta UI usan `gpt-4o`,
+`.env.example` (`OPENAI_MODEL_EXTRACTION=gpt-4o`). Existe un revert
+local a `gpt-4o-mini` (3 líneas del export WF-01) que se descartó con
+`git checkout` por no estar autorizado ni commiteado.
+**Medición:** ADR-01 solo midió `gpt-4o-mini` (37.004 / 25.670 / 3.002
+tokens por imagen; PDF ~3.191/pág). Con `gpt-4o` NO hay medición:
+"reduce 97% TPM" es **estimado, pendiente de medir** (leer `usage` en
+`document_extractions` con 3-5 documentos). Ver DT-11.
+
+## ADR-05: Workflows absorbidos y renombrado WF-08 → WF-10 (03/10/2026)
+
+WF-03 (validación) y WF-04 (clasificación) no se crean como workflows:
+los absorben review Human-in-the-Loop + validadores deterministas y la
+extracción OpenAI + categoría editable. WF-09 no existe: lo sustituye la
+semilla SQL `seed_demo_la_corrala_escondida.sql`. El antiguo
+"WF-08: notifications" pasa a **WF-10** (email/WhatsApp, pendiente);
+**WF-08 = Deadline Reminders** (creado 03/10/2026, pendiente de publicar).
+
+## ADR-06: Estados reales de `documents` vs Master Plan §16 (03/10/2026)
+
+El enum real (migración `20260930000000`) es
+`UPLOADED, EXTRACTING, EXTRACTED, NEEDS_REVIEW, CONFIRMED, REJECTED, ERROR`.
+Desviación frente a §16 (`APPROVED`, `USED_IN_CALCULATION`): se mantiene
+el enum de la migración como fuente de verdad (propuesta de cambio al
+Master Plan pendiente de aprobación).
+
+## ADR-07: Duplicados por hash vs por contenido (03/10/2026)
+
+El SHA-256 pre-subida (`web/src/lib/file-hash.ts`) solo detecta **el mismo
+archivo** y avisa en UI antes de subir (no genera alerta `DUPLICATE_DOCUMENT`
+del Master Plan §13). **Abierto:** misma factura con otra foto
+(proveedor+fecha+total / NIF+número). Ver DT-15.
+
+## ADR-08: Claves `sb_*` y política anti-fugas (03/10/2026)
+
+Tras GitGuardian #37833997: migración a `sb_publishable_`/`sb_secret_`,
+legacy JWT desactivadas, purga del historial (force-push), `AGENTS.md`,
+hook pre-commit y `scripts/check-keys.mjs`. Detalle en `SECURITY.md`.
+
+## ADR-09: Criterio de porcentajes de fase (03/10/2026)
+
+% = ítems ✅ / ítems totales de la tabla de la fase en PROJECT_STATUS.
+100% exige cero ítems pendientes; lo descartado a propósito va a
+`DECISIONS.md` + backlog (p. ej. exportar conversación del chat).

@@ -1,8 +1,8 @@
 # PROJECT STATUS — COPILOTO FISCAL
 
-> **Versión:** 2.0
+> **Versión:** 2.1
 > **Última actualización:** 03 Octubre 2026
-> **Estado global:** FASES 0 a 7 completadas al 100% (F4 cerrada con AiProvider + WF-08) — Incidente de seguridad GitGuardian #37833997 RESUELTO
+> **Estado global:** FASES 0, 2, 3, 5, 6 y 7 al 100% — FASE 1 al 95% (RLS exhaustivo pendiente) — FASE 4 al 95% (pendiente publicar WF-08) — Incidente GitGuardian #37833997 MITIGADO (cierre administrativo pendiente)
 > **Autor:** Antigravity + Muse Spark (actualización continua)
 > **Fuente de verdad:** [COPILOTO_FISCAL_MASTER_PLAN.md](../COPILOTO_FISCAL_MASTER_PLAN.md)
 
@@ -13,19 +13,23 @@
 | Fase | Nombre | Estado | Completitud |
 |------|--------|--------|-------------|
 | **FASE 0** | Descubrimiento y planificación | ✅ COMPLETA | 100% |
-| **FASE 1** | Infraestructura | ✅ COMPLETA | 100% |
+| **FASE 1** | Infraestructura | ✅ COMPLETA | 95% |
 | **FASE 2** | Núcleo financiero | ✅ COMPLETA | 100% |
 | **FASE 3** | Documentos & Review | ✅ COMPLETA | 100% |
-| **FASE 4** | n8n + Pipeline IA | ✅ COMPLETA | 100% |
+| **FASE 4** | n8n + Pipeline IA | ✅ COMPLETA | 95% |
 | **FASE 5** | Dashboard & Visualización | ✅ COMPLETA | 100% |
 | **FASE 6** | Anomalías & Inspección AEAT | ✅ COMPLETA | 100% |
 | **FASE 7** | Copiloto IA (Chat Tributario) | ✅ COMPLETA | 100% |
 | **FASE 8** | Validación y Cierre | ⏳ BLOQUEADA | 0% |
-| **SEG** | Seguridad post-incidente GitGuardian | ✅ RESUELTA | 100% |
+| **SEG** | Seguridad post-incidente GitGuardian | 🟡 MITIGADO | 95% |
+
+> Criterio de % (ADR-09): ítems ✅ / ítems totales de la tabla de la fase.
+> F1 95% por DT-06 parcial; F4 95% por publicación de WF-08 pendiente;
+> SEG 95% por cierre administrativo pendiente (ver Próximos pasos #10).
 
 ---
 
-## FASE 0 — Descubrimiento y Planificación ✅ COMPLETA
+## FASE 0 — Descubrimiento y Planificación ✅ COMPLETA (100%)
 
 **Objetivo:** Documentar arquitectura, modelo de datos, workflows y motor fiscal antes de escribir código.
 
@@ -47,7 +51,7 @@
 
 ---
 
-## FASE 1 — Infraestructura ✅ COMPLETA
+## FASE 1 — Infraestructura ✅ COMPLETA (95%)
 
 **Objetivo:** Proyecto inicializado, Supabase provisionado, Storage, Auth y RLS activos.
 
@@ -56,13 +60,13 @@
 | Repositorio Git + `.gitignore` | ✅ | Secrets excluidos, `.env.example` documentado |
 | Proyecto Supabase (prod) | ✅ | `rqcpwxucgkcodccrykpv.supabase.co` |
 | Schema de base de datos | ✅ | Migración `20260930000000_initial_schema.sql` aplicada |
-| Storage bucket `documents` | ✅ | Bucket público; URLs accesibles directamente por OpenAI Vision |
+| Storage bucket `documents` | ✅ (DEMO) | Bucket público; URLs accesibles directamente por OpenAI Vision. **Solo aceptable en DEMO**: antes de Fase 8 pasar a privado + signed URLs (WF-01 usa hoy URL pública; habrá que adaptarlo) — ver DT-17 |
 | 11 tablas creadas | ✅ | Ver sección [Base de Datos](#base-de-datos) |
 | `.env` y `.env.example` | ✅ | Variables documentadas, valores fuera de Git |
 | Next.js 14 App Router | ✅ | Proyecto en `/web`, desplegado en Vercel |
 | n8n self-hosted | ✅ | `https://n8n.cheosdesign.info` operativo |
-| Supabase Auth | ⚠️ | Configurado pero flujo de login real pendiente de activar |
-| RLS en tablas | ⚠️ | Definido en migración; test exhaustivo pendiente |
+| Supabase Auth | ✅ | Email/Password, Google OAuth, Magic Link, middleware SSR y trigger `on_auth_user_created` |
+| RLS en tablas | 🟡 PARCIAL | Policies en las 11 tablas + smoke test (`rls_smoke.sql`); matriz (`rls_matrix.sql`) creada, ejecución y tests exhaustivos pendientes (DT-06) |
 
 ---
 
@@ -91,16 +95,16 @@
 
 ---
 
-## FASE 3 — Documentos ✅ COMPLETA (90%)
+## FASE 3 — Documentos ✅ COMPLETA (100%)
 
 **Objetivo:** Upload de documentos, Storage, extracción, revisión Human-in-the-Loop y confirmación.
 
 | Elemento | Estado | Detalle |
 |---|---|---|
-| Página `/documents` | ✅ | Upload drag & drop, lista de documentos |
+| Página `/documents` | ✅ | Upload drag & drop, lista de documentos. Subida en bloque, compresión 1600px y Realtime: ver Fase 4 (ADR-03) |
 | Upload a Supabase Storage | ✅ | Bucket `documents`, URL pública generada |
 | Insert en tabla `documents` | ✅ | Registro provisional creado en upload |
-| Tabla `documents` | ✅ | Estados: `UPLOADING→EXTRACTING→EXTRACTED→NEEDS_REVIEW→APPROVED` |
+| Tabla `documents` | ✅ | Estados: `UPLOADING→EXTRACTING→EXTRACTED→NEEDS_REVIEW→CONFIRMED→REJECTED→ERROR` (enum real en migracion; desviacion Master Plan 16 en ADR-06) |
 | Tabla `document_extractions` | ✅ | Trazabilidad completa: provider, model, prompt_version, confidence |
 | Página `/documents/[id]/review` | ✅ | Human-in-the-Loop completo |
 | Visor de documento (PDF/JPG) | ✅ | Panel izquierdo inmutable, "sandbox inviolable" |
@@ -117,7 +121,7 @@
 
 ---
 
-## FASE 4 — n8n + IA 🔄 EN PROGRESO (85%)
+## FASE 4 — n8n + IA ✅ COMPLETA (95%)
 
 **Objetivo:** Workflows n8n operativos, OCR real con OpenAI Vision, clasificación y auditoría.
 
@@ -125,52 +129,50 @@
 
 | ID n8n | Nombre | Estado | Nodos |
 |---|---|---|---|
-| `KpaghIxvPx5XLabD` | WF-01: Document Intake & Extraction Pipeline | ✅ OPERATIVO | 8 |
+| `KpaghIxvPx5XLabD` o posterior | WF-01: Document Intake & Extraction Pipeline | ✅ OPERATIVO | 13 |
 | `upm1rKUB4hJXvuvS` | WF-07: Anomaly & Deadline Monitor | ✅ ACTIVO | 4 |
-| — | WF-08: Deadline Reminders | ✅ CREADO 03/10/2026 (`wf08_deadline_reminders.json`, semanal, inserta `PERIOD_DEADLINE`) | 4 |
+| *(pendiente de confirmar ID vigente)* | WF-08: Deadline Reminders | 🟡 CREADO 03/10/2026 (repo), PENDIENTE de publicar/activar y de confirmar consulta anti-duplicados (DT-16) | 4 |
+
+> ⚠️ IDs WF-01: se han visto `KpaghIxvPx5XLabD` (01/10) y otro distinto
+> (02/10). **Pendiente de verificar cuál es el activo** y desactivar el
+> antiguo: dos webhooks con el mismo path no pueden convivir.
 | — | WF-02: document-extraction independiente | ✅ Absorbido por WF-01 (documentado) | — |
 | — | WF-03: document-validation | ✅ Absorbido por review Human-in-the-Loop + validadores deterministas | — |
 | — | WF-04: document-classification | ✅ Absorbido por extracción OpenAI + categoría editable en review | — |
 | — | WF-05: expense-processing | ✅ Integrado en Human-in-the-Loop review | — |
 | — | WF-06: tax-snapshot trigger | ✅ Dashboard recalcula en tiempo real tras aprobación | — |
-| — | WF-08: notifications | ⏳ Pendiente | — |
+| — | WF-10: notifications (email/WhatsApp, renombrado 03/10, ADR-05) | ⏳ Pendiente | — |
 | — | WF-09: demo-seed | ✅ Semilla SQL versionada (`seed_demo_la_corrala_escondida.sql`) | — |
 
 ### WF-01 — Flujo de nodos ✅
 
 ```
 Webhook: Document Intake (POST /webhook/copilot-document-intake)
-  ↓
+  |
 Validate & Normalize Input
-  ↓
-  ↓
-Supabase: Set EXTRACTING
-  ↓
-Is PDF? (Switch de formato binario vs imagen)
-  ├── [Sí]: Download PDF → Base64 File Payload (OpenAI files endpoint)
-  └── [No]: Image URL Payload (Detail: 'high', optimizado a 1600px en cliente)
-  ↓
-Build OpenAI Request (Modelo y detalle configurables dinámicamente)
-  ↓
-OpenAI: Extract Invoice Data
-  → GPT-4o Vision (activo en WF-01, copiloto y `.env.example` desde 03/10/2026)
-  → Retry on fail: 3 intentos, backoff 2000ms (resiliencia ante 429)  [FIX 02/10/2026]
-  → Credencial n8n: CopilotoFiscal (sin claves en raw)  [MIGRADO 01/10/2026]
-  ↓
-Process & Validate Output
-  → Calcula status: EXTRACTED | NEEDS_REVIEW
-  → Registra usage: prompt_tokens, completion_tokens, total_tokens  [NUEVO 02/10/2026]
-  → Genera warnings si supplier o total faltan
-  ↓
-Supabase: Save Extraction (POST /document_extractions)
-  → Guarda model, raw_payload con usage y campos fiscales estructurados
-  ↓
-Supabase: Update Doc Status (PATCH /documents?id=eq.{id})
-  → Prefer: return=representation
-  ↓
-Respond to Webhook (JSON con extracted + status + confidence + usage + model)
-  ↓ (Rama de error en descarga / extracción)
-Supabase: Mark Needs Review → Respond Error (HTTP 500)
+  |
+Supabase: Set EXTRACTING (credencial n8n, sin claves en JSON)
+  |
+Is PDF? (If)
+  |-- true --> Download PDF (binario)
+  |               |-- ok --> Build OpenAI Request
+  |               |-- error --> Supabase: Mark Needs Review --> Respond Error (500)
+  |-- false ------------> Build OpenAI Request
+                                |-- ok --> OpenAI: Extract Invoice Data
+                                |             (gpt-4o, response_format json_object, retry 3x2000ms)
+                                |-- error --> Mark Needs Review --> Respond Error (500)
+OpenAI -- ok --> Process & Validate Output
+  (status EXTRACTED | NEEDS_REVIEW + usage prompt/completion/total + warnings)
+OpenAI -- error --> Mark Needs Review --> Respond Error (500)
+Process --> Supabase: Save Extraction (document_extractions)
+  --> Supabase: Update Doc Status (Prefer: return=representation)
+  --> Respond to Webhook (extracted + status + confidence + usage + model)
+
+PDF: Download PDF trae el binario; Build OpenAI Request lo convierte a
+base64 y lo envia como content part file (file_data) en Chat Completions.
+NO usa el endpoint Files de OpenAI. Imagen: image_url (detail high,
+optimizada a 1600px en cliente).
+
 ```
 
 **Fixes y mejoras aplicadas (01/10/2026 - 02/10/2026):**
@@ -211,7 +213,7 @@ Supabase: Mark Needs Review → Respond Error (HTTP 500)
 
 ---
 
-## FASE 5 — Dashboard & Gestión Financiera 🔄 EN PROGRESO (90%)
+## FASE 5 — Dashboard & Gestión Financiera ✅ COMPLETA (100%)
 
 | Elemento | Estado | Detalle |
 |---|---|---|
@@ -228,7 +230,7 @@ Supabase: Mark Needs Review → Respond Error (HTTP 500)
 | Separación visual DATO/ESTIMACIÓN/PENDIENTE | ✅ | Implementado con badges oficiales y panel de trazabilidad operativa (MVP §7.1) |
 | Banner trimestre con datos + error visible | ✅ | Adiós falsos "0 €": aviso si hay datos en otro trimestre; error de carga explícito — 03/10/2026 |
 | Export CSV robusto + borrador 303 PDF | ✅ | `web/src/lib/exportBook.ts` (RFC4180, `;`, BOM, trazabilidad) + `/expenses/print` — 03/10/2026 |
-| Papelera en Gastos | ✅ | Borrado con cascada + `audit_events EXPENSE_DELETED` — 03/10/2026 |
+| Comparativa periodo anterior | ✅ | Hecha 03/10/2026 (card vs trimestre anterior) |
 | Comparativa periodo anterior | ⏳ | Pendiente |
 | Responsive / mobile-first | ✅ | Adaptado en grid y barras laterales |
 
@@ -240,8 +242,9 @@ Supabase: Mark Needs Review → Respond Error (HTTP 500)
 
 | Elemento | Estado | Detalle |
 |---|---|---|
-| Motor `anomalyEngine.ts` | ✅ | 8 reglas deterministas ejecutadas en cliente y sincronizadas con BD |
+| Motor `anomalyEngine.ts` | ✅ | 9 bloques de reglas (8 tipos distintos; `SECTOR_VAT_RATIO` reutiliza `UNUSUAL_VAT_RATIO`) ejecutados en cliente |
 | Regla `HIGH_AMOUNT` | ✅ | Detecta importes individuales > 1.500 € (umbral estricto de inspección AEAT) |
+> Notas: los tipos emitidos difieren levemente del Master Plan 13 (UNREGISTERED_NIF, DUPLICATE, DUPLICATE_SUPPLIER). El aviso por hash SHA-256 es **previo a la subida (UI)** y no genera alerta DUPLICATE_DOCUMENT. Las filas PERIOD_DEADLINE (WF-08, source n8n) aun no se renderizan en /alerts, widget ni badge (ver DT-16).
 | Regla `MISSING_NIF` | ✅ | Detecta gastos sin NIF o proveedor genérico (riesgo no deducibilidad) |
 | Regla `INVALID_NIF` | ✅ | NIF con checksum erróneo (típico OCR) — 03/10/2026 |
 | Regla `UNUSUAL_VAT_RATIO` | ✅ | Discrepancia matemática entre base imponible, tipo e IVA soportado |
@@ -259,7 +262,7 @@ Supabase: Mark Needs Review → Respond Error (HTTP 500)
 
 ---
 
-## FASE 7 — Copiloto IA ✅ COMPLETA (95%)
+## FASE 7 — Copiloto IA ✅ COMPLETA (100%)
 
 **Objetivo:** Asistente conversacional tributario conectado a datos reales de Supabase + OpenAI GPT-4o, sin respuestas genéricas ni mockData.
 
@@ -281,15 +284,15 @@ Supabase: Mark Needs Review → Respond Error (HTTP 500)
 ### Arquitectura implementada
 
 ```
-Usuario pregunta en /copilot
+/ Usuario pregunta en /copilot
   ↓
 /api/copilot/chat (Next.js API Route — SSR)
   ↓                          ↓
-Supabase (SSR client)    OpenAI GPT-4o
-  → expenses (trimestre)   → system prompt con
-  → income (trimestre)       cifras reales
-  → alerts (OPEN)          → temperature: 0.3
-  → documents (pendientes) → max_tokens: 600
+Supabase (SSR client)    AiProvider → OpenAIProvider (gpt-4o)
+  → expenses (trimestre)   → temperature: 0.3, max_tokens: 600
+  → income (trimestre)     → stream SSE palabra a palabra (o JSON completo)
+  → alerts (OPEN)          → MockAiProvider solo con OPENAI_MOCK_STREAM=1
+  → documents (pendientes)
   ↓
 { reply, sources, context } → panel lateral actualizado
 ```
@@ -299,19 +302,19 @@ Supabase (SSR client)    OpenAI GPT-4o
 - [x] Historial multi-turno: últimos 10 mensajes enviados como contexto ✅
 - [x] Selector de trimestre y año en la UI del chat ✅
 - [x] Streaming SSE para mejor percepción de velocidad ✅ 03/10/2026
-- [ ] Exportar conversación como PDF/texto
+- Exportar conversación como PDF/texto: DESCARTADO de F7 (ADR-09); en backlog (próximos #17). → DESCARTADO de F7 (ADR-09); movido al backlog (próximos #17).
 
 ---
 
-## FASE 8 — Datos Reales ⏳ BLOQUEADA
+## FASE 8 — Datos Reales ⏳ BLOQUEADA (0%)
 
 **Prerrequisitos no cumplidos (bloqueantes):**
 - [ ] Separación DEMO / STAGING / PRODUCTION completa
-- [ ] RLS auditado por tabla con tests
+- [ ] RLS auditado por tabla con tests exhaustivos (smoke + matriz creados; falta ejecución y test 2-usuarios)
 - [ ] Revisión jurídica y de privacidad
 - [ ] Fuentes fiscales oficiales AEAT validadas y versionadas
 - [ ] Backup y retención de datos definidos
-- [ ] Supabase Auth completamente activado
+- [x] Supabase Auth completamente activado ✅ (email/password, Google OAuth, Magic Link, middleware SSR, trigger)
 
 ---
 
@@ -319,21 +322,31 @@ Supabase (SSR client)    OpenAI GPT-4o
 
 ### Supabase: `rqcpwxucgkcodccrykpv.supabase.co`
 
-| Tabla | Columnas | Registros | Estado |
+> Columnas = `CREATE TABLE` en `20260930000000_initial_schema.sql`.
+> En vivo: `businesses` +7 (`nif`, `vat_regime`, `fiscal_address`,
+> `fiscal_city`, `fiscal_zip`, `phone`, `website`) y `profiles` +`phone`
+> (aplicados sin migración — ver DT-22). Registros verificados el 03/10/2026
+> salvo "s/c" (sin confirmar en vivo).
+
+| Tabla | Columnas (migración) | Registros | Estado |
 |---|---|---|---|
-| `businesses` | 13 | 3 (demo UUID cero + 2 reales) | ✅ Activa |
-| `profiles` | 6 | — | ✅ Activa |
-| `documents` | 16 | 6 | ✅ En uso por WF-01 |
+| `businesses` | 13 (20 en vivo) | 3 | ✅ Activa |
+| `profiles` | 6 (7 en vivo) | s/c | ✅ Activa |
+| `documents` | 22 | 6 | ✅ En uso por WF-01 |
 | `document_extractions` | 21 | 6 | ✅ En uso por WF-01 |
-| `expenses` | 22 | 18 (13 seed + 5 reales) | ✅ Activa |
+| `expenses` | 26 | 18 (13 seed + 5 reales) | ✅ Activa |
 | `income` | 19 | 21 (seed) | ✅ Activa |
 | `suppliers` | 12 | 14 (9 seed + 5 reales) | ✅ Activa |
-| `tax_periods` | 13 | — | ✅ Activa |
-| `tax_snapshots` | 19 | — | ✅ Activa |
-| `alerts` | 16 | — | ✅ Activa |
-| `audit_events` | 12 | — | ✅ Activa |
+| `tax_periods` | 19 | s/c | ✅ Activa |
+| `tax_snapshots` | 21 | s/c | ✅ Activa |
+| `alerts` | 20 | ≥3 de prueba WF-08 (pendiente de confirmar) | ✅ Activa |
+| `audit_events` | 12 | s/c | ✅ Activa |
 
-**Migración aplicada:** `20260930000000_initial_schema.sql`
+**Migraciones en `supabase/migrations/`:** solo
+`20260930000000_initial_schema.sql` (incluye trigger
+`on_auth_user_created`, columna e índice `hash_sha256`, `deleted_at` en
+`businesses`). Realtime en `documents` se activó desde el Dashboard.
+Todo cambio posterior sin fichero de migración = DT-22.
 
 ---
 
@@ -353,29 +366,31 @@ Supabase (SSR client)    OpenAI GPT-4o
 | DT-10 | Supabase Auth no activado para usuarios reales | ✅ RESUELTO | F6.5 |
 | DT-11 | Upgrade a `gpt-4o` | ✅ RESUELTO 03/10/2026 — `gpt-4o` activo en WF-01, copiloto y docs. Revertida la vuelta atrás a mini no autorizada. | F4 |
 | DT-12 | Falsos "0 €" en dashboard (trimestre vacío + errores silenciosos) | ✅ RESUELTO 03/10/2026 — Banner trimestre-con-datos + banner error visible | F5 |
-| DT-13 | Fuga service_role en historial (GitGuardian #37833997) | ✅ RESUELTO 03/10/2026 — Rotación a `sb_*` + `Disable legacy keys` + purga historial (force-push) + `AGENTS.md` + hook pre-commit | SEG |
+| DT-13 | Fuga service_role en historial (GitGuardian #37833997) | ✅ MITIGADO 03/10/2026 — Rotación a `sb_*` + `Disable legacy keys` + purga historial (force-push) + `AGENTS.md` + hook pre-commit | SEG |
+| DT-14 | PDF con VARIOS tickets/facturas en un solo archivo | 🔴 ABIERTA | DT-07 solo validó un PDF multipágina de UNA factura | F3 |
+| DT-15 | Duplicados por contenido (misma factura, otra foto) | 🟡 MEDIA | Hash solo detecta el mismo archivo; falta proveedor+fecha+total / NIF+número | F3 |
+| DT-16 | `PERIOD_DEADLINE` invisible + WF-08 sin publicar | 🟡 MEDIA | WF-08 creado pero pendiente de publicar/activar; `/alerts`, widget y badge no renderizan filas n8n; sin anti-duplicados | F4 |
+| DT-17 | Bucket `documents` público | 🟠 BAJA | Solo aceptable en DEMO; Fase 8 exige privado + signed URLs (WF-01 usa URL pública) | F8 prereq |
+| DT-18 | Webhook WF-01 sin autenticación | 🟡 MEDIA | Añadir header secreto o Header Auth | F4 |
+| DT-19 | Barrido de documentos atascados en EXTRACTING | 🟢 BAJA | Solo hay polling con la página abierta; sin sweeper servidor | F4 |
+| DT-20 | Límite de concurrencia en n8n | 🟢 BAJA | Variable `N8N_CONCURRENCY_PRODUCTION_LIMIT`: valor y aplicación en servidor pendientes de verificar | F4 |
+| DT-21 | `/api/convert-pdf` sin uso | 🟢 BAJA | WF-01 no lo usa (descarga binario directo); retirada pendiente de confirmar | F4 |
+| DT-22 | Cambios de BD sin migración versionada | 🟡 MEDIA | Columnas businesses/profiles + Realtime aplicados a mano; crear migraciones | F1 |
 
 ---
 
-## Próximos Pasos Priorizados
+## Próximos Pasos Priorizados (lista única, 03/10/2026)
 
-### 🔴 Urgente
-1. ~~Probar WF-01 con facturas en formato PDF~~ ✅ Resuelto
-2. ~~Implementar WF-05~~ ✅ Resuelto
-3. ~~Upgrade a `gpt-4o`~~ ✅ Resuelto 03/10/2026 — activo en WF-01, copiloto y UI
-
-### 🟡 Esta semana
-4. ~~Streaming SSE en Copiloto~~ ✅ Resuelto 03/10/2026
-5. ~~Validación NIF/CIF/NIE~~ ✅ Resuelto 03/10/2026
-
-### 🟠 Próximas 2 semanas
-6. ~~Exportación CSV/PDF~~ ✅ Resuelto 03/10/2026
-7. Tests RLS por tabla exhaustivos (DT-06, smoke ya existe)
-8. Wrapper `AiProvider` para desacoplar de OpenAI (DT-02, baja prioridad)
-9. Comparativa periodo anterior (último hueco MVP §7.1)
-10. Cierre GitGuardian: marcar incidente como revocado + purga caché GitHub + re-clonado del tester
-
----
+| # | Ítem | Ref | Prioridad |
+|---|---|---|---|
+| 10 | Cierre administrativo GitGuardian: marcar revocado + purga caché GitHub + re-clonado del tester | DT-13 | Alta |
+| 11 | Publicar/activar WF-08 + visibilizar PERIOD_DEADLINE (/alerts, widget, badge) + anti-duplicados | DT-16 | Media |
+| 12 | Ejecutar matriz RLS + test 2-usuarios; crear migraciones de la deriva de BD | DT-06, DT-22 | Media |
+| 13 | Verificar ID vigente de WF-01 y desactivar el antiguo | — | Media |
+| 14 | Crear bucket storage avatars (SQL) para activar el avatar de settings | — | Baja |
+| 15 | PDF multi-factura, duplicados por contenido | DT-14, DT-15 | Baja |
+| 16 | Webhook WF-01 con auth, sweeper EXTRACTING, concurrencia n8n, retirar convert-pdf, bucket privado | DT-17–DT-21 | Baja |
+| 17 | Backlog: exportar conversación del chat (descartado de F7, ADR-09) | — | Baja |
 
 ## Historial de Cambios
 
@@ -384,7 +399,7 @@ Supabase (SSR client)    OpenAI GPT-4o
 | 30/09/2026 | ✅ Completo | FASE 0: toda la documentación de arquitectura generada |
 | 30/09/2026 | ✅ Completo | FASE 1: schema SQL aplicado, 11 tablas en Supabase |
 | 30/09/2026 | ✅ Completo | FASE 2-3: motor fiscal, UI web, pipeline documentos (base) |
-| 30/09/2026 | ✅ Completo | WF-01 creado en n8n (8 nodos) |
+| 30/09/2026 | ✅ Completo | WF-01 creado en n8n (13 nodos) |
 | 30/09/2026 | ✅ Completo | WF-07 Anomaly Monitor activado |
 | 01/10/2026 | 🔧 Fix | WF-01: OpenAI Vision recibía texto plano → cambiado a `image_url` |
 | 01/10/2026 | 🔧 Fix | WF-01: `Update Doc Status` output vacío → `Prefer: return=representation` |
@@ -429,16 +444,16 @@ Supabase (SSR client)    OpenAI GPT-4o
 | 02/10/2026 | 🏆 Hito | **PDF MULTI-PÁGINA VALIDADO**: Factura Iberdrola de 4 páginas procesada íntegramente por WF-01 — visor paginado en Human-in-the-Loop review, aprobación correcta y registro en `expenses`. DT-07 resuelto. |
 | 02/10/2026 | ✅ Fix | **WF-05 / DT-08 RESUELTO**: Inserción automática en `expenses` y `suppliers` al aprobar en Human-in-the-Loop review confirmada en Supabase (14 registros en tabla `expenses` incluyendo registro real de Iberdrola 80.95 €). |
 | 02/10/2026 | 🤖 Hito | **COPILOTO IA COMPLETO (95%)**: Multi-turno con historial de 10 mensajes validado en producción ("2 turnos en contexto"); selector de trimestre y año dinámico en `/copilot`; contexto fiscal real (Modelo 303, alertas, facturas pendientes, top proveedores). Fase 7 considerada completa. |
-| 02/10/2026 | 💡 Pendiente | **UPGRADE A GPT-4o (DT-11)**: Cuenta OpenAI con $3.85 de saldo (Pay As You Go). Requiere verificar tier 1 en `platform.openai.com` para acceder a `gpt-4o` — reduce tokens/imagen de 37.000 a ~1.000 (97% menos TPM). |
-| 03/10/2026 | ✅ Feature | **NIF/CIF/NIE DETERMINISTA**: `NifValidator` en motor + espejo web; badge y bloqueo en review y settings; regla `INVALID_NIF` en anomalías; 10 tests |
+| 02/10/2026 | Pendiente (superada) | UPGRADE A GPT-4o (DT-11): previsión de ahorro sin medir. 03/10: gpt-4o activo en WF-01/copiloto/UI (ver ADR-04). | 03/10/2026 | ✅ Feature | **NIF/CIF/NIE DETERMINISTA**: `NifValidator` en motor + espejo web; badge y bloqueo en review y settings; regla `INVALID_NIF` en anomalías; 10 tests |
 | 03/10/2026 | 🛡️ Fix | **DUPLICADOS + HUÉRFANOS**: SHA-256 pre-subida con aviso; eliminados los 5 fallbacks UUID cero |
 | 03/10/2026 | 📊 Fix | **DASHBOARD AUTO-DIAGNÓSTICO**: banner trimestre-con-datos + banner error visible (DT-12) |
 | 03/10/2026 | 📄 Feature | **EXPORT + BORRADOR 303**: CSV RFC4180 con trazabilidad + `/expenses/print` + papelera en Gastos |
 | 03/10/2026 | 🤖 Feature | **SSE COPILOTO**: streaming palabra a palabra + Detener + fallback + `OPENAI_MOCK_STREAM=1`; FASE 7 al 100% |
 | 03/10/2026 | 🔒 Seguridad | **INCIDENTE GitGuardian #37833997**: service_role filtrada en historial WF-01 → migración a `sb_*`, `Disable legacy keys` (401 verificado), purga historial con force-push, `AGENTS.md` + hook pre-commit + `check-keys.mjs` (DT-13) |
 | 03/10/2026 | 🧹 Seguridad | **RLS/DEMO**: smoke test `supabase/tests/rls_smoke.sql` + banner DEMO global (`EnvBanner`) |
-| 03/10/2026 | 🔄 Modelo | **GPT-4o ACTIVO en todo**: WF-01 + copiloto + etiqueta UI + `.env.example`; revertida vuelta a mini no autorizada (DT-11 cerrado) |
+| 03/10/2026 | 🔄 Modelo | **GPT-4o ACTIVO en todo**: WF-01 + copiloto + etiqueta UI + `.env.example`; hechos: ad0ca8d fijo gpt-4o en WF-01; el worktree traia un revert a mini sin commitear que se descarto (checkout) al confirmar el dueno que produccion usa gpt-4o; unificado en copiloto, UI y .env.example (DT-11 cerrado, ADR-04) |
 
+| 03/10/2026 | Docs | **AUDITORIA v2.1**: comparativa trimestres, AiProvider, WF-08/WF-10, avatar, matriz RLS, SECURITY/AI_POLICY/TESTING, ADR-04 a 09; F4 95% (falta publicar WF-08), SEG mitigado. |
 ---
 
 ## 🗺️ Estado actual y próximos pasos
@@ -455,23 +470,25 @@ Supabase (SSR client)    OpenAI GPT-4o
 - [x] **Human-in-the-Loop Review (`/documents/[id]/review`)**: Conciliación real con inserción en `expenses` y `suppliers` — validado con 14 registros en Supabase ✅
 - [x] **Cálculo dinámico del Modelo 303**: Dashboard recalcula automáticamente tras cada aprobación de factura ✅
 - [x] **Deduplicación canónica**: Eliminación de doble cómputo entre documentos locales e historial de gastos
-- [x] **Copiloto Fiscal IA completo (Fase 7 — 95%)**:
+- [x] **Copiloto Fiscal IA completo (Fase 7 — 100%)**:
   - Autenticación robusta serverless con JWT Bearer token validado contra Supabase Auth
   - Mapeo fiel al esquema de base de datos (`businesses.owner_id`, `expenses.date`, `validation_status`, `document_extractions.extracted_at`)
   - Historial multi-turno (últimos 10 mensajes) validado en producción — "2 turnos en contexto" ✅
   - Selector de trimestre y año dinámico en `/copilot` ✅
   - Inyección de contexto fiscal en tiempo real (Modelo 303, alertas, facturas recientes y top proveedores)
-- [x] **Sesión 03/10/2026 (Muse Spark)**: NIF determinista + dedup SHA-256 + fin UUID cero + dashboard auto-diagnóstico + CSV/borrador 303 + papelera Gastos + SSE copiloto (F7→100%) + smoke RLS + banner DEMO + migración `sb_*` + purga GitGuardian (ver Historial) ✅
+- [x] **Sesión 03/10/2026 (Muse Spark)**: NIF determinista + dedup SHA-256 + fin UUID cero + dashboard auto-diagnóstico + CSV/borrador 303 + papelera Gastos + SSE copiloto (F7→100%) + smoke RLS + banner DEMO + migración `sb_*` + purga GitGuardian (ver Historial) + comparativa trimestres + AiProvider + WF-08/WF-10 + avatar + matriz RLS + auditoria documental v2.1 ✅
 
 ### 🚀 Próximos pasos sugeridos
 | Prioridad | Feature | Descripción |
-|-----------|---------|-------------|
-| 🟡 Media | **Comparativa periodo anterior** | Último hueco de F5/MVP §7.1 |
-| 🟡 Media | **Tests RLS exhaustivos** | Por tabla (el smoke ya existe) |
-| 🟢 Baja | **Wrapper `AiProvider`** | Desacoplar de OpenAI (DT-02) |
+| Media | **Comparativa periodo anterior** | Hecha 03/10/2026 (card vs trimestre anterior) |
+| 🟡 Media | **Comparativa periodo anterior** | Hecha 03/10/2026 (card vs trimestre anterior) [era] Último hueco de F5/MVP §7.1 |
+| Baja | **Wrapper AiProvider** | Hecho 03/10/2026 (DT-02) |
+| Baja | **Avatar personalizable** | Codigo hecho 03/10/2026; falta crear bucket avatars (SQL) |
 | 🟢 Baja | **Avatar personalizable** | Subida de avatar a Storage desde `/settings` |
 
 ---
 
+
 *Documento generado y mantenido por Antigravity + Muse Spark. Actualizar al final de cada sesión de desarrollo.*
 
+- [ ] Publicar/activar WF-08 en n8n + confirmar consulta anti-duplicados (DT-16; falta para el 100%)

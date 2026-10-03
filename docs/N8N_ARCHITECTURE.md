@@ -216,7 +216,7 @@
 3. Guardar propuesta de clasificación en `document_extractions.raw_payload` (extensión)
 4. `documents.status` → `NEEDS_REVIEW`
 5. Registrar `audit_event`: `REVIEW_REQUESTED`
-6. Disparar WF-08 (notifications) → notificar al usuario
+6. Disparar WF-10 (notifications) → notificar al usuario
 
 **Metadatos de IA guardados obligatoriamente:**
 ```json
@@ -334,11 +334,26 @@
 2. Backend ejecuta `AnomalyDetector` (motor determinista)
 3. n8n recibe lista de `AnomalyFinding[]`
 4. Para cada finding: crear registro en `alerts` (si no existe ya)
-5. Para alertas de severidad `high` / `critical`: disparar WF-08 (notificación)
+5. Para alertas de severidad `high` / `critical`: disparar WF-10 (notificación)
 
 ---
 
-### WF-08: `notifications`
+### WF-08: `deadline-reminders` ✅ CREADO 03/10/2026 (pendiente de publicar/activar en n8n)
+
+**Fichero:** `n8n/workflows/wf08_deadline_reminders.json` (4 nodos, sin secretos: usa `$env.SUPABASE_SERVICE_ROLE_KEY`).
+
+**Trigger:** `Schedule: Weekly Check` — semanal, lunes 08:00 (`triggerAtDay: 1`, `triggerAtHour: 8`).
+
+**Flujo:** lista negocios (`GET /rest/v1/businesses`, excluye `deleted_at`) → `Build Deadline Alerts` calcula el próximo vencimiento del 303 (1T 20-abr, 2T 20-jul, 3T 20-oct, 4T 30-ene del año siguiente; si faltan ≤30 días emite alerta `PERIOD_DEADLINE` con `severity` high si ≤7 días / medium si no) → inserta en `alerts` (`source: 'n8n'`, `status: 'OPEN'`).
+
+**Importante:**
+- WF-08 **solo inserta filas en `alerts`**: NO envía nada al usuario. La notificación real es WF-10 (pendiente).
+- La versión del repo **no consulta alertas abiertas para no duplicar** (si existe esa consulta en el n8n cloud, exportar el JSON y commitear; pendiente de verificar). Ver DT-16.
+- Las filas `PERIOD_DEADLINE` aún **no se muestran** en `/alerts`, widget ni badge (solo renderizan el motor del cliente). Ver DT-16.
+
+---
+
+### WF-10: `notifications` ⏳ PENDIENTE (antes WF-08; renombrado 03/10/2026, ver ADR-05)
 
 **Trigger:** Llamado por otros workflows cuando hay algo que notificar.
 
@@ -463,25 +478,25 @@ En Producción: token generado aleatoriamente, rotado periódicamente
         ▼                                                        │ Error
    WF-02: extraction                                            │
         │                                                        │
-        ▼                                                   WF-08: notif
+        ▼                                                   WF-10: notif
    WF-03: validation                                           (error)
-        │
-        ├── [Falla validación] ──→ NEEDS_REVIEW ──→ WF-08: notif (user)
-        │
-        ▼
-   WF-04: classification ──→ NEEDS_REVIEW ──→ WF-08: notif (user)
+         │
+         ├── [Falla validación] ──→ NEEDS_REVIEW ──→ WF-10: notif (user)
+         │
+         ▼
+   WF-04: classification ──→ NEEDS_REVIEW ──→ WF-10: notif (user)
 
 
 [Usuario confirma documento en UI]
-        │
-        ▼
+         │
+         ▼
    WF-05: expense-processing
-        │
-        ├── Crea expense
-        ├── WF-06: tax-snapshot (recalcular)
-        └── WF-07: anomaly-detection
-                    │
-                    └── WF-08: notifications (si severity high/critical)
+         │
+         ├── Crea expense
+         ├── WF-06: tax-snapshot (recalcular)
+         └── WF-07: anomaly-detection
+                     │
+                     └── WF-10: notifications (si severity high/critical)
 ```
 
 ---
@@ -500,8 +515,9 @@ n8n/
     WF-05_expense-processing.json
     WF-06_tax-snapshot.json
     WF-07_anomaly-detection.json
-    WF-08_notifications.json
-    WF-09_demo-seed.json
+    WF-08_deadline-reminders.json
+    WF-10_notifications.json (pendiente)
+    WF-09_demo-seed.json (sustituido por semilla SQL versionada)
   README.md    ← Instrucciones de importación y configuración de credenciales
 ```
 

@@ -295,14 +295,17 @@ interface AiResponseMetadata {
 }
 ```
 
-**Implementaciones:**
+**Implementaciones (reales, 03/10/2026 — `web/src/lib/ai/`):**
 
 | Clase | Entorno |
 |---|---|
-| `MockAiProvider` | DEMO (Fase 1-4) |
-| `GeminiProvider` | Producción (Fase 4+) |
-| `OpenAIProvider` | Alternativa (Fase 4+) |
-| `ClaudeProvider` | Alternativa (Fase 4+) |
+| `OpenAIProvider` | Activo (`gpt-4o`, `complete` + `completeStream`) — usado por `/api/copilot/chat` |
+| `MockAiProvider` | Solo con `OPENAI_MOCK_STREAM=1` (respuestas locales sin cuota) |
+
+> Nota: la firma original contemplaba `extractFromDocument`/`classifyExpense`.
+> La implementación real expone `complete`/`completeStream` sobre mensajes de
+> chat; la extracción documental vive en WF-01 (n8n). Gemini/Claude no
+> implementados (backlog).
 
 ### 4.2 Document Extractor Wrapper
 

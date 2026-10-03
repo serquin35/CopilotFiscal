@@ -53,7 +53,8 @@ src/engine/fiscal/
   │
   ├── validators/
   │   ├── ExpenseValidator.ts       ← Validación de gastos
-  │   └── DocumentValidator.ts     ← Validación de documentos
+  │   └── DocumentValidator.ts
+  │   │   └── NifValidator.ts           ← NIF/CIF/NIE determinista (DNI mod23, NIE, CIF; DEMO solo allowDemo) [03/10/2026]     ← Validación de documentos
   │
   ├── anomaly/
   │   ├── AnomalyDetector.ts        ← Orquestador de reglas de anomalías
