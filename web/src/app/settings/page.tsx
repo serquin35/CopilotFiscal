@@ -167,6 +167,8 @@ function TabProfile({ onToast }: { onToast: (t: Toast) => void }) {
   const { user, profile, supabase } = useAuth();
   const [displayName, setDisplayName] = useState(profile?.display_name ?? "");
   const [phone, setPhone] = useState("");
+  const [avatarUrl, setAvatarUrl] = useState(profile?.avatar_url ?? "");
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -174,6 +176,7 @@ function TabProfile({ onToast }: { onToast: (t: Toast) => void }) {
       setDisplayName(profile.display_name ?? "");
       // @ts-expect-error phone may exist
       setPhone(profile.phone ?? "");
+      setAvatarUrl(profile.avatar_url ?? "");
     }
   }, [profile]);
 
@@ -199,20 +202,62 @@ function TabProfile({ onToast }: { onToast: (t: Toast) => void }) {
     .join("")
     .toUpperCase();
 
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+    if (!file.type.startsWith("image/")) {
+      onToast({ type: "error", msg: "El avatar debe ser una imagen." });
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      onToast({ type: "error", msg: "Máximo 2 MB para el avatar." });
+      return;
+    }
+    setUploadingAvatar(true);
+    try {
+      const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
+      const path = `${user.id}/avatar.${ext}`;
+      const { error: upError } = await supabase.storage
+        .from("avatars")
+        .upload(path, file, { upsert: true, contentType: file.type });
+      if (upError) throw upError;
+      const { data } = supabase.storage.from("avatars").getPublicUrl(path);
+      const url = `${data.publicUrl}?t=${Date.now()}`;
+      const { error: dbError } = await supabase
+        .from("profiles")
+        .update({ avatar_url: data.publicUrl, updated_at: new Date().toISOString() })
+        .eq("id", user.id);
+      if (dbError) throw dbError;
+      setAvatarUrl(url);
+      onToast({ type: "success", msg: "Avatar actualizado." });
+    } catch {
+      onToast({ type: "error", msg: "No se pudo subir el avatar. Revisa el bucket `avatars`." });
+    } finally {
+      setUploadingAvatar(false);
+      e.target.value = "";
+    }
+  };
+
   return (
     <div className="flex flex-col gap-6">
       {/* Avatar block */}
       <SectionCard title="Identidad" subtitle="Tu nombre y avatar visibles en la plataforma" icon={User}>
         <div className="flex items-center gap-4 mb-6">
-          <div className="size-16 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary text-xl font-bold shrink-0">
-            {initials}
+          <div className="size-16 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary text-xl font-bold shrink-0 overflow-hidden">
+            {avatarUrl ? (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img src={avatarUrl} alt="Avatar" className="size-full object-cover" />
+            ) : (
+              initials
+            )}
           </div>
           <div>
             <p className="text-sm font-medium text-foreground">{displayName || "Sin nombre"}</p>
             <p className="text-xs text-muted-foreground">{user?.email}</p>
-            <p className="text-[11px] text-muted-foreground mt-1">
-              Avatar generado automáticamente a partir de tus iniciales
-            </p>
+            <label className="inline-flex items-center gap-1.5 mt-1.5 text-[11px] font-medium text-primary hover:underline cursor-pointer">
+              <input type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} disabled={uploadingAvatar} />
+              {uploadingAvatar ? "Subiendo…" : avatarUrl ? "Cambiar avatar" : "Subir avatar (máx 2 MB)"}
+            </label>
           </div>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

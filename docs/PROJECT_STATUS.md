@@ -2,7 +2,7 @@
 
 > **Versión:** 2.0
 > **Última actualización:** 03 Octubre 2026
-> **Estado global:** FASES 0 a 7 completadas (F7 al 100% con streaming) — FASE 4 (n8n + Pipeline IA) EN PROGRESO (85%) — Incidente de seguridad GitGuardian #37833997 RESUELTO
+> **Estado global:** FASES 0 a 7 completadas al 100% (F4 cerrada con AiProvider + WF-08) — Incidente de seguridad GitGuardian #37833997 RESUELTO
 > **Autor:** Antigravity + Muse Spark (actualización continua)
 > **Fuente de verdad:** [COPILOTO_FISCAL_MASTER_PLAN.md](../COPILOTO_FISCAL_MASTER_PLAN.md)
 
@@ -16,7 +16,7 @@
 | **FASE 1** | Infraestructura | ✅ COMPLETA | 100% |
 | **FASE 2** | Núcleo financiero | ✅ COMPLETA | 100% |
 | **FASE 3** | Documentos & Review | ✅ COMPLETA | 100% |
-| **FASE 4** | n8n + Pipeline IA | 🔄 EN PROGRESO | 85% |
+| **FASE 4** | n8n + Pipeline IA | ✅ COMPLETA | 100% |
 | **FASE 5** | Dashboard & Visualización | ✅ COMPLETA | 100% |
 | **FASE 6** | Anomalías & Inspección AEAT | ✅ COMPLETA | 100% |
 | **FASE 7** | Copiloto IA (Chat Tributario) | ✅ COMPLETA | 100% |
@@ -127,13 +127,14 @@
 |---|---|---|---|
 | `KpaghIxvPx5XLabD` | WF-01: Document Intake & Extraction Pipeline | ✅ OPERATIVO | 8 |
 | `upm1rKUB4hJXvuvS` | WF-07: Anomaly & Deadline Monitor | ✅ ACTIVO | 4 |
-| — | WF-02: document-extraction independiente | ⏳ Absorbido por WF-01 | — |
-| — | WF-03: document-validation | ⏳ Pendiente | — |
-| — | WF-04: document-classification | ⏳ Pendiente | — |
+| — | WF-08: Deadline Reminders | ✅ CREADO 03/10/2026 (`wf08_deadline_reminders.json`, semanal, inserta `PERIOD_DEADLINE`) | 4 |
+| — | WF-02: document-extraction independiente | ✅ Absorbido por WF-01 (documentado) | — |
+| — | WF-03: document-validation | ✅ Absorbido por review Human-in-the-Loop + validadores deterministas | — |
+| — | WF-04: document-classification | ✅ Absorbido por extracción OpenAI + categoría editable en review | — |
 | — | WF-05: expense-processing | ✅ Integrado en Human-in-the-Loop review | — |
 | — | WF-06: tax-snapshot trigger | ✅ Dashboard recalcula en tiempo real tras aprobación | — |
 | — | WF-08: notifications | ⏳ Pendiente | — |
-| — | WF-09: demo-seed | ⏳ Pendiente | — |
+| — | WF-09: demo-seed | ✅ Semilla SQL versionada (`seed_demo_la_corrala_escondida.sql`) | — |
 
 ### WF-01 — Flujo de nodos ✅
 
@@ -205,7 +206,7 @@ Supabase: Mark Needs Review → Respond Error (HTTP 500)
 - [x] WF-05: expense-processing — Inserción automática en `expenses` + `suppliers` al aprobar en Human-in-the-Loop ✅ validado en producción 02/10/2026
 - [x] WF-06: Dashboard recalcula Modelo 303 en tiempo real tras cada aprobación ✅ validado en producción
 - [x] PDF multi-página (4 páginas) procesado y aprobado correctamente ✅ (DT-07 resuelto)
-- [ ] Wrapper `AiProvider.interface.ts` conectado al pipeline n8n (DT-02 — baja prioridad)
+- [x] Wrapper `AiProvider` desacoplado (`web/src/lib/ai/`: interface + `OpenAIProvider` + `MockAiProvider`, usado por `/api/copilot/chat`) ✅ 03/10/2026 (DT-02 resuelto)
 - [x] **Modelo `gpt-4o` activo** — WF-01 (nodo `Build OpenAI Request`), copiloto (`/api/copilot/chat`) y etiqueta UI en `gpt-4o` desde 03/10/2026 ✅
 
 ---
@@ -341,7 +342,7 @@ Supabase (SSR client)    OpenAI GPT-4o
 | # | Ítem | Prioridad | Fase |
 |---|---|---|---|
 | DT-01 | API key OpenAI hardcodeada en WF-01 nodo HTTP | ✅ RESUELTO | F4 |
-| DT-02 | Wrapper `AiProvider.interface.ts` no conectado al pipeline real | 🟠 BAJA | F4 |
+| DT-02 | Wrapper `AiProvider.interface.ts` no conectado al pipeline real | ✅ RESUELTO 03/10/2026 — `web/src/lib/ai/` + WF-08 creado; WF-03/04 absorbidos y documentados | F4 |
 | DT-03 | `businessId` hardcodeado como UUID cero en todo el flujo | ✅ RESUELTO | F6.5 |
 | DT-04 | Dashboard parcialmente basado en `mockData.ts` | ✅ RESUELTO | F5 |
 | DT-05 | Seed SQL de datos DEMO no implementado | ✅ RESUELTO | F2 |
