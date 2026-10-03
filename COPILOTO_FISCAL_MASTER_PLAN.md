@@ -1,11 +1,12 @@
 # COPILOTO FISCAL — MASTER PLAN DE DESARROLLO
 
-> **Versión:** 1.0  
-> **Fecha:** 30 Septiembre 2026  
-> **Estado:** PLANIFICACIÓN INICIAL  
-> **Autor:** Serquin + Antigravity  
-> **Repositorio:** TBD  
+> **Versión:** 1.1
+> **Fecha:** 03 Octubre 2026
+> **Estado:** MVP OPERATIVO EN PRODUCCIÓN DEMO (FASES 0–7 COMPLETADAS)
+> **Autor:** Serquin + Antigravity
+> **Repositorio:** https://github.com/serquin35/CopilotFiscal
 > **Fuente de verdad:** Este archivo es la ÚNICA fuente de verdad del proyecto.
+> **Cambios v1.1:** Estado y repositorio actualizados; §14 workflows vigentes (WF-08/WF-10, absorbidos); §16 estados = enum real de la migración; §32 árbol documental vigente. Aprobado por el dueño el 03/10/2026.
 
 ---
 
@@ -682,34 +683,37 @@ n8n no debe convertirse en una segunda aplicación.
 
 Cada workflow tendrá una única responsabilidad.
 
-Primera propuesta:
+Primera propuesta (vigente desde v1.1 — ver estado real en `docs/N8N_ARCHITECTURE.md`):
 
-### `document-intake`
-Recibe documento y crea registro.
+### `document-intake` (WF-01, operativo)
+Recibe documento, extrae con IA y crea registro.
 
 ### `document-extraction`
-OCR / extracción.
+Absorbido por WF-01 (no existe como workflow independiente).
 
 ### `document-validation`
-Validación estructural.
+Absorbido por review Human-in-the-Loop + validadores deterministas.
 
 ### `document-classification`
-Clasificación asistida por IA.
+Absorbido por extracción OpenAI + categoría editable en review.
 
-### `expense-processing`
+### `expense-processing` (WF-05, integrado en review)
 Creación/actualización del gasto después de validación.
 
-### `tax-snapshot`
+### `tax-snapshot` (WF-06, integrado en dashboard)
 Solicita al backend/motor el cálculo determinista.
 
-### `anomaly-detection`
+### `anomaly-detection` (WF-07, activo)
 Ejecuta reglas de anomalías.
 
-### `notifications`
-Envía avisos.
+### `deadline-reminders` (WF-08, activo)
+Avisos semanales de vencimiento del Modelo 303 (solo inserta en `alerts`).
+
+### `notifications` (WF-10, pendiente)
+Envía avisos al usuario (email/WhatsApp).
 
 ### `demo-seed`
-Genera datos ficticios para desarrollo.
+Sustituido por semilla SQL versionada (`supabase/seeds/`).
 
 ---
 
@@ -759,14 +763,20 @@ Una factura extraída automáticamente debe poder pasar por:
 ```text
 UPLOADED
    ↓
+EXTRACTING
+   ↓
 EXTRACTED
    ↓
 NEEDS_REVIEW
    ↓
-CONFIRMED
+CONFIRMED (o REJECTED)
    ↓
-USED_IN_CALCULATION
+gasto/ingreso usado en cálculo (vía Motor determinista)
 ```
+
+> Nota v1.1: este es el enum real de la migración
+> (`UPLOADED, EXTRACTING, EXTRACTED, NEEDS_REVIEW, CONFIRMED, REJECTED,
+> ERROR`). Ver ADR-06 en `docs/DECISIONS.md`.
 
 Nunca:
 
@@ -1286,6 +1296,8 @@ El repositorio deberá contener:
   MVP_SPEC.md
   TESTING.md
   DECISIONS.md
+  PROJECT_STATUS.md        ← estado vivo del proyecto
+/AGENTS.md                ← guardarraíles obligatorios para modelos IA
 ```
 
 `MASTER_PLAN.md` permanece como fuente de verdad.
