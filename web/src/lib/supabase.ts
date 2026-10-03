@@ -8,7 +8,11 @@ const supabaseUrl =
 const supabaseAnonKey =
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
   process.env.NEXT_SUPABASE_ANON_KEY ||
-  "***REDACTED-JWT***";
+  "";
+
+if (!supabaseAnonKey) {
+  throw new Error("Falta NEXT_PUBLIC_SUPABASE_ANON_KEY en variables de entorno.");
+}
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 

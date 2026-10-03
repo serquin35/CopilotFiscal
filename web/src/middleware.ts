@@ -5,9 +5,11 @@ const SUPABASE_URL =
   process.env.NEXT_PUBLIC_SUPABASE_URL ||
   "https://rqcpwxucgkcodccrykpv.supabase.co";
 
-const SUPABASE_ANON_KEY =
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-  "***REDACTED-JWT***";
+const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+
+if (!SUPABASE_ANON_KEY) {
+  throw new Error("Falta NEXT_PUBLIC_SUPABASE_ANON_KEY en variables de entorno.");
+}
 
 // Routes that don't require authentication (API routes handle their own auth/secret tokens)
 const PUBLIC_ROUTES = ["/login", "/register", "/forgot-password", "/auth", "/api"];
