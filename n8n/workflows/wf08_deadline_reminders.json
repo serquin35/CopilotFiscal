@@ -7,8 +7,9 @@
           "interval": [
             {
               "field": "weeks",
-              "weeksInterval": 1,
-              "triggerAtDay": 1,
+              "triggerAtDay": [
+                1
+              ],
               "triggerAtHour": 8
             }
           ]
@@ -16,60 +17,81 @@
       },
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
-      "position": [0, 0],
-      "id": "schedule-weekly",
+      "position": [
+        928,
+        64
+      ],
+      "id": "85073e2d-8dab-44f4-bd40-2767ed6ea1da",
       "name": "Schedule: Weekly Check"
     },
     {
       "parameters": {
-        "method": "GET",
-        "url": "=https://rqcpwxucgkcodccrykpv.supabase.co/rest/v1/businesses?select=id,name&deleted_at=is.null",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "apikey",
-              "value": "={{ $env.SUPABASE_SERVICE_ROLE_KEY || 'your-supabase-key' }}"
-            },
-            {
-              "name": "Authorization",
-              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY || 'your-supabase-key' }}"
-            }
-          ]
-        },
+        "url": "https://rqcpwxucgkcodccrykpv.supabase.co/rest/v1/businesses?select=id,name&deleted_at=is.null",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [240, 0],
-      "id": "http-list-businesses",
-      "name": "Supabase: List Businesses"
+      "position": [
+        1136,
+        64
+      ],
+      "id": "10a2f3ab-8e98-4695-bebf-9cc3a9be361e",
+      "name": "Supabase: List Businesses",
+      "credentials": {
+        "supabaseApi": {
+          "id": "UrPBRVGMD2tjVUxj",
+          "name": "Supabase Copilot"
+        }
+      }
     },
     {
       "parameters": {
-        "jsCode": "const items = $input.all().map((i) => i.json);\nconst businesses = Array.isArray(items[0]) ? items[0] : items;\n\n// Vencimientos Modelo 303 por trimestre (año del periodo)\nfunction deadlinesFor(year) {\n  return [\n    { label: '1T', deadline: new Date(`${year}-04-20`) },\n    { label: '2T', deadline: new Date(`${year}-07-20`) },\n    { label: '3T', deadline: new Date(`${year}-10-20`) },\n    { label: '4T', deadline: new Date(`${year + 1}-01-30`) }\n  ];\n}\n\nconst now = new Date();\nconst alerts = [];\n\nfor (const b of businesses) {\n  if (!b || !b.id) continue;\n  const cands = [...deadlinesFor(now.getFullYear()), ...deadlinesFor(now.getFullYear() + 1)]\n    .filter((d) => d.deadline.getTime() >= now.getTime() - 86400000)\n    .sort((a, z) => a.deadline - z.deadline);\n  const next = cands[0];\n  if (!next) continue;\n  const days = Math.ceil((next.deadline - now) / 86400000);\n  if (days <= 30) {\n    alerts.push({\n      json: {\n        business_id: b.id,\n        severity: days <= 7 ? 'high' : 'medium',\n        type: 'PERIOD_DEADLINE',\n        title: `Vence el Modelo 303 (${next.label}) en ${days} días`,\n        description: `El plazo de presentación del Modelo 303 del trimestre ${next.label} termina el ${next.deadline.toISOString().split('T')[0]}. Revisa y concilia tus facturas pendientes.`,\n        evidence: { quarter: next.label, deadline: next.deadline.toISOString().split('T')[0], daysRemaining: days },\n        entity_type: 'period',\n        entity_id: null,\n        source: 'n8n',\n        status: 'OPEN'\n      }\n    });\n  }\n}\n\nreturn alerts;"
+        "url": "https://rqcpwxucgkcodccrykpv.supabase.co/rest/v1/alerts?select=business_id,evidence&type=eq.PERIOD_DEADLINE&status=eq.OPEN",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1328,
+        64
+      ],
+      "id": "c1040854-32e0-4a82-a3b0-40157c2bd83f",
+      "name": "Supabase: List Open Deadline Alerts",
+      "executeOnce": true,
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "UrPBRVGMD2tjVUxj",
+          "name": "Supabase Copilot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const businesses = $('Supabase: List Businesses').all().map((i) => i.json).filter((b) => b && b.id);\nconst existing = $input.all().map((i) => i.json).filter((a) => a && a.business_id && a.evidence);\n\n// Vencimientos Modelo 303 por trimestre (año del periodo)\nfunction deadlinesFor(year) {\n  return [\n    { label: '1T', deadline: new Date(`${year}-04-20`) },\n    { label: '2T', deadline: new Date(`${year}-07-20`) },\n    { label: '3T', deadline: new Date(`${year}-10-20`) },\n    { label: '4T', deadline: new Date(`${year + 1}-01-30`) }\n  ];\n}\n\nconst now = new Date();\nconst y = now.getFullYear();\n\n// Se incluye el año anterior: el 4T del año pasado vence el 30 de enero de este año\nconst next = [...deadlinesFor(y - 1), ...deadlinesFor(y), ...deadlinesFor(y + 1)]\n  .filter((d) => d.deadline.getTime() >= now.getTime() - 86400000)\n  .sort((a, z) => a.deadline - z.deadline)[0];\n\nif (!next) return [];\n\nconst deadlineStr = next.deadline.toISOString().split('T')[0];\nconst days = Math.ceil((next.deadline - now) / 86400000);\nif (days > 30) return [];\n\n// Evita duplicar el aviso cada semana: una alerta abierta por negocio + trimestre + fecha\nconst already = new Set(existing.map((a) => `${a.business_id}|${a.evidence.quarter}|${a.evidence.deadline}`));\n\nconst alerts = [];\nfor (const b of businesses) {\n  if (already.has(`${b.id}|${next.label}|${deadlineStr}`)) continue;\n  alerts.push({\n    json: {\n      business_id: b.id,\n      severity: days <= 7 ? 'high' : 'medium',\n      type: 'PERIOD_DEADLINE',\n      title: `Vence el Modelo 303 (${next.label}) en ${days} días`,\n      description: `El plazo de presentación del Modelo 303 del trimestre ${next.label} termina el ${deadlineStr}. Revisa y concilia tus facturas pendientes.`,\n      evidence: { quarter: next.label, deadline: deadlineStr, daysRemaining: days },\n      entity_type: 'period',\n      entity_id: null,\n      source: 'n8n',\n      status: 'OPEN'\n    }\n  });\n}\n\nreturn alerts;"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [480, 0],
-      "id": "code-build-deadlines",
+      "position": [
+        1520,
+        64
+      ],
+      "id": "a28d2456-0feb-48c0-b4df-f929880a540c",
       "name": "Build Deadline Alerts"
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "=https://rqcpwxucgkcodccrykpv.supabase.co/rest/v1/alerts",
+        "url": "https://rqcpwxucgkcodccrykpv.supabase.co/rest/v1/alerts",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            {
-              "name": "apikey",
-              "value": "={{ $env.SUPABASE_SERVICE_ROLE_KEY || 'your-supabase-key' }}"
-            },
-            {
-              "name": "Authorization",
-              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY || 'your-supabase-key' }}"
-            },
             {
               "name": "Content-Type",
               "value": "application/json"
@@ -87,9 +109,18 @@
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [720, 0],
-      "id": "http-insert-alerts",
-      "name": "Supabase: Insert Alerts"
+      "position": [
+        1728,
+        64
+      ],
+      "id": "ecbd66b9-73f9-4531-bfcd-f57d84481d73",
+      "name": "Supabase: Insert Alerts",
+      "credentials": {
+        "supabaseApi": {
+          "id": "UrPBRVGMD2tjVUxj",
+          "name": "Supabase Copilot"
+        }
+      }
     }
   ],
   "connections": {
@@ -105,6 +136,17 @@
       ]
     },
     "Supabase: List Businesses": {
+      "main": [
+        [
+          {
+            "node": "Supabase: List Open Deadline Alerts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase: List Open Deadline Alerts": {
       "main": [
         [
           {
@@ -126,5 +168,9 @@
         ]
       ]
     }
+  },
+  "pinData": {},
+  "meta": {
+    "instanceId": "13031a7f8278891f0885fdb5e98e31adeb0766c6b92c822b393433419b9dbfcd"
   }
 }
