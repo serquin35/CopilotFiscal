@@ -373,8 +373,8 @@ Todo cambio posterior sin fichero de migración = DT-22.
 | DT-17 | Bucket `documents` público | 🟠 BAJA | Solo aceptable en DEMO; Fase 8 exige privado + signed URLs (WF-01 usa URL pública) | F8 prereq |
 | DT-18 | Webhook WF-01 sin autenticación | 🟡 MEDIA | Añadir header secreto o Header Auth | F4 |
 | DT-19 | Barrido de documentos atascados en EXTRACTING | 🟢 BAJA | Solo hay polling con la página abierta; sin sweeper servidor | F4 |
-| DT-20 | Límite de concurrencia en n8n | 🟢 BAJA | Variable `N8N_CONCURRENCY_PRODUCTION_LIMIT`: valor y aplicación en servidor pendientes de verificar | F4 |
-| DT-21 | `/api/convert-pdf` sin uso | 🟢 BAJA | WF-01 no lo usa (descarga binario directo); retirada pendiente de confirmar | F4 |
+| DT-20 | Límite de concurrencia en n8n | 🟢 BAJA | Variable `N8N_CONCURRENCY_PRODUCTION_LIMIT`: NO definida en Dokploy (captura 03/10: solo 9 vars, sin concurrencia) => default sin cap; la guarda real es el pool cliente (conc. 2). Valor y aplicación en servidor pendientes de verificar | F4 |
+| DT-21 | `/api/convert-pdf` sin uso | 🟢 BAJA | WF-01 no lo usa (descarga binario directo); ELIMINADO 03/10/2026 (ruta + pdfjs-dist/canvas desinstalados) | F4 |
 | DT-22 | Cambios de BD sin migración versionada | 🟡 MEDIA | Columnas businesses/profiles + Realtime aplicados a mano; crear migraciones | F1 |
 
 ---
