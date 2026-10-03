@@ -131,7 +131,7 @@
 |---|---|---|---|
 | `KpaghIxvPx5XLabD` o posterior | WF-01: Document Intake & Extraction Pipeline | ✅ OPERATIVO | 13 |
 | `upm1rKUB4hJXvuvS` | WF-07: Anomaly & Deadline Monitor | ✅ ACTIVO | 4 |
-| *(pendiente de confirmar ID vigente)* | WF-08: Deadline Reminders | 🟡 CREADO 03/10/2026 (repo), PENDIENTE de publicar/activar y de confirmar consulta anti-duplicados (DT-16) | 4 |
+| *(pendiente de confirmar ID vigente)* | WF-08: Deadline Reminders | 🟡 CREADO 03/10/2026 (repo), ACTIVO en n8n cloud (confirmado 03/10; la version cloud incluye nodo List Open Deadline anti-duplicados, ausente en el JSON del repo: exportar y commitear) | 4 |
 
 > ⚠️ IDs WF-01: se han visto `KpaghIxvPx5XLabD` (01/10) y otro distinto
 > (02/10). **Pendiente de verificar cuál es el activo** y desactivar el
@@ -339,8 +339,8 @@ Supabase (SSR client)    AiProvider → OpenAIProvider (gpt-4o)
 | `suppliers` | 12 | 14 (9 seed + 5 reales) | ✅ Activa |
 | `tax_periods` | 19 | s/c | ✅ Activa |
 | `tax_snapshots` | 21 | s/c | ✅ Activa |
-| `alerts` | 20 | ≥3 de prueba WF-08 (pendiente de confirmar) | ✅ Activa |
-| `audit_events` | 12 | s/c | ✅ Activa |
+| `alerts` | 20 | ≥3 PERIOD_DEADLINE de prueba WF-08 03/10 (visibilidad pendiente, DT-16) | ✅ Activa |
+| `audit_events` | 12 | 29 (EXPENSE_DELETED, DOCUMENT_CONFIRMED, ALERT_DISMISSED) | ✅ Activa |
 
 **Migraciones en `supabase/migrations/`:** solo
 `20260930000000_initial_schema.sql` (incluye trigger
@@ -369,7 +369,7 @@ Todo cambio posterior sin fichero de migración = DT-22.
 | DT-13 | Fuga service_role en historial (GitGuardian #37833997) | ✅ MITIGADO 03/10/2026 — Rotación a `sb_*` + `Disable legacy keys` + purga historial (force-push) + `AGENTS.md` + hook pre-commit | SEG |
 | DT-14 | PDF con VARIOS tickets/facturas en un solo archivo | 🔴 ABIERTA | DT-07 solo validó un PDF multipágina de UNA factura | F3 |
 | DT-15 | Duplicados por contenido (misma factura, otra foto) | 🟡 MEDIA | Hash solo detecta el mismo archivo; falta proveedor+fecha+total / NIF+número | F3 |
-| DT-16 | `PERIOD_DEADLINE` invisible + WF-08 sin publicar | 🟡 MEDIA | WF-08 creado pero pendiente de publicar/activar; `/alerts`, widget y badge no renderizan filas n8n; sin anti-duplicados | F4 |
+| DT-16 | `PERIOD_DEADLINE` invisible en UI + JSON repo desfasado vs cloud | 🟡 MEDIA | WF-08 ACTIVO en cloud (03/10) con nodo anti-duplicados List Open Deadline; pendiente exportar JSON vigente al repo; `/alerts`, widget y badge no renderizan filas n8n; sin anti-duplicados | F4 |
 | DT-17 | Bucket `documents` público | 🟠 BAJA | Solo aceptable en DEMO; Fase 8 exige privado + signed URLs (WF-01 usa URL pública) | F8 prereq |
 | DT-18 | Webhook WF-01 sin autenticación | 🟡 MEDIA | Añadir header secreto o Header Auth | F4 |
 | DT-19 | Barrido de documentos atascados en EXTRACTING | 🟢 BAJA | Solo hay polling con la página abierta; sin sweeper servidor | F4 |
@@ -384,9 +384,9 @@ Todo cambio posterior sin fichero de migración = DT-22.
 | # | Ítem | Ref | Prioridad |
 |---|---|---|---|
 | 10 | Cierre administrativo GitGuardian: marcar revocado + purga caché GitHub + re-clonado del tester | DT-13 | Alta |
-| 11 | Publicar/activar WF-08 + visibilizar PERIOD_DEADLINE (/alerts, widget, badge) + anti-duplicados | DT-16 | Media |
+| 11 | Exportar JSON vigente de WF-08 + visibilizar PERIOD_DEADLINE (/alerts, widget, badge) + anti-duplicados | DT-16 | Media |
 | 12 | Ejecutar matriz RLS + test 2-usuarios; crear migraciones de la deriva de BD | DT-06, DT-22 | Media |
-| 13 | Verificar ID vigente de WF-01 y desactivar el antiguo | — | Media |
+| 13 | Desactivar WF-01 antiguo (Kpagh); vigente zrKXQ5YJ8lLwHRL7 (03/10) | — | Media |
 | 14 | Crear bucket storage avatars (SQL) para activar el avatar de settings | — | Baja |
 | 15 | PDF multi-factura, duplicados por contenido | DT-14, DT-15 | Baja |
 | 16 | Webhook WF-01 con auth, sweeper EXTRACTING, concurrencia n8n, retirar convert-pdf, bucket privado | DT-17–DT-21 | Baja |
@@ -491,4 +491,4 @@ Todo cambio posterior sin fichero de migración = DT-22.
 
 *Documento generado y mantenido por Antigravity + Muse Spark. Actualizar al final de cada sesión de desarrollo.*
 
-- [ ] Publicar/activar WF-08 en n8n + confirmar consulta anti-duplicados (DT-16; falta para el 100%)
+- [x] WF-08 publicado/activo en n8n (anti-duplicados en cloud confirmado 03/10); pendiente exportar JSON vigente (DT-16)

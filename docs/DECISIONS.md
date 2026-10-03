@@ -109,7 +109,7 @@ Se decide almacenar **únicamente la versión optimizada** (redimensionada a un 
 
 ## ADR-04: Modelo IA activo `gpt-4o` (03/10/2026)
 
-**Hechos:** el commit `ad0ca8d` fijó `gpt-4o` como defecto en WF-01
+**Hechos:** el cambio a `gpt-4o` se aplicó en n8n cloud la mañana del 02/10 (confirmado por el dueño); el commit `ad0ca8d` fijó `gpt-4o` como defecto en el export WF-01
 (`Build OpenAI Request`), `/api/copilot/chat` y etiqueta UI usan `gpt-4o`,
 `.env.example` (`OPENAI_MODEL_EXTRACTION=gpt-4o`). Existe un revert
 local a `gpt-4o-mini` (3 líneas del export WF-01) que se descartó con

@@ -61,7 +61,8 @@
 ### WF-01: `document-intake-and-extraction` (Pipeline Unificado v2.1)
 
 > **ID en producción:** `zrKXQ5YJ8lLwHRL7`  
-> **Nombre:** `[Copilot Fiscal] WF-01: Document Intake & Extraction Pipeline`  
+> **Nombre:** `[Copilot Fiscal] WF-01: Document Intake & Extraction Pipeline`
+> **ID vigente:** `zrKXQ5YJ8lLwHRL7` (confirmado 03/10/2026; anterior `KpaghIxvPx5XLabD` a desactivar)  
 > **Topología:** 13 nodos con branching inteligente de binarios PDF vs imágenes  
 > **Referencias de Arquitectura:** [ADR-01 (Tokens)](DECISIONS.md#adr-01-consumo-de-tokens-de-visión-en-extracción-de-facturas-wf-01), [ADR-02 (Storage 1600px)](DECISIONS.md#adr-02-almacenamiento-de-imágenes-originales-vs-comprimidas-23-trazabilidad), [ADR-03 (Batch Pool)](DECISIONS.md#adr-03-estrategia-de-subida-en-bloque-asíncrona-pool-de-concurrencia-vs-bloqueante)
 
@@ -338,7 +339,7 @@
 
 ---
 
-### WF-08: `deadline-reminders` ✅ CREADO 03/10/2026 (pendiente de publicar/activar en n8n)
+### WF-08: `deadline-reminders` ✅ CREADO 03/10/2026 (pendiente de publicar/activar en n8n). NOTA 03/10: el dueño confirma WF-08 ACTIVO en cloud (con nodo anti-duplicados no presente en el JSON del repo: exportar y commitear)
 
 **Fichero:** `n8n/workflows/wf08_deadline_reminders.json` (4 nodos, sin secretos: usa `$env.SUPABASE_SERVICE_ROLE_KEY`).
 
