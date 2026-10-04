@@ -8,26 +8,11 @@
 -- 0. Cierre del bucket (rollback: update ... set public = true)
 UPDATE storage.buckets SET public = false WHERE id = 'documents';
 
--- 1. Eliminar SOLO las SELECT amplias sobre este bucket (se registran en NOTICE).
---    Rollback: ver sección ROLLBACK al final (las recrea de forma genérica).
-DO $$
-DECLARE
-  r RECORD;
-  n INT := 0;
-BEGIN
-  FOR r IN
-    SELECT policyname FROM pg_policies
-    WHERE schemaname = 'storage' AND tablename = 'objects' AND cmd = 'SELECT'
-      AND (qual ILIKE '%documents%' OR with_check ILIKE '%documents%')
-  LOOP
-    EXECUTE format('DROP POLICY IF EXISTS %I ON storage.objects', r.policyname);
-    RAISE NOTICE 'DROP policy amplia: %', r.policyname;
-    n := n + 1;
-  END LOOP;
-  IF n = 0 THEN
-    RAISE NOTICE 'No se encontraron SELECT amplias sobre documents.';
-  END IF;
-END $$;
+-- 1. Eliminar las policies amplias sobre este bucket (snapshot 04/10/2026).
+--    Nombres exactos verificados en pg_policies (NO tocar las de `avatars`).
+DROP POLICY IF EXISTS "Public Access to Documents Bucket" ON storage.objects;
+DROP POLICY IF EXISTS "Authenticated users can view own documents" ON storage.objects;
+DROP POLICY IF EXISTS "Authenticated users can upload documents" ON storage.objects;
 
 -- 2. Policies por negocio (solo authenticated; WITH CHECK en escritura).
 --    La carpeta es el business_id: {business_id}/{document_id}.{ext}
@@ -96,12 +81,16 @@ CREATE POLICY "documents owner delete"
 
 -- =============================================================================
 -- ROLLBACK (solo si A4 sale mal; asumir ventana de exposición y avisar)
+-- Recrea las policies originales EXACTAS del snapshot 04/10/2026.
 -- =============================================================================
 -- UPDATE storage.buckets SET public = true WHERE id = 'documents';
 -- DROP POLICY IF EXISTS "documents owner read" ON storage.objects;
 -- DROP POLICY IF EXISTS "documents owner insert" ON storage.objects;
 -- DROP POLICY IF EXISTS "documents owner update" ON storage.objects;
 -- DROP POLICY IF EXISTS "documents owner delete" ON storage.objects;
--- -- Re-creación genérica de las amplias (sustituir <nombres> por el snapshot):
--- CREATE POLICY "<nombre_original_1>" ON storage.objects FOR SELECT USING (bucket_id = 'documents');
--- CREATE POLICY "<nombre_original_2>" ON storage.objects FOR SELECT USING (bucket_id = 'documents');
+-- CREATE POLICY "Public Access to Documents Bucket" ON storage.objects
+--   FOR ALL USING (bucket_id = 'documents') WITH CHECK (bucket_id = 'documents');
+-- CREATE POLICY "Authenticated users can view own documents" ON storage.objects
+--   FOR SELECT USING (bucket_id = 'documents');
+-- CREATE POLICY "Authenticated users can upload documents" ON storage.objects
+--   FOR INSERT WITH CHECK (bucket_id = 'documents');
