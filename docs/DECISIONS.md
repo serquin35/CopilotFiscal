@@ -292,15 +292,18 @@ webhook abierto permite pedir que procese rutas ajenas.
 cliente, ahora contra la ruta propia; el servidor reenvía sin cola propia.
 Mismo perfil TPM.
 
-**Duración en Vercel:** la extracción tarda 4-10 s + overhead n8n.
-La ruta necesita `export const maxDuration = 60;` — **verificar que el plan
-Hobby lo admite** (por defecto son 10 s; si el plan no admite 60 s, el plan B
-es respuesta 202 inmediata + Realtime/polling ya existentes, sin espera).
+**Duración en Vercel (verificado en docs oficiales 08/2026):** plan Hobby,
+300 s por defecto y 300 s de máximo. `maxDuration = 60` cabe de sobra para
+4-10 s de extracción (timeout propio 55 s). Sin plan B necesario, pero se
+mantiene 202 + Realtime como alternativa si el plan cambia.
 
 **Alternativa simple (no recomendada):** mantener llamada directa + path
 impredecible del webhook + validación segmento==businessId en WF-01.
 Barata pero el secreto vive en el bundle del cliente y no hay check RLS de
 propiedad: insuficiente con datos reales.
 
-**Recomendación:** ruta de servidor con `maxDuration = 60` y timeout 55 s;
-si Hobby lo recorta, modo 202 + Realtime.
+**Recomendación:** ruta de servidor con `maxDuration = 60` y timeout 55 s.
+Secreto nuevo de 32 bytes generado el 03/10/2026 (en `web/.env.local`,
+pendiente de copiar a Vercel + Header Auth n8n al activar A5; el anterior se
+considera comprometido y no se reutiliza). Orden: A5 DESPUÉS de A4; hasta
+entonces el webhook acepta llamadas actuales.
