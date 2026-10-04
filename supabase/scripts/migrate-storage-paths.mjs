@@ -34,7 +34,8 @@ const MIME_EXT = {
 async function rest(path, opts = {}) {
   const r = await fetch(`${URL}/rest/v1/${path}`, { headers: H, ...opts });
   if (!r.ok) throw new Error(`REST ${path}: HTTP ${r.status}`);
-  return r.json();
+  const text = await r.text();
+  return text ? JSON.parse(text) : null;
 }
 async function storage(path, body, method = "POST") {
   const r = await fetch(`${URL}/storage/v1/${path}`, {
@@ -73,10 +74,18 @@ if (!APPLY) {
 const { writeFileSync } = await import("node:fs");
 const csv = ["id,ruta_antigua,ruta_nueva"];
 for (const p of plan) {
-  await storage("object/copy", { bucket_id: "documents", source_key: p.oldPath, destination_key: p.newPath });
-  const listed = await storage(`object/list/documents`, { prefix: p.newPath, limit: 1 });
-  if (!listed || !listed.some((o) => o.name === p.newPath.split("/").pop())) {
-    throw new Error(`Verificación fallida para ${p.newPath}: ABORTO, originales intactos.`);
+  const folder = p.newPath.split("/").slice(0, -1).join("/");
+  const base = p.newPath.split("/").pop();
+  // Idempotente: si la copia ya existe (re-ejecución), se salta la copia
+  const existing = await storage(`object/list/documents`, { prefix: `${folder}/`, limit: 100 });
+  if (!existing.some((o) => o.name === base)) {
+    await storage("object/copy", { bucketId: "documents", sourceKey: p.oldPath, destinationKey: p.newPath });
+    const listed = await storage(`object/list/documents`, { prefix: `${folder}/`, limit: 100 });
+    if (!listed.some((o) => o.name === base)) {
+      throw new Error(`Verificación fallida para ${p.newPath}: ABORTO, originales intactos.`);
+    }
+  } else {
+    console.log(`  ya existe, se salta copia ${p.newPath}`);
   }
   await rest(`documents?id=eq.${p.id}`, {
     method: "PATCH",
