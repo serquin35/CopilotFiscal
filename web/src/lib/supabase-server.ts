@@ -7,11 +7,10 @@ const SUPABASE_URL =
 
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 
-if (!SUPABASE_ANON_KEY) {
-  throw new Error("Falta NEXT_PUBLIC_SUPABASE_ANON_KEY en variables de entorno.");
-}
-
 export function createClient() {
+  if (!SUPABASE_ANON_KEY) {
+    throw new Error("Falta NEXT_PUBLIC_SUPABASE_ANON_KEY en variables de entorno.");
+  }
   const cookieStore = cookies();
 
   return createServerClient(

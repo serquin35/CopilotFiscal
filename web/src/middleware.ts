@@ -7,14 +7,16 @@ const SUPABASE_URL =
 
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 
-if (!SUPABASE_ANON_KEY) {
-  throw new Error("Falta NEXT_PUBLIC_SUPABASE_ANON_KEY en variables de entorno.");
-}
+// Nota: sin throw a nivel de módulo (rompería el build); se valida por petición.
 
 // Routes that don't require authentication (API routes handle their own auth/secret tokens)
 const PUBLIC_ROUTES = ["/login", "/register", "/forgot-password", "/auth", "/api"];
 
 export async function middleware(request: NextRequest) {
+  if (!SUPABASE_ANON_KEY) {
+    console.error("Falta NEXT_PUBLIC_SUPABASE_ANON_KEY en variables de entorno.");
+    return NextResponse.next({ request });
+  }
   let supabaseResponse = NextResponse.next({ request });
 
   const supabase = createServerClient(

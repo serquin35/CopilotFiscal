@@ -8,11 +8,15 @@ const SUPABASE_URL =
 
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 
-if (!SUPABASE_ANON_KEY) {
-  throw new Error("Falta NEXT_PUBLIC_SUPABASE_ANON_KEY en variables de entorno.");
-}
+// Nota: sin throw a nivel de módulo (rompería el build); se valida en el handler.
 
 export async function GET(request: NextRequest) {
+  if (!SUPABASE_ANON_KEY) {
+    return NextResponse.json(
+      { error: "Falta NEXT_PUBLIC_SUPABASE_ANON_KEY en variables de entorno." },
+      { status: 500 }
+    );
+  }
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
   const next = searchParams.get("next") ?? "/";
