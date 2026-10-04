@@ -9,13 +9,14 @@ const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 
 export function createClient() {
   if (!SUPABASE_ANON_KEY) {
-    throw new Error("Falta NEXT_PUBLIC_SUPABASE_ANON_KEY en variables de entorno.");
+    // Sin throw: el prerender del build debe sobrevivir sin env.
+    console.error("Falta NEXT_PUBLIC_SUPABASE_ANON_KEY en variables de entorno.");
   }
   const cookieStore = cookies();
 
   return createServerClient(
     SUPABASE_URL,
-    SUPABASE_ANON_KEY,
+    SUPABASE_ANON_KEY || "missing-env",
     {
       cookies: {
         getAll() {

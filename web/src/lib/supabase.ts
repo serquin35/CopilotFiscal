@@ -10,9 +10,10 @@ function buildClient(): SupabaseClient {
     process.env.NEXT_SUPABASE_ANON_KEY ||
     "";
   if (!key) {
-    throw new Error("Falta NEXT_PUBLIC_SUPABASE_ANON_KEY en variables de entorno.");
+    // Sin throw: el prerender del build debe sobrevivir sin env.
+    console.error("Falta NEXT_PUBLIC_SUPABASE_ANON_KEY en variables de entorno.");
   }
-  return createClient(url, key);
+  return createClient(url, key || "missing-env");
 }
 
 // Proxy perezoso: el módulo debe poder importarse en build sin env
