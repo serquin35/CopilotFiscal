@@ -26,7 +26,7 @@ import { FiscalDocument } from "@/types";
 import { useAuth } from "@/context/AuthContext";
 import { optimizeImage } from "@/lib/image-optimizer";
 import { sha256Hex } from "@/lib/file-hash";
-import { buildStoragePath, isLegacyRootPath } from "@/lib/storage-path";
+import { buildStoragePath } from "@/lib/storage-path";
 import {
   getSignedDocumentUrl,
   purgeLegacyDocCache,
@@ -89,7 +89,7 @@ export default function DocumentsPage() {
       try {
         localStorage.setItem(
           STORAGE_KEY,
-          JSON.stringify(list.map(({ url: _u, ...rest }) => rest))
+          JSON.stringify(list.map((d) => ({ ...d, url: undefined })))
         );
       } catch {
         // caché opcional
@@ -254,7 +254,7 @@ export default function DocumentsPage() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [currentBizId, isDemo, STORAGE_KEY, supabase]);
+  }, [currentBizId, isDemo, STORAGE_KEY, supabase, persistDocs]);
 
   // 3. Polling de respaldo de baja frecuencia solo si hay documentos en estado EXTRACTING
   useEffect(() => {
@@ -478,11 +478,6 @@ export default function DocumentsPage() {
     }
 
     setIsUploading(true);
-    const n8nWebhookUrl =
-      process.env.NEXT_PUBLIC_N8N_WEBHOOK_URL ||
-      process.env.NEXT_N8N_WEBHOOK_URL ||
-      "https://n8n.cheosdesign.info/webhook/copilot-document-intake";
-
     setBatchProgress({
       total: fileList.length,
       uploaded: 0,
