@@ -331,7 +331,7 @@ Supabase (SSR client)    AiProvider → OpenAIProvider (gpt-4o)
 | Tabla | Columnas (migración) | Registros | Estado |
 |---|---|---|---|
 | `businesses` | 13 (20 en vivo) | 3 | ✅ Activa |
-| `profiles` | 6 (7 en vivo) | s/c | ✅ Activa |
+| `profiles` | 6 (7 en vivo) | 3 (tester, demo-test, dueno) | ✅ Activa |
 | `documents` | 22 | 6 | ✅ En uso por WF-01 |
 | `document_extractions` | 21 | 6 | ✅ En uso por WF-01 |
 | `expenses` | 26 | 18 (13 seed + 5 reales) | ✅ Activa |
