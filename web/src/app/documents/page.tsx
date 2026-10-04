@@ -606,6 +606,16 @@ export default function DocumentsPage() {
         </p>
       </div>
 
+      {/* Aviso piloto (temporal, tarea A): qué se procesa y con qué límites */}
+      <div
+        role="alert"
+        className="rounded-2xl border border-warning/40 bg-warning/10 px-4 py-3 text-xs leading-relaxed text-foreground"
+      >
+        <strong>Entorno piloto:</strong> tus documentos se procesan con IA de un
+        tercero (OpenAI) y las cifras son estimativas, no válidas para presentar
+        impuestos. Sube solo documentos de tu propio negocio o con permiso de su titular.
+      </div>
+
       {/* 2. Drag & Drop Upload Zone */}
       <div
         onDragOver={handleDragOver}

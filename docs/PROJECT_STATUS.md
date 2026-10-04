@@ -362,7 +362,7 @@ Todo cambio posterior sin fichero de migración = DT-22.
 | DT-06 | Tests RLS por tabla sin cubrir | 🟡 MEDIA — Smoke `supabase/tests/rls_smoke.sql` ✅ 03/10/2026; exhaustivos pendientes | F1 |
 | DT-07 | Soporte PDF multi-página en WF-01 sin probar | ✅ RESUELTO — PDF 4 páginas validado en producción 02/10/2026 | F4 |
 | DT-08 | WF-05 expense-processing automático no implementado | ✅ RESUELTO — Integrado en Human-in-the-Loop review 02/10/2026 | F4 |
-| DT-09 | Separación de entornos DEMO/STAGING/PROD | 🟠 BAJA — Banner DEMO global (`EnvBanner`) ✅ 03/10/2026; separación total pendiente | F8 prereq |
+| DT-09 | Separación de entornos DEMO/STAGING/PROD | 🟠 ALTA — Banner DEMO global (`EnvBanner`) ✅ 03/10/2026; separación total pendiente | F8 prereq |
 | DT-10 | Supabase Auth no activado para usuarios reales | ✅ RESUELTO | F6.5 |
 | DT-11 | Upgrade a `gpt-4o` | ✅ RESUELTO 03/10/2026 — `gpt-4o` activo en WF-01, copiloto y docs. Revertida la vuelta atrás a mini no autorizada. | F4 |
 | DT-12 | Falsos "0 €" en dashboard (trimestre vacío + errores silenciosos) | ✅ RESUELTO 03/10/2026 — Banner trimestre-con-datos + banner error visible | F5 |
@@ -455,6 +455,7 @@ Todo cambio posterior sin fichero de migración = DT-22.
 
 | 03/10/2026 | Docs | **AUDITORIA v2.1**: comparativa trimestres, AiProvider, WF-08/WF-10, avatar, matriz RLS, SECURITY/AI_POLICY/TESTING, ADR-04 a 09; F4 95% (falta publicar WF-08), SEG mitigado. |
 ---
+| 03/10/2026 | Seguridad | **TAREA A (吉吉bucket privado)**: aviso piloto en /documents + ADR-10 (datos reales con consentimiento) + ADR-11 diseno (pendiente validacion); DT-17 a ALTA. |
 | 03/10/2026 | n8n | **WF-08 VIGENTE**: JSON cloud (5 nodos, anti-duplicados, credencial Supabase Copilot) commiteado tras simular logica (0 duplicados / 3 inserciones); version propia retirada. |
 
 ## 🗺️ Estado actual y próximos pasos

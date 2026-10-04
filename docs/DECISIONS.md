@@ -154,3 +154,97 @@ hook pre-commit y `scripts/check-keys.mjs`. Detalle en `SECURITY.md`.
 % = ítems ✅ / ítems totales de la tabla de la fase en PROJECT_STATUS.
 100% exige cero ítems pendientes; lo descartado a propósito va a
 `DECISIONS.md` + backlog (p. ej. exportar conversación del chat).
+
+---
+
+## ADR-10: Entorno piloto con datos reales (desviacion del Master Plan 0)
+
+**Fecha:** 03/10/2026. **Aprueba:** el dueno (Serquin).
+
+**Desviacion:** el Master Plan 0 excluia datos fiscales reales de la hija en
+la fase inicial. Pasa a permitirse porque los datos son del propio dueno (su
+factura de Iberdrola) y del negocio familiar (bar-restaurante de su hija)
+**con consentimiento de sus titulares**, mas documentos de testers. El entorno
+sigue etiquetado DEMO pero opera como PILOTO.
+
+**Medidas minimas aplicadas:**
+- Bucket `documents` a privado + URLs firmadas de vida corta (tarea A, DT-17 en ALTA).
+- RLS en Storage por negocio; resto de RLS ya activo (DT-06 en curso).
+- Aviso visible en `/documents` (piloto, IA de tercero, cifras estimativas).
+- Prohibido presentar cifras como declaracion oficial (AI_POLICY + banner DEMO).
+
+**Los prerrequisitos de Fase 8 siguen sin cumplirse** (juridico, backup,
+fuentes AEAT, separacion total de entornos). Sin ellos no hay produccion.
+
+---
+
+## ADR-11: Diseno bucket privado documents (tarea A1, pendiente de validacion)
+
+**Estado:** DISENO sin implementar. No mover ni renombrar objetos hasta validacion.
+
+### 1. Inventario real de URLs publicas (verificado en codigo 03/10/2026)
+
+| Lugar | Uso |
+|---|---|
+| `documents/page.tsx:129,357` | `getPublicUrl` al mapear y al subir (guarda `filePublicUrl` en memoria) |
+| `documents/page.tsx:362` | `notes = "URL: <publica>"` → **URLs completas guardadas en BD** |
+| `documents/page.tsx:448` | `fileUrl` (publica) en payload al webhook n8n |
+| `expenses/page.tsx:117` | `getPublicUrl` para miniaturas |
+| `review/page.tsx:105` | `getPublicUrl` para el visor |
+| WF-01 `Download PDF` | descarga desde `fileUrl` (requiere URL publica hoy) |
+| WF-01 `Build OpenAI Request` | imagen como `image_url` con URL publica; PDF como `file_data` base64 |
+| `web/.../convert-pdf` | ELIMINADO 03/10/2026 (DT-21); ya no cuenta |
+
+Filas con URL completa en BD: `documents.notes` con prefijo `URL: ` (todas las
+subidas desde el panel web). Derivar `storage_path` desde `storage_path`
+(columna propia, siempre presente) — no hace falta parsear la URL.
+
+### 2. Convencion de `storage_path`
+
+Hoy: `${uuid}-${nombre}` en la RAIZ del bucket (sin carpeta por negocio).
+Propuesta: `{business_id}/{document_id}.{ext}`. Archivos existentes NO se
+mueven sin validacion: los nuevos usan la convencion; los viejos se sirven
+por `storage_path` tal cual y se migran con script reversible (A3).
+
+### 3. RLS en `storage.objects` (fichero de migracion, sin aplicar a mano)
+
+```sql
+-- supabase/migrations/AAAAMMDDHHMMSS_storage_documents_rls.sql
+update storage.buckets set public = false where id = 'documents';
+
+create policy "documents owner read" on storage.objects for select
+using (bucket_id = 'documents'
+  and exists (select 1 from businesses b
+    where b.id::text = split_part(name, '/', 1) and b.owner_id = auth.uid()));
+-- insert/update/delete analogos; los objetos raiz antiguos quedan visibles
+-- solo via service_role hasta migrarlos (ver A3).
+```
+
+### 4. Descarga n8n autenticada
+
+`GET https://<ref>.supabase.co/storage/v1/object/authenticated/<storage_path>`
+con `apikey` + `Authorization: Bearer <sb_secret>` (credencial n8n;
+verificado compatible 03/10/2026). Respuesta binaria a propiedad `data`.
+Nunca URL publica. Confirmar en cloud que el tipo `sb_*` funciona en el
+nodo HTTP (en REST funciono el 03/10; pendiente prueba en el propio n8n).
+
+### 5. Imagenes como data URL base64
+
+En `Build OpenAI Request`: `image_url: { url: "data:<mime>;base64,..." }`
+con MIME real validado contra `png/jpeg/gif/webp`; si no es valido,
+documento a NEEDS_REVIEW con mensaje claro. PDFs igual que hoy
+(`file_data` base64). Mantener limite 20 MB y errores hacia NEEDS_REVIEW.
+
+### 6. Rollback por paso
+
+- A2: si el workflow nuevo falla, reactivar el anterior (no desactivarlo
+  hasta validar; anotar IDs vigente/antiguo).
+- A3: feature-flag por `storage_path` con `/` (nuevo) vs sin `/` (viejo).
+- A4: `update storage.buckets set public = true` revierte visibilidad
+  (ventana de exposicion asumida; avisar).
+- Migracion SQL: transaccion + `down` que revierte policies y flag.
+
+### 7. Bucket `avatars`
+
+Puede seguir PUBLICO: solo fotos de perfil, sin datos fiscales. Decidir por
+separado si algun dia guarda otra cosa. Documentado; sin accion.
