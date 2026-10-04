@@ -3,6 +3,8 @@
 -- Fichero: supabase/migrations/20261004000000_storage_documents_rls.sql
 -- Estado: PREPARADA, NO aplicada. Requiere confirmación explícita (tarea A4).
 -- Previo obligatorio: snapshot de policies (ver STORAGE_MIGRATION_PLAN.md).
+-- Corrección 04/10/2026: referencia cualificada storage.objects.name
+-- (sin cualificar, Postgres la enlazaba a businesses.name y denegaba todo).
 -- =============================================================================
 
 -- 0. Cierre del bucket (rollback: update ... set public = true)
@@ -27,7 +29,7 @@ CREATE POLICY "documents owner read"
     bucket_id = 'documents'
     AND EXISTS (
       SELECT 1 FROM public.businesses b
-      WHERE b.id::text = split_part(name, '/', 1)
+      WHERE b.id::text = split_part(storage.objects.name, '/', 1)
         AND b.owner_id = auth.uid()
     )
   );
@@ -40,7 +42,7 @@ CREATE POLICY "documents owner insert"
     bucket_id = 'documents'
     AND EXISTS (
       SELECT 1 FROM public.businesses b
-      WHERE b.id::text = split_part(name, '/', 1)
+      WHERE b.id::text = split_part(storage.objects.name, '/', 1)
         AND b.owner_id = auth.uid()
     )
   );
@@ -53,7 +55,7 @@ CREATE POLICY "documents owner update"
     bucket_id = 'documents'
     AND EXISTS (
       SELECT 1 FROM public.businesses b
-      WHERE b.id::text = split_part(name, '/', 1)
+      WHERE b.id::text = split_part(storage.objects.name, '/', 1)
         AND b.owner_id = auth.uid()
     )
   )
@@ -61,7 +63,7 @@ CREATE POLICY "documents owner update"
     bucket_id = 'documents'
     AND EXISTS (
       SELECT 1 FROM public.businesses b
-      WHERE b.id::text = split_part(name, '/', 1)
+      WHERE b.id::text = split_part(storage.objects.name, '/', 1)
         AND b.owner_id = auth.uid()
     )
   );
@@ -74,7 +76,7 @@ CREATE POLICY "documents owner delete"
     bucket_id = 'documents'
     AND EXISTS (
       SELECT 1 FROM public.businesses b
-      WHERE b.id::text = split_part(name, '/', 1)
+      WHERE b.id::text = split_part(storage.objects.name, '/', 1)
         AND b.owner_id = auth.uid()
     )
   );
