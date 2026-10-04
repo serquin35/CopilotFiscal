@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Badge, StatusBadge } from "@/components/ui/badge";
 import { formatCurrency } from "@/lib/utils";
 import { validateNif, maskNif } from "@/lib/nif-validator";
+import { getSignedDocumentUrl } from "@/lib/signed-url";
 import { initialDocuments } from "@/lib/mockData";
 import { FiscalDocument } from "@/types";
 import { useAuth } from "@/context/AuthContext";
@@ -100,10 +101,15 @@ export default function DocumentReviewPage() {
           const extList = dbDoc.document_extractions as Record<string, unknown>[] | null;
           const ext = Array.isArray(extList) && extList.length > 0 ? extList[0] : null;
 
-          let publicUrl = found?.url || "";
-          if (!publicUrl && dbDoc.storage_path) {
-            const { data: urlData } = supabase.storage.from("documents").getPublicUrl(dbDoc.storage_path);
-            publicUrl = urlData?.publicUrl || "";
+          // URL firmada bajo demanda desde storage_path (nunca pública persistida)
+          let viewUrl = "";
+          const storagePath = dbDoc.storage_path ? String(dbDoc.storage_path) : "";
+          if (storagePath) {
+            try {
+              viewUrl = await getSignedDocumentUrl(supabase, storagePath);
+            } catch (err) {
+              console.warn("No se pudo firmar la URL del documento:", err);
+            }
           }
 
           const fromDb: FiscalDocument = {
@@ -112,7 +118,8 @@ export default function DocumentReviewPage() {
             fileSize: Number(dbDoc.file_size_bytes) || found?.fileSize || 102400,
             uploadedAt: String(dbDoc.uploaded_at || found?.uploadedAt || new Date().toISOString()),
             status: (dbDoc.status as FiscalDocument["status"]) || found?.status || "PENDING_REVIEW",
-            url: publicUrl,
+            url: viewUrl,
+            storagePath: storagePath || undefined,
             providerName: (ext?.extracted_supplier_name as string) || found?.providerName || "Proveedor detectado",
             nif: (ext?.extracted_supplier_nif as string) || found?.nif || "-",
             invoiceNumber: (ext?.extracted_invoice_number as string) || found?.invoiceNumber || `F-${String(dbDoc.id).slice(-4).toUpperCase()}`,

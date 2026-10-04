@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/badge";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { buildExpensesCSV, bookFilename, downloadTextFile } from "@/lib/exportBook";
+import { getSignedDocumentUrl } from "@/lib/signed-url";
 import { FiscalDocument } from "@/types";
 import { useAuth } from "@/context/AuthContext";
 
@@ -112,12 +113,7 @@ export default function ExpensesPage() {
             const extList = item.document_extractions as Record<string, unknown>[] | null;
             const ext = Array.isArray(extList) && extList.length > 0 ? extList[0] : null;
 
-            let publicUrl = "";
-            if (item.storage_path) {
-              const { data: urlData } = supabase.storage.from("documents").getPublicUrl(String(item.storage_path));
-              publicUrl = urlData?.publicUrl || "";
-            }
-
+            const storagePath = item.storage_path ? String(item.storage_path) : undefined;
             const localMatch = currentDocs.find((cd) => cd.id === String(item.id));
 
             return {
@@ -126,7 +122,8 @@ export default function ExpensesPage() {
               fileSize: Number(item.file_size_bytes) || localMatch?.fileSize || 120000,
               uploadedAt: String(item.uploaded_at || localMatch?.uploadedAt || new Date().toISOString()),
               status: (item.status as FiscalDocument["status"]) || localMatch?.status || "PENDING_REVIEW",
-              url: publicUrl || localMatch?.url,
+              url: "",
+              storagePath,
               providerName: (ext?.extracted_supplier_name as string) || localMatch?.providerName || String(item.notes || "Proveedor detectado"),
               nif: (ext?.extracted_supplier_nif as string) || localMatch?.nif || "-",
               invoiceNumber: (ext?.extracted_invoice_number as string) || localMatch?.invoiceNumber || `F-${String(item.id || "").substring(0, 8)}`,
@@ -147,6 +144,22 @@ export default function ExpensesPage() {
           ...mappedDbDocs,
         ];
         setDocuments(combined);
+        // Firmar URLs en segundo plano (nunca se persisten)
+        void (async () => {
+          const signed = await Promise.all(
+            combined
+              .filter((d) => d.storagePath)
+              .map(async (d) => {
+                try {
+                  return { id: d.id, url: await getSignedDocumentUrl(supabase, d.storagePath) };
+                } catch {
+                  return { id: d.id, url: "" };
+                }
+              })
+          );
+          const byId = new Map(signed.map((s) => [s.id, s.url]));
+          setDocuments((prev) => prev.map((d) => (byId.has(d.id) ? { ...d, url: byId.get(d.id) } : d)));
+        })();
         return;
       }
     } catch (err) {

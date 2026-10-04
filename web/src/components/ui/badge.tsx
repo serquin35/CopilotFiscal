@@ -66,6 +66,8 @@ export function StatusBadge({ status }: { status: string }) {
       return <Badge variant="warning">Sin NIF</Badge>;
     case "REJECTED":
       return <Badge variant="destructive">Rechazada</Badge>;
+    case "ERROR":
+      return <Badge variant="destructive">Falló extracción</Badge>;
     case "DRAFT":
       return <Badge variant="warning">Borrador</Badge>;
     default:

@@ -455,6 +455,7 @@ Todo cambio posterior sin fichero de migración = DT-22.
 
 | 03/10/2026 | Docs | **AUDITORIA v2.1**: comparativa trimestres, AiProvider, WF-08/WF-10, avatar, matriz RLS, SECURITY/AI_POLICY/TESTING, ADR-04 a 09; F4 95% (falta publicar WF-08), SEG mitigado. |
 ---
+| 04/10/2026 | Tarea A | **P0+A3+A4-PREP en rama feat/a3-private-storage (sin merge)**: repo sincronizado con WF-01 v2.2 validado + tests URL/rechazos; frontend con storage_path+firmadas, compat flag, ERROR+Reintentar, cache v2; migracion RLS + script copia + plan despliegue SIN ejecutar. |
 | 03/10/2026 | n8n | **A2 WF-01 v2.2** (repo): 12 nodos, validacion storagePath, descarga autenticada, imagenes data URL; verificado con 13 aserciones en simulacion; pendiente importar y probar en n8n (JPG/PNG/PDF1/PDF4). |
 | 03/10/2026 | Seguridad | **TAREA A (吉吉bucket privado)**: aviso piloto en /documents + ADR-10 (datos reales con consentimiento) + ADR-11 diseno (pendiente validacion); DT-17 a ALTA. |
 | 03/10/2026 | n8n | **WF-08 VIGENTE**: JSON cloud (5 nodos, anti-duplicados, credencial Supabase Copilot) commiteado tras simular logica (0 duplicados / 3 inserciones); version propia retirada. |

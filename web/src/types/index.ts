@@ -5,9 +5,10 @@ export type DocumentStatus =
   | "NEEDS_REVIEW"
   | "PENDING_REVIEW"
   | "REVIEWED"
-  | "CONFIRMED"
-  | "APPROVED"
-  | "REJECTED";
+    | "CONFIRMED"
+    | "APPROVED"
+    | "REJECTED"
+    | "ERROR";
 
 export type InvoiceStatus =
   | "UNREVIEWED"
@@ -36,10 +37,12 @@ export interface FiscalDocument {
   category?: string;
   deductiblePercentage?: number; // 0, 50, 100
   aiNotes?: string;
-  anomalies?: AnomalyAlert[];
-  expenseId?: string;
-  documentId?: string;
-}
+    anomalies?: AnomalyAlert[];
+    expenseId?: string;
+    documentId?: string;
+    /** Ruta en Storage (única fuente para firmar URLs; jamás persistir URLs). */
+    storagePath?: string;
+  }
 
 export type AlertSeverity = "high" | "medium" | "low";
 
