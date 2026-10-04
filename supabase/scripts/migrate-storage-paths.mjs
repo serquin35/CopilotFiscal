@@ -90,7 +90,20 @@ writeFileSync(backupName, csv.join("\n"));
 console.log(`\nBackup escrito en ${backupName} (NO commitear: contiene rutas; guárdalo fuera del repo).`);
 
 if (DELETE_ORIGINALS) {
-  console.log("Borrado de originales: SOLO tras verificar A4. Re-ejecuta revisando cada fila del CSV.");
-  // Intencionadamente sin borrado automático: el borrado se hace objeto a
-  // objeto contra el CSV tras A4 verificado (paso h del plan).
+  // Borrado vía Storage API (el SQL directo está bloqueado por
+  // storage.protect_delete). Solo tras A4 verificado, objeto a objeto.
+  const confirmed = process.argv.includes("--confirm-delete");
+  if (!confirmed) {
+    console.log("Borrado de originales: añade --confirm-delete para ejecutarlo (tras verificar A4).");
+    process.exit(0);
+  }
+  for (const p of plan) {
+    const r = await fetch(`${URL}/storage/v1/object/documents`, {
+      method: "DELETE",
+      headers: { ...H, "User-Agent": "copiloto-fiscal-migrate/1.0" },
+      body: JSON.stringify([p.oldPath]),
+    });
+    if (!r.ok) throw new Error(`Borrado fallido ${p.oldPath}: HTTP ${r.status}`);
+    console.log(`  borrado original ${p.oldPath}`);
+  }
 }
