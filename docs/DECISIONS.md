@@ -178,7 +178,7 @@ fuentes AEAT, separacion total de entornos). Sin ellos no hay produccion.
 
 ---
 
-## ADR-11: Diseno bucket privado documents (tarea A1, pendiente de validacion)
+## ADR-11: Diseno bucket privado documents (tarea A1, APROBADO con condiciones 03/10/2026)
 
 **Estado:** DISENO sin implementar. No mover ni renombrar objetos hasta validacion.
 
@@ -202,11 +202,25 @@ subidas desde el panel web). Derivar `storage_path` desde `storage_path`
 ### 2. Convencion de `storage_path`
 
 Hoy: `${uuid}-${nombre}` en la RAIZ del bucket (sin carpeta por negocio).
-Propuesta: `{business_id}/{document_id}.{ext}`. Archivos existentes NO se
-mueven sin validacion: los nuevos usan la convencion; los viejos se sirven
-por `storage_path` tal cual y se migran con script reversible (A3).
+Aprobado: migrar TODO a `{business_id}/{document_id}.{ext}`, sin convivencia.
+Procedimiento reversible (con confirmación previa en producción):
+backup de objetos → COPIAR a nueva ruta → verificar cada copia con URL
+firmada → actualizar `storage_path` → borrar originales solo tras A4.
+`documents.notes`: solo se usa como fallback de nombre de proveedor en 4
+mapeos (UI) y es otra columna distinta en `alerts`/`expenses` (no se tocan).
+A NULL solo notas con patrón URL pública, con copia previa de (id, notes);
+no se borra la columna.
+
+Cachés con URLs públicas (inventario 03/10, sin `sessionStorage` en uso):
+`copiloto_fiscal_documents_*` (objetos con `url`), `copiloto_fiscal_documents_v1`,
+`copiloto_fiscal_active_alerts_count`, `copiloto_fiscal_resolved_alerts*`,
+`copiloto_prefs` (sin URLs). A3 versiona las claves (`_v2_signed`) o purga al cargar.
 
 ### 3. RLS en `storage.objects` (fichero de migracion, sin aplicar a mano)
+
+Solo rol `authenticated`; WITH CHECK en insert/update; sin policy `anon`;
+propiedad vía `businesses.owner_id = auth.uid()` con el primer segmento de
+la ruta (`split_part(name, '/', 1)`):
 
 ```sql
 -- supabase/migrations/AAAAMMDDHHMMSS_storage_documents_rls.sql
@@ -216,17 +230,25 @@ create policy "documents owner read" on storage.objects for select
 using (bucket_id = 'documents'
   and exists (select 1 from businesses b
     where b.id::text = split_part(name, '/', 1) and b.owner_id = auth.uid()));
--- insert/update/delete analogos; los objetos raiz antiguos quedan visibles
--- solo via service_role hasta migrarlos (ver A3).
+-- insert/update/delete analogos (update/delete con USING + WITH CHECK);
+-- los objetos raiz antiguos quedan visibles solo via service_role
+-- hasta migrarlos (ver A3).
 ```
 
-### 4. Descarga n8n autenticada
+Avatares: la UI sube a `${user.id}/avatar.*` (id de sesión, no elegible por
+el usuario), así que nadie puede sobrescribir el de otro desde la app; las
+policies deben exigir `auth.uid()::text = (storage.foldername(name))[1]`.
+Sin policy `anon` tampoco aquí.
+
+### 4. Descarga n8n autenticada (PENDIENTE de prueba en n8n por el dueño)
 
 `GET https://<ref>.supabase.co/storage/v1/object/authenticated/<storage_path>`
 con `apikey` + `Authorization: Bearer <sb_secret>` (credencial n8n;
-verificado compatible 03/10/2026). Respuesta binaria a propiedad `data`.
-Nunca URL publica. Confirmar en cloud que el tipo `sb_*` funciona en el
-nodo HTTP (en REST funciono el 03/10; pendiente prueba en el propio n8n).
+`sb_*` verificado en REST el 03/10/2026, **pendiente prueba en el propio
+n8n antes de tocar WF-01**). Respuesta binaria a propiedad `data`.
+Nunca URL publica. Pasos: en n8n, workflow temporal → HTTP Request GET a la
+URL authenticated de un doc real con credencial "Supabase Copilot" → Execute
+→ esperado: binario 200 (PDF/imagen). Sin esto verificado no hay A2.
 
 ### 5. Imagenes como data URL base64
 
@@ -248,3 +270,37 @@ documento a NEEDS_REVIEW con mensaje claro. PDFs igual que hoy
 
 Puede seguir PUBLICO: solo fotos de perfil, sin datos fiscales. Decidir por
 separado si algun dia guarda otra cosa. Documentado; sin accion.
+
+---
+
+## ADR-12: Webhook n8n tras servidor propio con Header Auth (propuesta A5, pendiente de validar)
+
+**Problema (DT-18):** con n8n descargando por ruta con service-role, el
+webhook abierto permite pedir que procese rutas ajenas.
+
+**Propuesta recomendada:** el navegador deja de llamar a n8n y llama a
+`POST /api/documents/process` (Next.js, misma app):
+1. Valida sesión (Supabase SSR) y comprueba por RLS que el documento
+   pertenece a un negocio del usuario (`select documents ... eq id, business`).
+2. Llama al webhook n8n con cabecera secreta (`N8N_WEBHOOK_SECRET`, ya existe
+   en `web/.env.local` y Vercel; en n8n va a Header Auth del trigger).
+3. n8n verifica la cabecera y además valida que el primer segmento de
+   `storagePath` == `businessId` del payload (defensa en profundidad).
+4. Responde al navegador al terminar (flujo actual) con timeout 55 s.
+
+**Impacto concurrencia (ADR-03):** el pool (2 simultáneas) sigue en el
+cliente, ahora contra la ruta propia; el servidor reenvía sin cola propia.
+Mismo perfil TPM.
+
+**Duración en Vercel:** la extracción tarda 4-10 s + overhead n8n.
+La ruta necesita `export const maxDuration = 60;` — **verificar que el plan
+Hobby lo admite** (por defecto son 10 s; si el plan no admite 60 s, el plan B
+es respuesta 202 inmediata + Realtime/polling ya existentes, sin espera).
+
+**Alternativa simple (no recomendada):** mantener llamada directa + path
+impredecible del webhook + validación segmento==businessId en WF-01.
+Barata pero el secreto vive en el bundle del cliente y no hay check RLS de
+propiedad: insuficiente con datos reales.
+
+**Recomendación:** ruta de servidor con `maxDuration = 60` y timeout 55 s;
+si Hobby lo recorta, modo 202 + Realtime.
