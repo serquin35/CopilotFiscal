@@ -26,6 +26,18 @@ import { FiscalDocument } from "@/types";
 import { useAuth } from "@/context/AuthContext";
 import { optimizeImage } from "@/lib/image-optimizer";
 import { sha256Hex } from "@/lib/file-hash";
+import { buildStoragePath, isLegacyRootPath } from "@/lib/storage-path";
+import {
+  getSignedDocumentUrl,
+  purgeLegacyDocCache,
+} from "@/lib/signed-url";
+
+/**
+ * TRANSITORIO (tarea A3): mientras el WF-01 antiguo siga activo se envía
+ * además `fileUrl` (firmada, NO pública). Eliminar junto a todo uso de URLs
+ * públicas en el commit final tras activar v2.2 y cerrar el bucket (A4).
+ */
+const LEGACY_FILEURL_COMPAT = true;
 
 interface BatchProgress {
   total: number;
@@ -68,8 +80,23 @@ export default function DocumentsPage() {
   const isDemo = business?.is_demo ?? false;
 
   const STORAGE_KEY = currentBizId
-    ? `copiloto_fiscal_documents_${currentBizId}`
-    : "copiloto_fiscal_documents_demo";
+    ? `copiloto_fiscal_documents_${currentBizId}_v2_signed`
+    : "copiloto_fiscal_documents_demo_v2_signed";
+
+  // Guarda caché local SIN urls (las firmadas son efímeras y jamás se persisten)
+  const persistDocs = useCallback(
+    (list: FiscalDocument[]) => {
+      try {
+        localStorage.setItem(
+          STORAGE_KEY,
+          JSON.stringify(list.map(({ url: _u, ...rest }) => rest))
+        );
+      } catch {
+        // caché opcional
+      }
+    },
+    [STORAGE_KEY]
+  );
 
   const [documents, setDocuments] = useState<FiscalDocument[]>([]);
   const [filter, setFilter] = useState<string>("ALL");
@@ -89,11 +116,39 @@ export default function DocumentsPage() {
   });
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Hidrata URLs firmadas bajo demanda (nunca se persisten)
+  const hydrateSignedUrls = useCallback(
+    async (list: FiscalDocument[]) => {
+      const withPath = list.filter((d) => d.storagePath);
+      if (withPath.length === 0) return;
+      const signed = await Promise.all(
+        withPath.map(async (d) => {
+          try {
+            const url = await getSignedDocumentUrl(supabase, d.storagePath);
+            return { id: d.id, url };
+          } catch {
+            return { id: d.id, url: "" };
+          }
+        })
+      );
+      const byId = new Map(signed.map((s) => [s.id, s.url]));
+      setDocuments((prev) => {
+        const updated = prev.map((d) =>
+          byId.has(d.id) ? { ...d, url: byId.get(d.id) } : d
+        );
+        return updated;
+      });
+    },
+    [supabase]
+  );
+
   // 1. Cargar documentos guardados localmente y desde Supabase al iniciar
   const loadDocuments = useCallback(async () => {
     if (!currentBizId) return;
+    // Purga cachés antiguas con URLs públicas (A3)
+    purgeLegacyDocCache(currentBizId);
     try {
-      // Cargar desde localStorage
+      // Cargar desde localStorage (sin URLs: se re-firman al mostrar)
       const saved = localStorage.getItem(STORAGE_KEY);
       let currentDocs = isDemo ? initialDocuments : [];
       if (saved) {
@@ -124,19 +179,14 @@ export default function DocumentsPage() {
           const extList = item.document_extractions as Record<string, unknown>[] | null;
           const ext = Array.isArray(extList) && extList.length > 0 ? extList[0] : null;
 
-          let publicUrl = "";
-          if (item.storage_path) {
-            const { data: urlData } = supabase.storage.from("documents").getPublicUrl(String(item.storage_path));
-            publicUrl = urlData?.publicUrl || "";
-          }
-
           return {
             id: String(item.id || ""),
             filename: String(item.original_filename || "Documento"),
             fileSize: Number(item.file_size_bytes) || 120000,
             uploadedAt: String(item.uploaded_at || new Date().toISOString()),
             status: (item.status as FiscalDocument["status"]) || "UPLOADED",
-            url: publicUrl,
+            url: "",
+            storagePath: item.storage_path ? String(item.storage_path) : undefined,
             providerName: (ext?.extracted_supplier_name as string) || String(item.notes || "Pendiente OCR"),
             nif: (ext?.extracted_supplier_nif as string) || "-",
             invoiceNumber: (ext?.extracted_invoice_number as string) || String(item.id || "").substring(0, 8),
@@ -158,12 +208,13 @@ export default function DocumentsPage() {
           ...currentDocs.filter((cd) => !mappedDbDocs.some((md) => md.id === cd.id)),
         ];
         setDocuments(combined);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(combined));
+        persistDocs(combined);
+        void hydrateSignedUrls(combined);
       }
     } catch {
       // Fallback suave
     }
-  }, [currentBizId, isDemo, STORAGE_KEY, supabase]);
+  }, [currentBizId, isDemo, STORAGE_KEY, supabase, persistDocs, hydrateSignedUrls]);
 
   useEffect(() => {
     loadDocuments();
@@ -192,7 +243,7 @@ export default function DocumentsPage() {
                   ? { ...d, status: updatedRow.status || d.status }
                   : d
               );
-              localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+              persistDocs(updated);
               return updated;
             });
           }
@@ -225,7 +276,7 @@ export default function DocumentsPage() {
     // Actualizar estado local y persistencia
     setDocuments((prev) => {
       const updated = prev.filter((d) => d.id !== id);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+      persistDocs(updated);
       return updated;
     });
 
@@ -255,6 +306,152 @@ export default function DocumentsPage() {
   const handleDragLeave = () => {
     setIsDragging(false);
   };
+
+  // Marca un documento como fallido en BD y UI (estado ERROR del enum real)
+  const markExtractionFailed = useCallback(
+    async (docId: string, reason: string) => {
+      setDocuments((prev) => {
+        const updated = prev.map((d) =>
+          d.id === docId
+            ? { ...d, status: "ERROR" as FiscalDocument["status"], aiNotes: reason }
+            : d
+        );
+        persistDocs(updated);
+        return updated;
+      });
+      try {
+        await supabase
+          .from("documents")
+          .update({ status: "ERROR", status_updated_at: new Date().toISOString() })
+          .eq("id", docId);
+      } catch (err) {
+        console.warn("Error marcando ERROR en Supabase:", err);
+      }
+      window.dispatchEvent(new Event("fiscal_docs_updated"));
+    },
+    [supabase, persistDocs]
+  );
+
+  // Llama al webhook de extracción para un documento (reutilizable por Reintentar)
+  const requestExtraction = useCallback(
+    async (doc: {
+      docId: string;
+      storagePath: string;
+      filename: string;
+      fileSize: number;
+      mimeType: string;
+    }) => {
+      const n8nWebhookUrl =
+        process.env.NEXT_PUBLIC_N8N_WEBHOOK_URL ||
+        process.env.NEXT_N8N_WEBHOOK_URL ||
+        "https://n8n.cheosdesign.info/webhook/copilot-document-intake";
+
+      // TRANSITORIO: fileUrl firmada solo mientras el WF-01 antiguo siga activo
+      let compatFileUrl: string | undefined;
+      if (LEGACY_FILEURL_COMPAT) {
+        try {
+          compatFileUrl = await getSignedDocumentUrl(supabase, doc.storagePath, 3600);
+        } catch {
+          compatFileUrl = undefined;
+        }
+      }
+
+      const payload = {
+        documentId: doc.docId,
+        businessId: currentBizId,
+        storagePath: doc.storagePath,
+        originalFilename: doc.filename,
+        fileSize: doc.fileSize,
+        mimeType: doc.mimeType,
+        ...(compatFileUrl ? { fileUrl: compatFileUrl } : {}),
+        uploadedAt: new Date().toISOString(),
+      };
+
+      const response = await fetch(n8nWebhookUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(60000),
+      });
+
+      if (!response.ok) {
+        throw new Error(`n8n HTTP ${response.status}`);
+      }
+      const result = await response.json();
+      const ext = result.extracted || {};
+      const status = (result.status === "EXTRACTED" ? "EXTRACTED" : "NEEDS_REVIEW") as FiscalDocument["status"];
+
+      setDocuments((prev) => {
+        const updated = prev.map((d) =>
+          d.id === doc.docId
+            ? {
+                ...d,
+                status: status,
+                providerName: ext.supplier_name || "Proveedor detectado",
+                nif: ext.supplier_nif || "-",
+                invoiceNumber: ext.invoice_number || `F-${doc.docId.slice(-4).toUpperCase()}`,
+                date: ext.date || new Date().toISOString().split("T")[0],
+                baseAmount: Number(ext.base_amount || 0),
+                vatRate: Number(ext.vat_rate || 21),
+                vatAmount: Number(ext.vat_amount || 0),
+                totalAmount: Number(ext.total_amount || 0),
+                category: ext.category || "Factura",
+                aiNotes: result.warnings && result.warnings.length > 0
+                  ? result.warnings.join(". ")
+                  : "Extracción OpenAI completada con éxito.",
+              }
+            : d
+        );
+        persistDocs(updated);
+        return updated;
+      });
+      window.dispatchEvent(new Event("fiscal_docs_updated"));
+    },
+    [currentBizId, supabase, persistDocs]
+  );
+
+  // Reintentar extracción de un documento fallido
+  const handleRetryExtraction = useCallback(
+    async (docId: string) => {
+      setDocuments((prev) => {
+        const updated = prev.map((d) =>
+          d.id === docId ? { ...d, status: "EXTRACTING" as FiscalDocument["status"] } : d
+        );
+        persistDocs(updated);
+        return updated;
+      });
+      try {
+        const { data: row } = await supabase
+          .from("documents")
+          .select("id, storage_path, original_filename, file_size_bytes, mime_type")
+          .eq("id", docId)
+          .maybeSingle();
+        const r = row as Record<string, unknown> | null;
+        if (!r?.storage_path) throw new Error("sin storage_path en BD");
+        await supabase
+          .from("documents")
+          .update({ status: "EXTRACTING", status_updated_at: new Date().toISOString() })
+          .eq("id", docId);
+        await requestExtraction({
+          docId,
+          storagePath: String(r.storage_path),
+          filename: String(r.original_filename || "Documento"),
+          fileSize: Number(r.file_size_bytes || 0),
+          mimeType: String(r.mime_type || "application/pdf"),
+        });
+        setBatchProgress((prev) => ({
+          ...prev,
+          extracted: prev.extracted + 1,
+        }));
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "error de red";
+        await markExtractionFailed(docId, `Reintento fallido (${msg}).`);
+        setBatchProgress((prev) => ({ ...prev, errors: prev.errors + 1 }));
+      }
+    },
+    [supabase, persistDocs, requestExtraction, markExtractionFailed]
+  );
+
 
   /**
    * PROCESAMIENTO EN BLOQUE DESACOPLADO EN DOS FASES (ADR-01, ADR-02, ADR-03)
@@ -306,16 +503,23 @@ export default function DocumentsPage() {
       filename: string;
       fileSize: number;
       mimeType: string;
-      filePublicUrl: string;
     }
 
     const ingestedDocs: (IngestedDoc | null)[] = await runConcurrencyPool(
       fileList,
       3,
       async (file) => {
+        const newDocUUID = crypto.randomUUID();
         try {
           // Optimización de imagen en cliente (ADR-01 & ADR-02)
           const { file: fileToUpload } = await optimizeImage(file, 1600, 0.85);
+
+          // Ruta con convención {business_id}/{document_id}.{ext} (ext del MIME)
+          const storagePath = buildStoragePath(
+            currentBizId as string,
+            newDocUUID,
+            fileToUpload.type || "application/pdf"
+          );
 
           // Hash SHA-256 del fichero final + aviso inmediato si ya existe
           const fileHash = await sha256Hex(fileToUpload);
@@ -339,29 +543,13 @@ export default function DocumentsPage() {
             return null;
           }
 
-          const newDocUUID = crypto.randomUUID();
-          const sanitizedName = fileToUpload.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-          const storagePath = `${newDocUUID}-${sanitizedName}`;
-
-          let filePublicUrl = "";
-
           // Subida a Supabase Storage
-          try {
-            const { error: storageError } = await supabase.storage
-              .from("documents")
-              .upload(storagePath, fileToUpload, { cacheControl: "3600", upsert: true });
+          const { error: storageError } = await supabase.storage
+            .from("documents")
+            .upload(storagePath, fileToUpload, { cacheControl: "3600", upsert: true });
+          if (storageError) throw storageError;
 
-            if (!storageError) {
-              const { data: urlData } = supabase.storage
-                .from("documents")
-                .getPublicUrl(storagePath);
-              filePublicUrl = urlData?.publicUrl || "";
-            }
-          } catch (err) {
-            console.warn("Storage upload warn:", err);
-          }
-
-          // Documento provisional en UI (aparece inmediatamente en estado EXTRACTING)
+          // Documento provisional en UI (url firmada bajo demanda, sin bloquear)
           const newDoc: FiscalDocument = {
             id: newDocUUID,
             filename: file.name,
@@ -369,35 +557,34 @@ export default function DocumentsPage() {
             uploadedAt: new Date().toISOString(),
             status: "EXTRACTING",
             category: "Procesando con IA...",
-            url: filePublicUrl,
+            url: "",
+            storagePath,
           };
 
           setDocuments((prev) => {
             const updated = [newDoc, ...prev];
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+            persistDocs(updated);
             return updated;
           });
+          void hydrateSignedUrls([newDoc]);
 
-          // Inserción en Supabase DB
-          try {
-            await supabase.from("documents").insert([
-              {
-                id: newDocUUID,
-                business_id: currentBizId,
-                type: "invoice",
-                direction: "expense",
-                storage_path: storagePath,
-                original_filename: file.name,
-                file_size_bytes: fileToUpload.size,
-                mime_type: fileToUpload.type || "application/pdf",
-                hash_sha256: fileHash,
-                status: "EXTRACTING",
-                notes: filePublicUrl ? `URL: ${filePublicUrl}` : "Subido desde panel web",
-              },
-            ]);
-          } catch (err) {
-            console.warn("DB insert warn:", err);
-          }
+          // Inserción en Supabase DB (solo storage_path, sin URLs)
+          const { error: dbError } = await supabase.from("documents").insert([
+            {
+              id: newDocUUID,
+              business_id: currentBizId,
+              type: "invoice",
+              direction: "expense",
+              storage_path: storagePath,
+              original_filename: file.name,
+              file_size_bytes: fileToUpload.size,
+              mime_type: fileToUpload.type || "application/pdf",
+              hash_sha256: fileHash,
+              status: "EXTRACTING",
+              notes: null,
+            },
+          ]);
+          if (dbError) throw dbError;
 
           setBatchProgress((prev) => ({
             ...prev,
@@ -411,7 +598,6 @@ export default function DocumentsPage() {
             filename: file.name,
             fileSize: fileToUpload.size,
             mimeType: fileToUpload.type || "application/pdf",
-            filePublicUrl,
           };
         } catch (err) {
           console.error("Error en ingesta de archivo:", file.name, err);
@@ -436,104 +622,22 @@ export default function DocumentsPage() {
       currentMessage: `Extrayendo datos fiscales con IA (${validIngested.length} en cola)...`,
     }));
 
-    await runConcurrencyPool(validIngested, 2, async (doc) => {
+  await runConcurrencyPool(validIngested, 2, async (doc) => {
       try {
-        const payload = {
-          documentId: doc.docId,
-          businessId: currentBizId,
-          storagePath: doc.storagePath,
-          originalFilename: doc.filename,
-          fileSize: doc.fileSize,
-          mimeType: doc.mimeType,
-          fileUrl: doc.filePublicUrl,
-          uploadedAt: new Date().toISOString(),
-        };
-
-        const response = await fetch(n8nWebhookUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-          signal: AbortSignal.timeout(60000),
-        });
-
-        if (response.ok) {
-          const result = await response.json();
-          const ext = result.extracted || {};
-          const status = (result.status === "EXTRACTED" ? "EXTRACTED" : "NEEDS_REVIEW") as FiscalDocument["status"];
-
-          setDocuments((prev) => {
-            const updated = prev.map((d) =>
-              d.id === doc.docId
-                ? {
-                    ...d,
-                    status: status,
-                    providerName: ext.supplier_name || "Proveedor detectado",
-                    nif: ext.supplier_nif || "-",
-                    invoiceNumber: ext.invoice_number || `F-${doc.docId.slice(-4).toUpperCase()}`,
-                    date: ext.date || new Date().toISOString().split("T")[0],
-                    baseAmount: Number(ext.base_amount || 0),
-                    vatRate: Number(ext.vat_rate || 21),
-                    vatAmount: Number(ext.vat_amount || 0),
-                    totalAmount: Number(ext.total_amount || 0),
-                    category: ext.category || "Factura",
-                    aiNotes: result.warnings && result.warnings.length > 0
-                      ? result.warnings.join(". ")
-                      : "Extracción OpenAI completada con éxito.",
-                    url: doc.filePublicUrl || d.url,
-                  }
-                : d
-            );
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-            return updated;
-          });
-
-          setBatchProgress((prev) => ({
-            ...prev,
-            extracted: prev.extracted + 1,
-            currentMessage: `Extracción completada (${prev.extracted + 1}/${validIngested.length})`,
-          }));
-        } else {
-          // n8n respondió con error (ej: 500) -> marcar como NEEDS_REVIEW
-          setDocuments((prev) => {
-            const updated = prev.map((d) =>
-              d.id === doc.docId
-                ? {
-                    ...d,
-                    status: "NEEDS_REVIEW" as FiscalDocument["status"],
-                    aiNotes: `Respuesta n8n HTTP ${response.status}. Pendiente de revisión manual.`,
-                  }
-                : d
-            );
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-            return updated;
-          });
-
-          setBatchProgress((prev) => ({
-            ...prev,
-            errors: prev.errors + 1,
-            currentMessage: `Revisión requerida para ${doc.filename}`,
-          }));
-        }
-      } catch (fetchErr: unknown) {
-        // Timeout o fallo de red
-        const errMsg = fetchErr instanceof Error ? fetchErr.message : "error de red";
-        setDocuments((prev) => {
-          const updated = prev.map((d) =>
-            d.id === doc.docId
-              ? {
-                  ...d,
-                  status: "NEEDS_REVIEW" as FiscalDocument["status"],
-                  aiNotes: `Webhook n8n (${errMsg}). Pendiente de revisión manual.`,
-                }
-              : d
-          );
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-          return updated;
-        });
-
+        await requestExtraction(doc);
+        setBatchProgress((prev) => ({
+          ...prev,
+          extracted: prev.extracted + 1,
+          currentMessage: `Extracción completada (${prev.extracted + 1}/${validIngested.length})`,
+        }));
+      } catch (err) {
+        // Error o timeout: marcar fallido con motivo (no queda en EXTRACTING)
+        const msg = err instanceof Error ? err.message : "error de red";
+        await markExtractionFailed(doc.docId, `Extracción fallida (${msg}). Puedes reintentar.`);
         setBatchProgress((prev) => ({
           ...prev,
           errors: prev.errors + 1,
+          currentMessage: `Fallo en ${doc.filename}: ${msg}`,
         }));
       }
     });
@@ -869,16 +973,28 @@ export default function DocumentsPage() {
                       </td>
                       <td className="py-3.5 pl-2 text-right font-sans">
                         <div className="flex items-center justify-end gap-1.5">
-                          <Link href={`/documents/${doc.id}/review`}>
+                          {doc.status === "ERROR" ? (
                             <Button
                               size="sm"
-                              variant={doc.status === "PENDING_REVIEW" ? "primary" : "secondary"}
+                              variant="primary"
                               className="text-xs h-7 gap-1"
+                              onClick={() => handleRetryExtraction(doc.id)}
                             >
-                              <span>Revisar</span>
-                              <ExternalLink className="size-3" />
+                              <RotateCcw className="size-3" />
+                              <span>Reintentar</span>
                             </Button>
-                          </Link>
+                          ) : (
+                            <Link href={`/documents/${doc.id}/review`}>
+                              <Button
+                                size="sm"
+                                variant={doc.status === "PENDING_REVIEW" ? "primary" : "secondary"}
+                                className="text-xs h-7 gap-1"
+                              >
+                                <span>Revisar</span>
+                                <ExternalLink className="size-3" />
+                              </Button>
+                            </Link>
+                          )}
                           <Button
                             size="sm"
                             variant="ghost"
