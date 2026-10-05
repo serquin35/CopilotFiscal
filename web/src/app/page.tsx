@@ -153,7 +153,8 @@ export default function DashboardPage() {
       quarter: "1T" | "2T" | "3T" | "4T",
       income: { vat_amount: number; base_amount: number; date: string }[],
       expensesList?: AnomalyEngineExpense[],
-      suppliersList?: AnomalyEngineSupplier[]
+      suppliersList?: AnomalyEngineSupplier[],
+      dbOpenAlerts?: number
     ) => {
       if (expensesList) rawExpensesRef.current = expensesList;
       if (suppliersList) rawSuppliersRef.current = suppliersList;
@@ -252,9 +253,11 @@ export default function DashboardPage() {
       });
 
       const activeAlerts = detected.filter((a) => !resolvedMap[a.id]);
+      // Sumar alertas OPEN de BD (PERIOD_DEADLINE de n8n) al total del badge y widget
+      const totalActiveCount = activeAlerts.length + (dbOpenAlerts ?? 0);
       setAlerts(activeAlerts);
       try {
-        localStorage.setItem("copiloto_fiscal_active_alerts_count", String(activeAlerts.length));
+        localStorage.setItem("copiloto_fiscal_active_alerts_count", String(totalActiveCount));
       } catch {}
 
       const deadlineStr = DEFAULT_DEADLINES[quarter] || "2027-01-30";
@@ -274,7 +277,7 @@ export default function DashboardPage() {
         dataCompleteness: activeDocs.length === 0 ? 100 : completeness,
         totalInvoices: activeDocs.length,
         pendingReviewCount: pendingDocs.length,
-        urgentAlertsCount: activeAlerts.length,
+        urgentAlertsCount: activeAlerts.length + (dbOpenAlerts ?? 0),
         totalSalesBase,
         totalExpensesBase,
         operatingResult,
@@ -343,7 +346,8 @@ export default function DashboardPage() {
       console.warn("Error consultando suppliers en Supabase:", err);
     }
 
-    // 3. Cargar resoluciones previas de alertas filtradas por business_id
+    // 3. Cargar alertas de BD: resoluciones → mapa local; OPEN → conteo para badge/widget
+    let dbOpenAlertsCount = 0;
     try {
       const { data: dbAlerts } = await supabase
         .from("alerts")
@@ -356,6 +360,9 @@ export default function DashboardPage() {
         for (const row of dbAlerts) {
           if (row.status === "RESOLVED" || row.status === "DISMISSED") {
             map[row.id] = row.notes || "Resuelta";
+          } else if (row.status === "OPEN") {
+            // Contar alertas OPEN de n8n (PERIOD_DEADLINE, etc.) para badge y widget
+            dbOpenAlertsCount++;
           }
         }
         localStorage.setItem(alertsKey, JSON.stringify(map));
@@ -526,7 +533,7 @@ export default function DashboardPage() {
 
     const combined = [...mappedDbDocs, ...manualExpenses, ...localPendingDocs];
     setDocuments(combined);
-    calculateSummary(combined, selectedQuarter, fetchedIncome, rawExpensesList, fetchedSuppliers);
+    calculateSummary(combined, selectedQuarter, fetchedIncome, rawExpensesList, fetchedSuppliers, dbOpenAlertsCount);
 
     // Comparativa con el trimestre anterior (MVP §7.1, sin fallback)
     const prev = previousQuarter(selectedQuarter);

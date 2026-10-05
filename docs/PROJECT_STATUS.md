@@ -1,8 +1,8 @@
 # PROJECT STATUS — COPILOTO FISCAL
 
-> **Versión:** 2.1
-> **Última actualización:** 03 Octubre 2026
-> **Estado global:** FASES 0, 2, 3, 5, 6 y 7 al 100% — FASE 1 al 95% (RLS exhaustivo pendiente) — FASE 4 al 100% (A4: bucket privado + RLS Storage aplicados y verificados 04/10) — Incidente GitGuardian #37833997 MITIGADO (cierre administrativo pendiente)
+> **Versión:** 2.2
+> **Última actualización:** 05 Octubre 2026
+> **Estado global:** FASES 0, 2, 3, 4, 5, 6 y 7 al 100% — FASE 1 al 95% (RLS exhaustivo + migraciones pendientes) — SEG mitigado (cierre GitGuardian pendiente) — DT-16 RESUELTO 05/10
 > **Autor:** Antigravity + Muse Spark (actualización continua)
 > **Fuente de verdad:** [COPILOTO_FISCAL_MASTER_PLAN.md](../COPILOTO_FISCAL_MASTER_PLAN.md)
 
@@ -369,7 +369,7 @@ Todo cambio posterior sin fichero de migración = DT-22.
 | DT-13 | Fuga service_role en historial (GitGuardian #37833997) | ✅ MITIGADO 03/10/2026 — Rotación a `sb_*` + `Disable legacy keys` + purga historial (force-push) + `AGENTS.md` + hook pre-commit | SEG |
 | DT-14 | PDF con VARIOS tickets/facturas en un solo archivo | 🔴 ABIERTA | DT-07 solo validó un PDF multipágina de UNA factura | F3 |
 | DT-15 | Duplicados por contenido (misma factura, otra foto) | 🟡 MEDIA | Hash solo detecta el mismo archivo; falta proveedor+fecha+total / NIF+número | F3 |
-| DT-16 | `PERIOD_DEADLINE` invisible en UI + JSON repo desfasado vs cloud | 🟡 MEDIA | WF-08 ACTIVO en cloud (03/10) con anti-duplicados; JSON vigente commiteado y verificado con simulacion; `/alerts`, widget y badge no renderizan filas n8n; sin anti-duplicados | F4 |
+| DT-16 | `PERIOD_DEADLINE` visible en UI | ✅ RESUELTO 05/10/2026 — alertas OPEN de BD mergeadas con motor local en `/alerts`; duplicados limpiados (2 de 3 borrados de BD); badge/widget del dashboard actualizados; TSC en verde |
 | DT-17 | Bucket `documents` privado 04/10 | RESUELTO 04/10 — migración RLS aplicada, bucket privado verificado (pública 400, firmada 200), WF-01 v2.2 autenticado, subida demo OK | F8 prereq |
 | DT-18 | Webhook WF-01 sin autenticación | 🟡 MEDIA | Añadir header secreto o Header Auth | F4 |
 | DT-19 | Barrido de documentos atascados en EXTRACTING | 🟢 BAJA | Solo hay polling con la página abierta; sin sweeper servidor | F4 |
@@ -384,12 +384,11 @@ Todo cambio posterior sin fichero de migración = DT-22.
 | # | Ítem | Ref | Prioridad |
 |---|---|---|---|
 | 10 | Cierre administrativo GitGuardian: marcar revocado + purga caché GitHub + re-clonado del tester | DT-13 | Alta |
-| 11 | Visibilizar PERIOD_DEADLINE (/alerts, widget, badge) | DT-16 | Media |
+| 11 | ~~Visibilizar PERIOD_DEADLINE (/alerts, widget, badge)~~ | ✅ DT-16 RESUELTO 05/10 | — |
 | 12 | Ejecutar matriz RLS + test 2-usuarios; crear migraciones de la deriva de BD | DT-06, DT-22 | Media |
 | 13 | Desactivar WF-01 antiguo (Kpagh); vigente zrKXQ5YJ8lLwHRL7 (03/10) | — | Media |
-| 14 | Bucket avatars creado y avatar funcionando en /settings (verificado 03/10) | — | Baja |
 | 15 | PDF multi-factura, duplicados por contenido | DT-14, DT-15 | Baja |
-| 16 | Webhook WF-01 con auth, sweeper EXTRACTING, concurrencia n8n, retirar convert-pdf, bucket privado | DT-17–DT-21 | Baja |
+| 16 | Webhook WF-01 con auth (A5, ADR-12) | DT-18 | Media |
 | 17 | Backlog: exportar conversación del chat (descartado de F7, ADR-09) | — | Baja |
 
 ## Historial de Cambios
@@ -459,7 +458,8 @@ Todo cambio posterior sin fichero de migración = DT-22.
 | 04/10/2026 | Tarea A | **P0+A3+A4-PREP en rama feat/a3-private-storage (sin merge)**: repo sincronizado con WF-01 v2.2 validado + tests URL/rechazos; frontend con storage_path+firmadas, compat flag, ERROR+Reintentar, cache v2; migracion RLS + script copia + plan despliegue SIN ejecutar. |
 | 03/10/2026 | n8n | **A2 WF-01 v2.2** (repo): 12 nodos, validacion storagePath, descarga autenticada, imagenes data URL; verificado con 13 aserciones en simulacion; pendiente importar y probar en n8n (JPG/PNG/PDF1/PDF4). |
 | 03/10/2026 | Seguridad | **TAREA A (吉吉bucket privado)**: aviso piloto en /documents + ADR-10 (datos reales con consentimiento) + ADR-11 diseno (pendiente validacion); DT-17 a ALTA. |
-| 03/10/2026 | n8n | **WF-08 VIGENTE**: JSON cloud (5 nodos, anti-duplicados, credencial Supabase Copilot) commiteado tras simular logica (0 duplicados / 3 inserciones); version propia retirada. |
+| 05/10/2026 | ✅ DT-16 | **PERIOD_DEADLINE VISIBLE**: alertas OPEN de BD mergeadas en `/alerts` + dashboard + badge Sidebar/Navbar; 2 duplicados borrados de BD; TSC verde |
+| 05/10/2026 | ✅ Paso h | **CIERRE MIGRACIÓN STORAGE**: `notes→NULL` en 4 filas (backup CSV guardado); 29 huérfanos borrados de Storage (0 en raíz); `LEGACY_FILEURL_COMPAT` eliminado; bucket 100% privado y limpio |
 
 ## 🗺️ Estado actual y próximos pasos
 

@@ -68,6 +68,7 @@ export default function AlertsPage() {
     let fetchedDocs: FiscalDocument[] = [];
     let fetchedIncome: AnomalyEngineIncome[] = [];
     let fetchedSuppliers: AnomalyEngineSupplier[] = [];
+    const dbAlertsToMerge: AnomalyAlert[] = [];
 
     try {
       const [expRes, docRes, incRes, supRes, dbAlertsRes] = await Promise.all([
@@ -123,11 +124,27 @@ export default function AlertsPage() {
         });
       }
 
-      // Si hay alertas en BD con estado RESOLVED, marcarlas
+      // Si hay alertas en BD: RESOLVED → marcar en mapa; OPEN → añadir a la lista
+      // (evita duplicados: si el motor local ya generó una con el mismo id, la BD no la sobreescribe)
       if (dbAlertsRes.data) {
         for (const row of dbAlertsRes.data) {
           if (row.status === "RESOLVED" || row.status === "DISMISSED") {
             resolvedMap[row.id] = row.notes || "Resuelta en base de datos";
+          } else if (row.status === "OPEN") {
+            // Mapear la alerta de BD al tipo AnomalyAlert de la UI
+            dbAlertsToMerge.push({
+              id: row.id,
+              title: row.title || "Alerta fiscal",
+              description: row.description || "",
+              severity: (row.severity as "high" | "medium" | "low") || "medium",
+              type: row.type || "PERIOD_DEADLINE",
+              createdAt: row.created_at || new Date().toISOString(),
+              resolved: false,
+              evidence: row.evidence || undefined,
+              entityType: row.entity_type || undefined,
+              entityId: row.entity_id || undefined,
+              source: row.source || "n8n",
+            });
           }
         }
       }
@@ -151,8 +168,14 @@ export default function AlertsPage() {
       selectedYear: 2026,
     });
 
-    // 3. Aplicar resoluciones guardadas
-    const finalAlerts: AnomalyAlert[] = detected.map((a) => {
+    // 3. Fusionar alertas del motor local con alertas OPEN de BD (PERIOD_DEADLINE, etc.)
+    //    Deduplicar por id: el motor local tiene prioridad si hay colisión de id
+    const detectedIds = new Set(detected.map((a) => a.id));
+    const uniqueDbAlerts = dbAlertsToMerge.filter((a: AnomalyAlert) => !detectedIds.has(a.id));
+    const merged = [...detected, ...uniqueDbAlerts];
+
+    // 4. Aplicar resoluciones guardadas
+    const finalAlerts: AnomalyAlert[] = merged.map((a) => {
       if (resolvedMap[a.id]) {
         return { ...a, resolved: true, resolutionReason: resolvedMap[a.id] };
       }

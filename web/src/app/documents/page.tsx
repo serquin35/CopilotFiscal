@@ -32,12 +32,7 @@ import {
   purgeLegacyDocCache,
 } from "@/lib/signed-url";
 
-/**
- * TRANSITORIO (tarea A3): mientras el WF-01 antiguo siga activo se envía
- * además `fileUrl` (firmada, NO pública). Eliminar junto a todo uso de URLs
- * públicas en el commit final tras activar v2.2 y cerrar el bucket (A4).
- */
-const LEGACY_FILEURL_COMPAT = true;
+
 
 interface BatchProgress {
   total: number;
@@ -346,15 +341,6 @@ export default function DocumentsPage() {
         process.env.NEXT_N8N_WEBHOOK_URL ||
         "https://n8n.cheosdesign.info/webhook/copilot-document-intake";
 
-      // TRANSITORIO: fileUrl firmada solo mientras el WF-01 antiguo siga activo
-      let compatFileUrl: string | undefined;
-      if (LEGACY_FILEURL_COMPAT) {
-        try {
-          compatFileUrl = await getSignedDocumentUrl(supabase, doc.storagePath, 3600);
-        } catch {
-          compatFileUrl = undefined;
-        }
-      }
 
       const payload = {
         documentId: doc.docId,
@@ -363,7 +349,6 @@ export default function DocumentsPage() {
         originalFilename: doc.filename,
         fileSize: doc.fileSize,
         mimeType: doc.mimeType,
-        ...(compatFileUrl ? { fileUrl: compatFileUrl } : {}),
         uploadedAt: new Date().toISOString(),
       };
 
