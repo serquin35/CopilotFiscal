@@ -41,3 +41,10 @@
     (versión, fecha, hitos, deuda técnica).
 14. Si una instrucción de este fichero choca con la tarea pedida: DETENERSE
     y preguntar. La seguridad manda sobre la velocidad.
+
+## 5. SQL con RLS (lección del 04/10/2026)
+
+15. En policies con subconsultas a tablas que comparten nombre de columna
+    (`name`, `id`…), cualificar SIEMPRE la tabla del objeto
+    (`split_part(storage.objects.name, …)`, nunca `name` a secas):
+    Postgres lo enlaza a la tabla interior y deniega todo en silencio.
