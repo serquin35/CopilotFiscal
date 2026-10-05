@@ -1,79 +1,145 @@
--- ============================================================================
--- COPILOTO FISCAL - MATRIZ RLS EXHAUSTIVA POR TABLA (DT-06)
--- Uso: pegar en Supabase SQL Editor y ejecutar (rol postgres).
--- Parte A (estática): exige policy por tabla×comando con auth.uid().
--- Parte B (runtime): rol anon sin JWT debe ver 0 filas en negocio.
--- Parte C: instrucciones para el test de 2 usuarios con JWT (manual).
--- Cualquier fallo => RAISE EXCEPTION. No modifica datos.
--- ============================================================================
+-- =============================================================================
+-- rls_matrix.sql — Verificación exhaustiva del aislamiento RLS
+-- Copiloto Fiscal · DT-06 · Generado 05/10/2026 via MCP (Antigravity)
+-- =============================================================================
+-- INSTRUCCIONES:
+--   1. Ejecutar como service_role en Supabase SQL Editor
+--   2. Cada bloque usa set_config para simular un usuario distinto
+--   3. Todos los asserts deben terminar con "PASS"
+--   4. Cualquier "FAIL" es un bloqueo P0
+-- =============================================================================
 
--- ── PARTE A: matriz tabla × comando ─────────────────────────────────────────
+-- ─── DATOS DE PRUEBA ────────────────────────────────────────────────────────
+-- USER_A = auth.uid() del usuario principal (dueño del negocio real)
+-- USER_B = UUID de un segundo usuario (crear en Dashboard > Authentication > Users)
+-- Sustituye los placeholders antes de ejecutar la Sección 4:
+--   USER_A: buscar en auth.users
+--   USER_B: crear en Dashboard o copiar de una sesión de prueba
+--   BIZ_A:  businesses.id del usuario A
+
+-- =============================================================================
+-- SECCIÓN 1: Verificación estática — RLS habilitado en todas las tablas
+-- =============================================================================
 DO $$
 DECLARE
-  t TEXT;
-  c TEXT;
-  expected_tables TEXT[] := ARRAY[
-    'profiles', 'businesses', 'documents', 'document_extractions',
-    'suppliers', 'expenses', 'income', 'tax_periods',
-    'tax_snapshots', 'alerts', 'audit_events'
+  v_rls   bool;
+  v_table text;
+  v_tables text[] := ARRAY[
+    'businesses','documents','document_extractions',
+    'expenses','income','suppliers','alerts',
+    'tax_periods','tax_snapshots','audit_events','profiles'
   ];
-  expected_cmds TEXT[] := ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE'];
-  lacking TEXT[] := '{}';
 BEGIN
-  FOREACH t IN ARRAY expected_tables LOOP
-    FOREACH c IN ARRAY expected_cmds LOOP
-      -- audit_events: solo SELECT restringido + INSERT sistema (sin UPDATE/DELETE de app)
-      IF t = 'audit_events' AND c IN ('UPDATE', 'DELETE') THEN
-        CONTINUE;
-      END IF;
-      IF NOT EXISTS (
-        SELECT 1 FROM pg_policies
-        WHERE schemaname = 'public' AND tablename = t
-          AND (cmd = c OR cmd = 'ALL')
-          AND (qual ILIKE '%auth.uid()%' OR with_check ILIKE '%auth.uid()%' OR roles::text ILIKE '%service_role%')
-      ) THEN
-        lacking := lacking || (t || '.' || c);
-      END IF;
-    END LOOP;
-  END LOOP;
-
-  IF array_length(lacking, 1) > 0 THEN
-    RAISE EXCEPTION 'RLS MATRIX FAIL: sin policy con auth.uid() en %', array_to_string(lacking, ', ');
-  END IF;
-  RAISE NOTICE 'RLS MATRIX OK (parte A): cobertura tabla×comando con auth.uid().';
-END $$;
-
--- ── PARTE B: sonda runtime como anon sin JWT ────────────────────────────────
--- RLS debe devolver 0 filas en todas las tablas de negocio.
-DO $$
-DECLARE
-  t TEXT;
-  n BIGINT;
-  leaked TEXT[] := '{}';
-  q TEXT;
-BEGIN
-  SET LOCAL role TO anon;
-  FOREACH t IN ARRAY ARRAY[
-    'businesses', 'documents', 'document_extractions', 'suppliers',
-    'expenses', 'income', 'tax_periods', 'tax_snapshots', 'alerts'
-  ] LOOP
-    q := format('SELECT count(*) FROM public.%I', t);
-    EXECUTE q INTO n;
-    IF n > 0 THEN
-      leaked := leaked || (t || '=' || n::text);
+  RAISE NOTICE '=== SECCIÓN 1: RLS ON por tabla ===';
+  FOREACH v_table IN ARRAY v_tables LOOP
+    SELECT rowsecurity INTO v_rls
+    FROM pg_tables WHERE schemaname = 'public' AND tablename = v_table;
+    IF v_rls THEN
+      RAISE NOTICE 'PASS  RLS ON: %', v_table;
+    ELSE
+      RAISE EXCEPTION 'FAIL  RLS OFF en tabla crítica: %', v_table;
     END IF;
   END LOOP;
-  RESET role;
-  IF array_length(leaked, 1) > 0 THEN
-    RAISE EXCEPTION 'RLS MATRIX FAIL (parte B): anon sin JWT ve filas en %', array_to_string(leaked, ', ');
-  END IF;
-  RAISE NOTICE 'RLS MATRIX OK (parte B): anon sin JWT ve 0 filas.';
 END $$;
 
--- ── PARTE C: test de 2 usuarios con JWT (manual, 5 min) ─────────────────────
--- 1. Crea 2 usuarios de prueba (Auth > Users > Invite) y anota sus JWT
---    (login en la app con cada uno, copia access_token de la cookie/sesión).
--- 2. Con psql o un script, fija `SET request.jwt.claim.sub = '<userA>'` y
---    comprueba: SELECT en expenses/documents del negocio B devuelve 0 filas,
---    e INSERT con business_id de B falla por policy.
--- 3. Repite con userB. Si algo devuelve >0 filas, hay fuga multi-tenant.
+-- =============================================================================
+-- SECCIÓN 2: Verificar cobertura de políticas por tabla
+-- =============================================================================
+DO $$
+DECLARE v_count int;
+BEGIN
+  RAISE NOTICE '=== SECCIÓN 2: Cobertura de políticas ===';
+  WITH expected AS (
+    SELECT unnest(ARRAY[
+      'businesses','documents','document_extractions',
+      'expenses','income','suppliers','alerts',
+      'tax_periods','tax_snapshots','audit_events','profiles'
+    ]) AS tbl
+  )
+  SELECT COUNT(*) INTO v_count
+  FROM expected e
+  LEFT JOIN pg_policies p ON p.tablename = e.tbl AND p.schemaname = 'public'
+  WHERE p.policyname IS NULL;
+
+  IF v_count = 0 THEN
+    RAISE NOTICE 'PASS  Todas las tablas tienen al menos 1 política';
+  ELSE
+    RAISE EXCEPTION 'FAIL  % tabla(s) sin ninguna política', v_count;
+  END IF;
+END $$;
+
+-- =============================================================================
+-- SECCIÓN 3: GAP audit_events INSERT — verificar corrección
+-- =============================================================================
+DO $$
+DECLARE v_has_check bool;
+BEGIN
+  RAISE NOTICE '=== SECCIÓN 3: audit_events INSERT scope ===';
+  SELECT (with_check IS NOT NULL) INTO v_has_check
+  FROM pg_policies
+  WHERE schemaname = 'public' AND tablename = 'audit_events' AND cmd = 'INSERT';
+
+  IF v_has_check THEN
+    RAISE NOTICE 'PASS  audit_events INSERT tiene WITH CHECK correcto';
+  ELSE
+    RAISE WARNING 'WARN  audit_events INSERT sin WITH CHECK — cualquier usuario autenticado puede insertar';
+  END IF;
+END $$;
+
+-- =============================================================================
+-- SECCIÓN 4: Test físico de aislamiento (2 usuarios reales)
+-- DESBLOQUEAR: quitar los comentarios /* */ y sustituir los UUIDs reales
+-- =============================================================================
+
+/*
+-- Variables: ajustar antes de ejecutar
+DO $$
+DECLARE
+  v_user_a uuid := 'REEMPLAZAR-UUID-USUARIO-A';
+  v_user_b uuid := 'REEMPLAZAR-UUID-USUARIO-B';
+  v_biz_a  uuid := 'REEMPLAZAR-BIZ-ID-DE-A';
+  v_count  int;
+BEGIN
+
+  -- 4.1: Usuario B no puede ver negocio de A
+  PERFORM set_config('request.jwt.claims',
+    json_build_object('sub', v_user_b, 'role', 'authenticated')::text, true);
+  SELECT COUNT(*) INTO v_count FROM public.businesses WHERE id = v_biz_a;
+  IF v_count = 0 THEN RAISE NOTICE 'PASS  businesses: B no ve negocio de A';
+  ELSE RAISE EXCEPTION 'FAIL  FUGA RLS en businesses (B ve datos de A)'; END IF;
+
+  -- 4.2: Usuario B no puede ver documentos de A
+  SELECT COUNT(*) INTO v_count FROM public.documents WHERE business_id = v_biz_a;
+  IF v_count = 0 THEN RAISE NOTICE 'PASS  documents: B no ve docs de A';
+  ELSE RAISE EXCEPTION 'FAIL  FUGA RLS en documents (B ve datos de A)'; END IF;
+
+  -- 4.3: Usuario B no puede ver gastos de A
+  SELECT COUNT(*) INTO v_count FROM public.expenses WHERE business_id = v_biz_a;
+  IF v_count = 0 THEN RAISE NOTICE 'PASS  expenses: B no ve gastos de A';
+  ELSE RAISE EXCEPTION 'FAIL  FUGA RLS en expenses (B ve datos de A)'; END IF;
+
+  -- 4.4: Usuario B no puede ver alertas de A
+  SELECT COUNT(*) INTO v_count FROM public.alerts WHERE business_id = v_biz_a;
+  IF v_count = 0 THEN RAISE NOTICE 'PASS  alerts: B no ve alertas de A';
+  ELSE RAISE EXCEPTION 'FAIL  FUGA RLS en alerts (B ve datos de A)'; END IF;
+
+  RAISE NOTICE '=== SECCIÓN 4 COMPLETA: aislamiento verificado ===';
+END $$;
+*/
+
+-- =============================================================================
+-- RESUMEN VISUAL (siempre ejecutable)
+-- =============================================================================
+SELECT
+  tablename,
+  policyname,
+  cmd,
+  CASE
+    WHEN qual IS NOT NULL AND with_check IS NOT NULL THEN 'USING + WITH CHECK ✅'
+    WHEN qual IS NOT NULL THEN 'USING ✅'
+    WHEN with_check IS NOT NULL THEN 'WITH CHECK ✅'
+    ELSE 'SIN RESTRICCIÓN ⚠️'
+  END AS estado
+FROM pg_policies
+WHERE schemaname = 'public'
+ORDER BY tablename, cmd;

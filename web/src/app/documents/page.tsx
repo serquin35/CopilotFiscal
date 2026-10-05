@@ -327,7 +327,8 @@ export default function DocumentsPage() {
     [supabase, persistDocs]
   );
 
-  // Llama al webhook de extracción para un documento (reutilizable por Reintentar)
+  // Llama al proxy SSR /api/documents/process (A5/DT-18)
+  // El proxy valida sesión, verifica ownership del negocio y añade X-Webhook-Secret
   const requestExtraction = useCallback(
     async (doc: {
       docId: string;
@@ -336,11 +337,13 @@ export default function DocumentsPage() {
       fileSize: number;
       mimeType: string;
     }) => {
-      const n8nWebhookUrl =
-        process.env.NEXT_PUBLIC_N8N_WEBHOOK_URL ||
-        process.env.NEXT_N8N_WEBHOOK_URL ||
-        "https://n8n.cheosdesign.info/webhook/copilot-document-intake";
+      // Obtener token de sesión actual para el header Authorization
+      const { data: { session } } = await supabase.auth.getSession();
+      const accessToken = session?.access_token;
 
+      if (!accessToken) {
+        throw new Error("Sin sesión activa — vuelve a iniciar sesión");
+      }
 
       const payload = {
         documentId: doc.docId,
@@ -352,12 +355,16 @@ export default function DocumentsPage() {
         uploadedAt: new Date().toISOString(),
       };
 
-      const response = await fetch(n8nWebhookUrl, {
+      const response = await fetch("/api/documents/process", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${accessToken}`,
+        },
         body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(60000),
+        signal: AbortSignal.timeout(70000),
       });
+
 
       if (!response.ok) {
         throw new Error(`n8n HTTP ${response.status}`);
