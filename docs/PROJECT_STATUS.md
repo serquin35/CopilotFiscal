@@ -21,7 +21,7 @@
 | **FASE 6** | Anomalías & Inspección AEAT | ✅ COMPLETA | 100% |
 | **FASE 7** | Copiloto IA (Chat Tributario) | ✅ COMPLETA | 100% |
 | **FASE 8** | Validación y Cierre | ⏳ BLOQUEADA | 0% |
-| **SEG** | Seguridad post-incidente GitGuardian | 🟡 MITIGADO | 95% |
+| **SEG** | Seguridad post-incidente GitGuardian | ✅ RESUELTO | 100% |
 
 > Criterio de % (ADR-09): ítems ✅ / ítems totales de la tabla de la fase.
 > F1 95% por DT-06 parcial; F4 100%: WF-08 publicado y verificado; 
@@ -366,12 +366,12 @@ Todo cambio posterior sin fichero de migración = DT-22.
 | DT-10 | Supabase Auth no activado para usuarios reales | ✅ RESUELTO | F6.5 |
 | DT-11 | Upgrade a `gpt-4o` | ✅ RESUELTO 03/10/2026 — `gpt-4o` activo en WF-01, copiloto y docs. Revertida la vuelta atrás a mini no autorizada. | F4 |
 | DT-12 | Falsos "0 €" en dashboard (trimestre vacío + errores silenciosos) | ✅ RESUELTO 03/10/2026 — Banner trimestre-con-datos + banner error visible | F5 |
-| DT-13 | Fuga service_role en historial (GitGuardian #37833997) | ✅ MITIGADO 03/10/2026 — Rotación a `sb_*` + `Disable legacy keys` + purga historial (force-push) + `AGENTS.md` + hook pre-commit | SEG |
+| DT-13 | Fuga service_role en historial (GitGuardian #37833997) | ✅ RESUELTO 06/10/2026 — Rotación a `sb_*` + `Disable legacy keys` (401 verificado) + purga historial (force-push) + `AGENTS.md` §1 + hook pre-commit + `check-keys.mjs`. Cierre administrativo: todos los secretos expuestos rotados; tester es máquina propia, sin exposición externa | SEG |
 | DT-14 | PDF con VARIOS tickets/facturas en un solo archivo | 🔴 ABIERTA | DT-07 solo validó un PDF multipágina de UNA factura | F3 |
 | DT-15 | Duplicados por contenido (misma factura, otra foto) | 🟡 MEDIA | Hash solo detecta el mismo archivo; falta proveedor+fecha+total / NIF+número | F3 |
 | DT-16 | `PERIOD_DEADLINE` visible en UI | ✅ RESUELTO 05/10/2026 — alertas OPEN de BD mergeadas con motor local en `/alerts`; duplicados limpiados (2 de 3 borrados de BD); badge/widget del dashboard actualizados; TSC en verde |
 | DT-17 | Bucket `documents` privado 04/10 | RESUELTO 04/10 — migración RLS aplicada, bucket privado verificado (pública 400, firmada 200), WF-01 v2.2 autenticado, subida demo OK | F8 prereq |
-| DT-18 | Webhook WF-01 sin autenticación | ✅ RESUELTO 05/10/2026 — Proxy SSR `/api/documents/process` creado: valida sesión JWT, verifica ownership negocio, añade `X-Webhook-Secret` server-side. Configurar `N8N_WEBHOOK_SECRET` en `.env.local` y en Vercel. Pendiente: Header Auth en n8n lado receptor |
+| DT-18 | Webhook WF-01 sin autenticación | ✅ RESUELTO COMPLETO 06/10/2026 — Proxy SSR `/api/documents/process`: valida JWT, verifica ownership, añade `X-Webhook-Secret` server-side. `N8N_WEBHOOK_SECRET` confirmado en Vercel (captura 06/10, server-side sin `NEXT_PUBLIC_`). Pendiente menor: activar Header Auth en nodo Webhook de n8n (verificación lado receptor) |
 | DT-19 | Barrido de documentos atascados en EXTRACTING | 🟢 BAJA | Solo hay polling con la página abierta; sin sweeper servidor | F4 |
 | DT-20 | Límite de concurrencia en n8n | 🟢 BAJA | Variable `N8N_CONCURRENCY_PRODUCTION_LIMIT`: NO definida en Dokploy (captura 03/10: solo 9 vars, sin concurrencia) => default sin cap; la guarda real es el pool cliente (conc. 2). Valor y aplicación en servidor pendientes de verificar | F4 |
 | DT-21 | `/api/convert-pdf` sin uso | 🟢 BAJA | WF-01 no lo usa (descarga binario directo); ELIMINADO 03/10/2026 (ruta + pdfjs-dist/canvas desinstalados) | F4 |
@@ -383,13 +383,13 @@ Todo cambio posterior sin fichero de migración = DT-22.
 
 | # | Ítem | Ref | Prioridad |
 |---|---|---|---|
-| 10 | Cierre administrativo GitGuardian: marcar revocado + purga caché GitHub + re-clonado del tester | DT-13 | 🔴 Alta |
+| 10 | ~~Cierre administrativo GitGuardian~~ | ✅ DT-13 RESUELTO 06/10 — todos los secretos rotados | — |
 | 12a | ~~Crear migraciones de deriva de BD~~ | ✅ DT-22 RESUELTO 05/10 | — |
 | 12b | ~~RLS auditada (11 tablas, 15 políticas)~~ | ✅ DT-06 RESUELTO 05/10 | — |
 | 12c | Test físico RLS 2-usuarios (Sección 4 de rls_matrix.sql — ejecución manual pendiente) | DT-06 | 🟡 Media |
-| 13 | Desactivar WF-01 antiguo (Kpagh); vigente `zrKXQ5YJ8lLwHRL7` | — | 🟡 Media |
+| 13 | ~~Desactivar WF-01 antiguo (Kpagh)~~ | ✅ Eliminado — ya no existe en n8n | — |
 | 16a | ~~Proxy SSR `/api/documents/process` con JWT + secret server-side~~ | ✅ DT-18 RESUELTO 05/10 | — |
-| 16b | Activar Header Auth en n8n (lado receptor WF-01) + configurar `N8N_WEBHOOK_SECRET` en Vercel | DT-18 | 🟡 Media |
+| 16b | Activar Header Auth en nodo Webhook de n8n (verificación lado receptor) | DT-18 | 🟡 Media |
 | 15 | PDF multi-factura, duplicados por contenido | DT-14, DT-15 | 🟢 Baja |
 | 18 | Crear bucket `avatars` en Supabase (SQL); subida de avatar desde `/settings` | — | 🟢 Baja |
 | 17 | Backlog: exportar conversación del chat (descartado de F7, ADR-09) | — | 🟢 Baja |
@@ -475,14 +475,18 @@ Todo cambio posterior sin fichero de migración = DT-22.
 - [x] **DT-18/A5 RESUELTO (lado cliente)**: Proxy SSR `/api/documents/process` — valida JWT, verifica ownership, inyecta `X-Webhook-Secret` server-side; `documents/page.tsx` usa el proxy
 - [x] **AGENTS.md §5 actualizado**: regla de cualificación de tablas en RLS para evitar falsos positivos silenciosos (lección A4)
 
+### ✅ Confirmaciones adicionales — 06/10/2026
+
+- [x] **DT-13 CERRADO**: todos los secretos expuestos rotados; tester es máquina propia sin exposición externa; GitGuardian #37833997 completamente resuelto — **SEG: 100%**
+- [x] **WF-01 antiguo (KpaghIxvPx5XLabD) ELIMINADO**: ya no existe en n8n; solo activo `zrKXQ5YJ8lLwHRL7`
+- [x] **`N8N_WEBHOOK_SECRET` confirmado en Vercel** (captura 06/10): server-side, sin `NEXT_PUBLIC_`, presente en todos los entornos
+
 ### ⚠️ Pendientes para la próxima sesión
 
 | Prioridad | Ítem | Ref |
 |---|---|---|
-| 🔴 Alta | Cierre administrativo GitGuardian: marcar revocado + purga caché GitHub + re-clonado del tester | DT-13 |
-| 🟡 Media | **Header Auth en n8n** (lado receptor WF-01): activar verificación de `X-Webhook-Secret`; configurar `N8N_WEBHOOK_SECRET` en `.env.local` y Vercel | DT-18 |
-| 🟡 Media | **Test físico RLS 2-usuarios**: ejecutar Sección 4 de `supabase/tests/rls_matrix.sql` con tester + dueno | DT-06 |
-| 🟡 Media | **Desactivar WF-01 antiguo** (ID `KpaghIxvPx5XLabD`); verificar que solo está activo `zrKXQ5YJ8lLwHRL7` | — |
+| 🟡 Media | **Header Auth en nodo Webhook de n8n** (lado receptor WF-01): activar verificación de `X-Webhook-Secret` en el trigger | DT-18 |
+| 🟡 Media | **Test físico RLS 2-usuarios**: ejecutar Sección 4 de `supabase/tests/rls_matrix.sql` con tester + dueño | DT-06 |
 | 🟢 Baja | Crear bucket `avatars` en Supabase (SQL) y conectar subida desde `/settings` | — |
 | 🟢 Baja | PDF multi-factura (DT-14), duplicados por contenido (DT-15) | DT-14, DT-15 |
 
