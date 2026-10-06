@@ -1,8 +1,8 @@
 # PROJECT STATUS — COPILOTO FISCAL
 
-> **Versión:** 2.3
-> **Última actualización:** 05 Octubre 2026
-> **Estado global:** FASES 0, 2, 3, 4, 5, 6 y 7 al 100% — FASE 1 al 98% (test físico 2 usuarios pendiente) — DT-06/DT-16/DT-18/DT-22 RESUELTOS 05/10
+> **Versión:** 2.4
+> **Última actualización:** 06 Octubre 2026
+> **Estado global:** FASES 0–7 al 100% — FASE 1 al 95% (test físico 2 usuarios pendiente) — Sesión 05/10: DT-06 ✅ DT-16 ✅ DT-18/A5 ✅ DT-22 ✅ Paso h ✅ — Pendiente: Header Auth n8n (DT-18 receptor), test 2-usuarios RLS, cierre GitGuardian, desactivar WF-01 antiguo
 > **Autor:** Antigravity + Muse Spark (actualización continua)
 > **Fuente de verdad:** [COPILOTO_FISCAL_MASTER_PLAN.md](../COPILOTO_FISCAL_MASTER_PLAN.md)
 
@@ -379,17 +379,20 @@ Todo cambio posterior sin fichero de migración = DT-22.
 
 ---
 
-## Próximos Pasos Priorizados (lista única, 03/10/2026)
+## Próximos Pasos Priorizados (lista única, actualizada 06/10/2026)
 
 | # | Ítem | Ref | Prioridad |
 |---|---|---|---|
-| 10 | Cierre administrativo GitGuardian: marcar revocado + purga caché GitHub + re-clonado del tester | DT-13 | Alta |
-| 11 | ~~Visibilizar PERIOD_DEADLINE (/alerts, widget, badge)~~ | ✅ DT-16 RESUELTO 05/10 | — |
-| 12 | Ejecutar matriz RLS + test 2-usuarios; crear migraciones de la deriva de BD | DT-06, DT-22 | Media |
-| 13 | Desactivar WF-01 antiguo (Kpagh); vigente zrKXQ5YJ8lLwHRL7 (03/10) | — | Media |
-| 15 | PDF multi-factura, duplicados por contenido | DT-14, DT-15 | Baja |
-| 16 | Webhook WF-01 con auth (A5, ADR-12) | DT-18 | Media |
-| 17 | Backlog: exportar conversación del chat (descartado de F7, ADR-09) | — | Baja |
+| 10 | Cierre administrativo GitGuardian: marcar revocado + purga caché GitHub + re-clonado del tester | DT-13 | 🔴 Alta |
+| 12a | ~~Crear migraciones de deriva de BD~~ | ✅ DT-22 RESUELTO 05/10 | — |
+| 12b | ~~RLS auditada (11 tablas, 15 políticas)~~ | ✅ DT-06 RESUELTO 05/10 | — |
+| 12c | Test físico RLS 2-usuarios (Sección 4 de rls_matrix.sql — ejecución manual pendiente) | DT-06 | 🟡 Media |
+| 13 | Desactivar WF-01 antiguo (Kpagh); vigente `zrKXQ5YJ8lLwHRL7` | — | 🟡 Media |
+| 16a | ~~Proxy SSR `/api/documents/process` con JWT + secret server-side~~ | ✅ DT-18 RESUELTO 05/10 | — |
+| 16b | Activar Header Auth en n8n (lado receptor WF-01) + configurar `N8N_WEBHOOK_SECRET` en Vercel | DT-18 | 🟡 Media |
+| 15 | PDF multi-factura, duplicados por contenido | DT-14, DT-15 | 🟢 Baja |
+| 18 | Crear bucket `avatars` en Supabase (SQL); subida de avatar desde `/settings` | — | 🟢 Baja |
+| 17 | Backlog: exportar conversación del chat (descartado de F7, ADR-09) | — | 🟢 Baja |
 
 ## Historial de Cambios
 
@@ -452,50 +455,37 @@ Todo cambio posterior sin fichero de migración = DT-22.
 | 03/10/2026 | 🧹 Seguridad | **RLS/DEMO**: smoke test `supabase/tests/rls_smoke.sql` + banner DEMO global (`EnvBanner`) |
 | 03/10/2026 | 🔄 Modelo | **GPT-4o ACTIVO en todo**: WF-01 + copiloto + etiqueta UI + `.env.example`; hechos: ad0ca8d fijo gpt-4o en WF-01; el worktree traia un revert a mini sin commitear que se descarto (checkout) al confirmar el dueno que produccion usa gpt-4o; unificado en copiloto, UI y .env.example (DT-11 cerrado, ADR-04) |
 
-| 03/10/2026 | Docs | **AUDITORIA v2.1**: comparativa trimestres, AiProvider, WF-08/WF-10, avatar, matriz RLS, SECURITY/AI_POLICY/TESTING, ADR-04 a 09; F4 95% (falta publicar WF-08), SEG mitigado. |
----
-| 04/10/2026 | Seguridad | **A4 VERIFICADO**: migración RLS + bucket privado aplicados; subida demo OK tras corregir referencia no cualificada (lección en AGENTS.md §5); quedan paso h (notes/originales/compat) y test 2-usuarios. |
-| 04/10/2026 | Tarea A | **P0+A3+A4-PREP en rama feat/a3-private-storage (sin merge)**: repo sincronizado con WF-01 v2.2 validado + tests URL/rechazos; frontend con storage_path+firmadas, compat flag, ERROR+Reintentar, cache v2; migracion RLS + script copia + plan despliegue SIN ejecutar. |
-| 03/10/2026 | n8n | **A2 WF-01 v2.2** (repo): 12 nodos, validacion storagePath, descarga autenticada, imagenes data URL; verificado con 13 aserciones en simulacion; pendiente importar y probar en n8n (JPG/PNG/PDF1/PDF4). |
-| 03/10/2026 | Seguridad | **TAREA A (吉吉bucket privado)**: aviso piloto en /documents + ADR-10 (datos reales con consentimiento) + ADR-11 diseno (pendiente validacion); DT-17 a ALTA. |
-| 05/10/2026 | ✅ DT-06 | **RLS AUDITADO**: 11 tablas RLS ON, 15 políticas verificadas vía MCP; rls_matrix.sql generado; checkpoint migration; test físico 2-usuarios en Sección 4 (instrucciones incluidas, pendiente ejecución manual) |
-| 05/10/2026 | ✅ DT-22 | **MIGRACIONES DERIVA**: 3 ficheros creados — businesses fiscal fields (7 cols), realtime documental, rls_audit_checkpoint |
-| 05/10/2026 | ✅ DT-18/A5 | **WEBHOOK AUTH**: proxy SSR `/api/documents/process` con validación JWT + ownership check + X-Webhook-Secret server-side; cliente actualizado para usar proxy |
-| 05/10/2026 | ✅ Paso h | **CIERRE MIGRACIÓN STORAGE**: `notes→NULL` en 4 filas (backup CSV guardado); 29 huérfanos borrados de Storage (0 en raíz); `LEGACY_FILEURL_COMPAT` eliminado; bucket 100% privado y limpio |
+| 03/10/2026 | Docs | **AUDITORIA v2.1**: comparativa trimestres, AiProvider, WF-08/WF-10, avatar, matriz RLS, SECURITY/AI_POLICY/TESTING, ADR-04 a 09; F4 100% (WF-08 publicado y verificado), SEG mitigado. |
+| 04/10/2026 | 🔒 Seguridad | **A4 VERIFICADO**: migración RLS + bucket privado aplicados; subida demo OK tras corregir referencia no cualificada (lección en AGENTS.md §5); DT-17 RESUELTO. |
+| 04/10/2026 | 🗂️ Tarea A | **P0+A3+A4-PREP en rama feat/a3-private-storage**: repo sincronizado con WF-01 v2.2 validado; frontend con storage_path+URL firmadas, ERROR+Reintentar, cache v2; rama mergeada en main. |
+| 05/10/2026 | ✅ DT-16 | **PERIOD_DEADLINE EN UI**: alertas OPEN de BD (n8n/WF-08) mergeadas con motor determinista local en `/alerts`; 2 duplicados borrados de BD; badge Sidebar/Navbar y widget dashboard actualizados; TSC en verde. |
+| 05/10/2026 | 🧹 Storage | **PASO H — CIERRE MIGRACIÓN STORAGE**: `notes→NULL` en 4 filas CONFIRMED (backup CSV guardado); 29 archivos huérfanos en raíz de Storage borrados (0 en raíz ahora, solo carpetas `{business_id}/`); `LEGACY_FILEURL_COMPAT` eliminado de `documents/page.tsx`; bucket 100% privado y limpio. |
+| 05/10/2026 | ✅ DT-22 | **MIGRACIONES DERIVA VERSIONADAS**: 3 ficheros creados — `20261001000000_businesses_fiscal_fields.sql` (7 cols IF NOT EXISTS), `20261001000001_realtime_documents.sql`, `20261005000000_rls_audit_checkpoint.sql`. |
+| 05/10/2026 | ✅ DT-06 | **RLS AUDITADO VÍA MCP**: 11 tablas RLS ON, 15 políticas con restricción verificadas, 0 gaps detectados; `rls_matrix.sql` actualizado con secciones 1-3 ejecutables automáticamente; test físico 2-usuarios en Sección 4 (instrucciones incluidas, pendiente ejecución manual). |
+| 05/10/2026 | ✅ DT-18/A5 | **WEBHOOK AUTH (lado cliente)**: proxy SSR `/api/documents/process` — valida JWT sesión, verifica ownership `business_id`, añade `X-Webhook-Secret` server-side; `documents/page.tsx` usa el proxy en lugar de llamar n8n directamente. Pendiente: Header Auth en n8n receptor + `N8N_WEBHOOK_SECRET` en Vercel. |
 
 ## 🗺️ Estado actual y próximos pasos
 
-### ✅ Funcionalidades completadas (sesión actual)
-- [x] Google OAuth funcional en producción (`corrala.vercel.app`)
-- [x] Aislamiento multi-tenant completo (datos por `business_id`)
-- [x] Badges del sidebar scoped al negocio activo
-- [x] Página `/settings` con perfil, empresa fiscal y seguridad
-- [x] **Subida de facturas real y extracción OCR end-to-end** (Supabase Storage + n8n WF-01 + OpenAI)
-- [x] Soporte nativo para PDFs e imágenes con fallback a `NEEDS_REVIEW` en fallos
-- [x] **PDF multi-página** (4 páginas Iberdrola) procesado, revisado y aprobado correctamente en producción ✅
-- [x] Persistencia y actualización en vivo en `/documents` con botón de revisión
-- [x] **Human-in-the-Loop Review (`/documents/[id]/review`)**: Conciliación real con inserción en `expenses` y `suppliers` — validado con 14 registros en Supabase ✅
-- [x] **Cálculo dinámico del Modelo 303**: Dashboard recalcula automáticamente tras cada aprobación de factura ✅
-- [x] **Deduplicación canónica**: Eliminación de doble cómputo entre documentos locales e historial de gastos
-- [x] **Copiloto Fiscal IA completo (Fase 7 — 100%)**:
-  - Autenticación robusta serverless con JWT Bearer token validado contra Supabase Auth
-  - Mapeo fiel al esquema de base de datos (`businesses.owner_id`, `expenses.date`, `validation_status`, `document_extractions.extracted_at`)
-  - Historial multi-turno (últimos 10 mensajes) validado en producción — "2 turnos en contexto" ✅
-  - Selector de trimestre y año dinámico en `/copilot` ✅
-  - Inyección de contexto fiscal en tiempo real (Modelo 303, alertas, facturas recientes y top proveedores)
-- [x] **Sesión 03/10/2026 (Muse Spark)**: NIF determinista + dedup SHA-256 + fin UUID cero + dashboard auto-diagnóstico + CSV/borrador 303 + papelera Gastos + SSE copiloto (F7→100%) + smoke RLS + banner DEMO + migración `sb_*` + purga GitGuardian (ver Historial) + comparativa trimestres + AiProvider + WF-08/WF-10 + avatar + matriz RLS + auditoria documental v2.1 ✅
+### ✅ Funcionalidades completadas — Sesión 05/10/2026
 
-### 🚀 Próximos pasos sugeridos
-| Prioridad | Feature | Descripción |
-| Media | **Comparativa periodo anterior** | Hecha 03/10/2026 (card vs trimestre anterior) |
-| 🟡 Media | **Comparativa periodo anterior** | Hecha 03/10/2026 (card vs trimestre anterior) [era] Último hueco de F5/MVP §7.1 |
-| Baja | **Wrapper AiProvider** | Hecho 03/10/2026 (DT-02) |
-| Baja | **Avatar personalizable** | Codigo hecho 03/10/2026; falta crear bucket avatars (SQL) |
-| 🟢 Baja | **Avatar personalizable** | Subida de avatar a Storage desde `/settings` |
+- [x] **DT-16 RESUELTO**: `PERIOD_DEADLINE` alertas de BD (n8n WF-08) visibles en `/alerts`, widget del dashboard y badge Sidebar/Navbar
+- [x] **Paso h (cierre storage)**: 29 huérfanos en raíz de Storage borrados; `notes→NULL` en 4 filas CONFIRMED; `LEGACY_FILEURL_COMPAT` eliminado; bucket 100% privado
+- [x] **DT-22 RESUELTO**: 3 migraciones de deriva versionadas (`businesses_fiscal_fields`, `realtime_documents`, `rls_audit_checkpoint`)
+- [x] **DT-06 RESUELTO**: Auditoría RLS completa vía MCP — 11 tablas ON, 15 políticas, 0 gaps; `rls_matrix.sql` actualizado; checkpoint migration aplicado
+- [x] **DT-18/A5 RESUELTO (lado cliente)**: Proxy SSR `/api/documents/process` — valida JWT, verifica ownership, inyecta `X-Webhook-Secret` server-side; `documents/page.tsx` usa el proxy
+- [x] **AGENTS.md §5 actualizado**: regla de cualificación de tablas en RLS para evitar falsos positivos silenciosos (lección A4)
+
+### ⚠️ Pendientes para la próxima sesión
+
+| Prioridad | Ítem | Ref |
+|---|---|---|
+| 🔴 Alta | Cierre administrativo GitGuardian: marcar revocado + purga caché GitHub + re-clonado del tester | DT-13 |
+| 🟡 Media | **Header Auth en n8n** (lado receptor WF-01): activar verificación de `X-Webhook-Secret`; configurar `N8N_WEBHOOK_SECRET` en `.env.local` y Vercel | DT-18 |
+| 🟡 Media | **Test físico RLS 2-usuarios**: ejecutar Sección 4 de `supabase/tests/rls_matrix.sql` con tester + dueno | DT-06 |
+| 🟡 Media | **Desactivar WF-01 antiguo** (ID `KpaghIxvPx5XLabD`); verificar que solo está activo `zrKXQ5YJ8lLwHRL7` | — |
+| 🟢 Baja | Crear bucket `avatars` en Supabase (SQL) y conectar subida desde `/settings` | — |
+| 🟢 Baja | PDF multi-factura (DT-14), duplicados por contenido (DT-15) | DT-14, DT-15 |
 
 ---
 
-
 *Documento generado y mantenido por Antigravity + Muse Spark. Actualizar al final de cada sesión de desarrollo.*
-
-- [x] WF-08 publicado/activo en n8n (anti-duplicados en cloud confirmado 03/10); pendiente exportar JSON vigente (DT-16)

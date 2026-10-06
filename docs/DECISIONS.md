@@ -1,7 +1,7 @@
 # REGISTRO DE DECISIONES DE ARQUITECTURA (ADR) — COPILOTO FISCAL
 
 > **Fuente de verdad:** [COPILOTO_FISCAL_MASTER_PLAN.md](../COPILOTO_FISCAL_MASTER_PLAN.md)  
-> **Fecha:** 02 de Octubre de 2026  
+> **Fecha:** 06 de Octubre de 2026 (última actualización)  
 > **Estado:** Documento vivo de decisiones técnicas y arquitectónicas.
 
 ---
@@ -273,7 +273,9 @@ separado si algun dia guarda otra cosa. Documentado; sin accion.
 
 ---
 
-## ADR-12: Webhook n8n tras servidor propio con Header Auth (propuesta A5, pendiente de validar)
+## ADR-12: Webhook n8n tras servidor propio con Header Auth (A5 — implementado 05/10/2026)
+
+**Estado:** ✅ Proxy SSR implementado (lado cliente). ⏳ Pendiente: activar Header Auth en n8n receptor + `N8N_WEBHOOK_SECRET` en Vercel.
 
 **Problema (DT-18):** con n8n descargando por ruta con service-role, el
 webhook abierto permite pedir que procese rutas ajenas.
