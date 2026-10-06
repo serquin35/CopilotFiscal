@@ -1,8 +1,8 @@
 # PROJECT STATUS — COPILOTO FISCAL
 
-> **Versión:** 2.4
+> **Versión:** 2.5
 > **Última actualización:** 06 Octubre 2026
-> **Estado global:** FASES 0–7 al 100% — FASE 1 al 95% (test físico 2 usuarios pendiente) — Sesión 05/10: DT-06 ✅ DT-16 ✅ DT-18/A5 ✅ DT-22 ✅ Paso h ✅ — Pendiente: Header Auth n8n (DT-18 receptor), test 2-usuarios RLS, cierre GitGuardian, desactivar WF-01 antiguo
+> **Estado global:** FASES 0–7 al 100% — SEG 100% — DT-18 ✅ COMPLETO 06/10 (Header Auth n8n verificado: 403 sin secreto, workflow ejecutado con secreto) — Pendiente único: test físico RLS 2-usuarios (DT-06)
 > **Autor:** Antigravity + Muse Spark (actualización continua)
 > **Fuente de verdad:** [COPILOTO_FISCAL_MASTER_PLAN.md](../COPILOTO_FISCAL_MASTER_PLAN.md)
 
@@ -371,7 +371,7 @@ Todo cambio posterior sin fichero de migración = DT-22.
 | DT-15 | Duplicados por contenido (misma factura, otra foto) | 🟡 MEDIA | Hash solo detecta el mismo archivo; falta proveedor+fecha+total / NIF+número | F3 |
 | DT-16 | `PERIOD_DEADLINE` visible en UI | ✅ RESUELTO 05/10/2026 — alertas OPEN de BD mergeadas con motor local en `/alerts`; duplicados limpiados (2 de 3 borrados de BD); badge/widget del dashboard actualizados; TSC en verde |
 | DT-17 | Bucket `documents` privado 04/10 | RESUELTO 04/10 — migración RLS aplicada, bucket privado verificado (pública 400, firmada 200), WF-01 v2.2 autenticado, subida demo OK | F8 prereq |
-| DT-18 | Webhook WF-01 sin autenticación | ✅ RESUELTO COMPLETO 06/10/2026 — Proxy SSR `/api/documents/process`: valida JWT, verifica ownership, añade `X-Webhook-Secret` server-side. `N8N_WEBHOOK_SECRET` confirmado en Vercel (captura 06/10, server-side sin `NEXT_PUBLIC_`). Pendiente menor: activar Header Auth en nodo Webhook de n8n (verificación lado receptor) |
+| DT-18 | Webhook WF-01 sin autenticación | ✅ RESUELTO COMPLETO 06/10/2026 — Proxy SSR `/api/documents/process`: valida JWT, verifica ownership, añade `X-Webhook-Secret` server-side. Credencial `Header Auth` en n8n con `X-Webhook-Secret`. `N8N_WEBHOOK_SECRET` en Vercel (correcto). Verificado: 403 sin secreto ✅, 500 workflow ejecutado con secreto ✅ |
 | DT-19 | Barrido de documentos atascados en EXTRACTING | 🟢 BAJA | Solo hay polling con la página abierta; sin sweeper servidor | F4 |
 | DT-20 | Límite de concurrencia en n8n | 🟢 BAJA | Variable `N8N_CONCURRENCY_PRODUCTION_LIMIT`: NO definida en Dokploy (captura 03/10: solo 9 vars, sin concurrencia) => default sin cap; la guarda real es el pool cliente (conc. 2). Valor y aplicación en servidor pendientes de verificar | F4 |
 | DT-21 | `/api/convert-pdf` sin uso | 🟢 BAJA | WF-01 no lo usa (descarga binario directo); ELIMINADO 03/10/2026 (ruta + pdfjs-dist/canvas desinstalados) | F4 |
@@ -480,12 +480,12 @@ Todo cambio posterior sin fichero de migración = DT-22.
 - [x] **DT-13 CERRADO**: todos los secretos expuestos rotados; tester es máquina propia sin exposición externa; GitGuardian #37833997 completamente resuelto — **SEG: 100%**
 - [x] **WF-01 antiguo (KpaghIxvPx5XLabD) ELIMINADO**: ya no existe en n8n; solo activo `zrKXQ5YJ8lLwHRL7`
 - [x] **`N8N_WEBHOOK_SECRET` confirmado en Vercel** (captura 06/10): server-side, sin `NEXT_PUBLIC_`, presente en todos los entornos
+- [x] **DT-18 COMPLETO — Header Auth verificado** (06/10): credencial `Header Auth account` configurada en nodo Webhook WF-01; test directo confirma 403 sin secreto ✅ y workflow ejecutado (500 por UUIDs de prueba) con `X-Webhook-Secret` correcto ✅
 
 ### ⚠️ Pendientes para la próxima sesión
 
 | Prioridad | Ítem | Ref |
 |---|---|---|
-| 🟡 Media | **Header Auth en nodo Webhook de n8n** (lado receptor WF-01): activar verificación de `X-Webhook-Secret` en el trigger | DT-18 |
 | 🟡 Media | **Test físico RLS 2-usuarios**: ejecutar Sección 4 de `supabase/tests/rls_matrix.sql` con tester + dueño | DT-06 |
 | 🟢 Baja | Crear bucket `avatars` en Supabase (SQL) y conectar subida desde `/settings` | — |
 | 🟢 Baja | PDF multi-factura (DT-14), duplicados por contenido (DT-15) | DT-14, DT-15 |
