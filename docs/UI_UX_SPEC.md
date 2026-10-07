@@ -1,4 +1,4 @@
-﻿# UI/UX Specification — Copiloto Fiscal
+# UI/UX Specification — Copiloto Fiscal
 **Fuente de verdad visual:** https://corrala.vercel.app/
 **Generado:** 2026-09-30 | **Versión:** 1.0.0
 
@@ -148,14 +148,28 @@ inline-flex rounded-lg bg-muted p-1
 
 ## 5. Rutas y Pantallas
 
+### 5.1 Aplicación Principal (Autenticada con AppShell)
+
 | Ruta                         | Página                  | Componentes Clave                              |
 |------------------------------|-------------------------|------------------------------------------------|
 | `/`                          | Dashboard               | IVASettlementCard, DeadlineCard, MonthlyChart, AlertList, ExpensesTable |
 | `/documents`                 | Gestión Documentos      | UploadZone, DocumentsTable, StatusBadge        |
 | `/documents/[id]/review`     | Revisión Humana         | DocumentViewer, ExtractedDataPanel, ReviewBar  |
 | `/expenses`                  | Gastos                  | ExpensesTable completa, Filtros avanzados      |
+| `/expenses/print`            | Impresión / Borrador    | PrintableExpensesList, SummaryHeader           |
 | `/alerts`                    | Alertas                 | AlertList expandida, Filtros por severidad     |
 | `/copilot`                   | IA Explicador           | ChatInterface, FiscalContextPanel              |
+| `/settings`                  | Configuración           | BusinessProfileCard, AccountSecurityCard, ChangePasswordModal |
+
+### 5.2 Módulo de Autenticación (Pantalla Completa sin Sidebar)
+
+| Ruta                         | Página                  | Componentes Clave                              |
+|------------------------------|-------------------------|------------------------------------------------|
+| `/login`                     | Iniciar Sesión          | LoginForm (Password / Magic Link / OAuth / Demo), BrandHeader |
+| `/register`                  | Registro                | RegisterForm, PasswordStrengthMeter            |
+| `/forgot-password`           | Recuperar Contraseña    | ForgotPasswordForm, RateLimitAlert, SuccessState |
+| `/update-password`           | Restablecer Contraseña  | UpdatePasswordForm, SessionValidator, LivePasswordChecks |
+| `/auth/callback`             | Callback OAuth / PKCE   | SSR exchangeCodeForSession, Session Cookie Setter |
 
 ---
 

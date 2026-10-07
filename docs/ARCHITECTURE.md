@@ -72,35 +72,34 @@
 - ❌ No llama directamente a proveedores de IA/OCR
 - ❌ No accede directamente a `supabase` con `service_role`
 
-**Tecnología:** Next.js 14 App Router, TypeScript, CSS Modules
+**Tecnología:** Next.js 14 App Router, TypeScript, Tailwind CSS, Lucide React
 
-**Estructura de features:**
+**Estructura de rutas y pantallas (`web/src/app`):**
 
 ```
-src/features/
-  dashboard/
-    components/
-    hooks/
-    page.tsx
+web/src/app/
+  page.tsx                     ← Dashboard (Modelo 303, IVA, métricas)
   documents/
-    components/
-    hooks/
-    page.tsx
-    [id]/
-      review/
-        page.tsx       ← Revisión human-in-the-loop
+    page.tsx                   ← Gestión de documentos y upload
+    [id]/review/page.tsx       ← Revisión human-in-the-loop
   expenses/
-    ...
-  income/
-    ...
-  suppliers/
-    ...
-  tax-periods/
-    ...
+    page.tsx                   ← Gestión de gastos y filtros
+    print/page.tsx             ← Vista de impresión / borrador
   alerts/
-    ...
-  copilot/             ← Chat con IA (solo consulta, no calcula)
-    ...
+    page.tsx                   ← Detección y lista de anomalías AEAT
+  copilot/
+    page.tsx                   ← Chat tributario con IA (explicador)
+  settings/
+    page.tsx                   ← Perfil de negocio, fiscal y seguridad de cuenta
+  (Auth - rutas independientes sin Sidebar)
+  login/page.tsx               ← Iniciar sesión (Email, Magic Link, Google, Demo)
+  register/page.tsx            ← Registro de usuario
+  forgot-password/page.tsx     ← Solicitud de recuperación de contraseña (con control 429)
+  update-password/page.tsx     ← Formulario de nueva contraseña (recovery session)
+  auth/callback/route.ts       ← Callback PKCE / OAuth SSR (cookies de sesión)
+  api/
+    documents/process/route.ts ← Proxy SSR seguro hacia webhook n8n (Header Auth)
+    copilot/chat/route.ts      ← Streaming SSE chat tributario
 ```
 
 ### 3.2 Domain Layer

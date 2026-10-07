@@ -463,13 +463,15 @@ Todo cambio posterior sin fichero de migración = DT-22.
 | 05/10/2026 | ✅ DT-22 | **MIGRACIONES DERIVA VERSIONADAS**: 3 ficheros creados — `20261001000000_businesses_fiscal_fields.sql` (7 cols IF NOT EXISTS), `20261001000001_realtime_documents.sql`, `20261005000000_rls_audit_checkpoint.sql`. |
 | 05/10/2026 | ✅ DT-06 | **RLS AUDITADO VÍA MCP**: 11 tablas RLS ON, 15 políticas con restricción verificadas, 0 gaps detectados; `rls_matrix.sql` actualizado con secciones 1-3 ejecutables automáticamente; test físico 2-usuarios en Sección 4 (instrucciones incluidas, pendiente ejecución manual). |
 | 05/10/2026 | ✅ DT-18/A5 | **WEBHOOK AUTH (lado cliente)**: proxy SSR `/api/documents/process` — valida JWT sesión, verifica ownership `business_id`, añade `X-Webhook-Secret` server-side; `documents/page.tsx` usa el proxy en lugar de llamar n8n directamente. Pendiente: Header Auth en n8n receptor + `N8N_WEBHOOK_SECRET` en Vercel. |
-| 07/10/2026 | 🛠️ Fix | **RESETEO PASSWORD (/update-password)**: Implementada pantalla completa de actualización de contraseña (`web/src/app/update-password/page.tsx`), agregada a `AUTH_ROUTES` (AppShell) y `PUBLIC_ROUTES` (middleware), con validación, estados de expiración y feedback en `/login`. |
+| 07/10/2026 | 🛠️ Fix | **RESETEO PASSWORD (/update-password)**: Implementada pantalla completa de actualización de contraseña (`web/src/app/update-password/page.tsx`), agregada a `AUTH_ROUTES` (AppShell) y `PUBLIC_ROUTES` (middleware), con validación, estados de expiración, control explícito de Rate Limit (HTTP 429 en `/forgot-password`) y feedback de éxito en `/login`. Flujo verificado y validado en producción. |
 
 ## 🗺️ Estado actual y próximos pasos
 
 ### ✅ Funcionalidades completadas — Sesión 07/10/2026
 
 - [x] **Fix reseteo de contraseña**: ruta `/update-password` implementada con UI oscura oficial, validación de contraseña de 8+ caracteres, coincidencia en tiempo real, manejo de enlaces caducados/inválidos y redirección limpia con confirmación a `/login`.
+- [x] **Manejo de Rate Limit (429) en `/forgot-password`**: detección amigable del límite de envíos de Supabase Auth para guiar al usuario en lugar de mostrar errores genéricos.
+- [x] **Validación de producción exitosa**: ciclo completo (solicitud → recepción de email → token exchange → formulario → actualización de credenciales en Supabase) probado y validado satisfactoriamente por el usuario.
 
 ### ✅ Funcionalidades completadas — Sesión 05/10/2026
 
