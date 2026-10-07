@@ -45,7 +45,7 @@ function UpdatePasswordContent() {
           }
           setCheckingSession(false);
         }
-      } catch (err) {
+      } catch {
         if (mounted) {
           setCheckingSession(false);
         }
@@ -111,7 +111,7 @@ function UpdatePasswordContent() {
           router.push("/login?message=password_updated");
         }, 2500);
       }
-    } catch (err) {
+    } catch {
       setError("Ocurrió un error inesperado al actualizar la contraseña.");
       setLoading(false);
     }
