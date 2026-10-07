@@ -22,7 +22,20 @@ export default function ForgotPasswordPage() {
     });
     setLoading(false);
     if (resetError) {
-      setError("No se pudo enviar el correo. Verifica la dirección e inténtalo de nuevo.");
+      if (
+        resetError.status === 429 ||
+        resetError.message?.toLowerCase().includes("rate limit") ||
+        resetError.message?.toLowerCase().includes("security")
+      ) {
+        setError(
+          "Límite de envíos alcanzado por seguridad (Rate Limit). Por favor, espera unos minutos antes de volver a intentarlo o utiliza el último correo que ya recibiste."
+        );
+      } else {
+        setError(
+          resetError.message ||
+            "No se pudo enviar el correo. Verifica la dirección e inténtalo de nuevo."
+        );
+      }
     } else {
       setSent(true);
     }
