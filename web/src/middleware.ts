@@ -10,7 +10,7 @@ const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 // Nota: sin throw a nivel de módulo (rompería el build); se valida por petición.
 
 // Routes that don't require authentication (API routes handle their own auth/secret tokens)
-const PUBLIC_ROUTES = ["/login", "/register", "/forgot-password", "/auth", "/api"];
+const PUBLIC_ROUTES = ["/login", "/register", "/forgot-password", "/update-password", "/auth", "/api"];
 
 export async function middleware(request: NextRequest) {
   if (!SUPABASE_ANON_KEY) {

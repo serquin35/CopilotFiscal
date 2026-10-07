@@ -28,6 +28,7 @@ function LoginForm() {
     const msg = searchParams.get("message");
     if (err === "auth_callback_failed") setError("Error en la autenticación. Inténtalo de nuevo.");
     if (msg === "check_email") setSuccessMsg("Revisa tu correo — te hemos enviado un enlace de acceso.");
+    if (msg === "password_updated") setSuccessMsg("Tu contraseña ha sido actualizada. Ya puedes iniciar sesión con tu nueva contraseña.");
   }, [searchParams]);
 
   const handlePasswordLogin = async (e: React.FormEvent) => {

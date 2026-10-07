@@ -6,7 +6,7 @@ import { Navbar } from "@/components/Navbar";
 import { EnvBanner } from "@/components/EnvBanner";
 
 // These routes show a full-page auth layout without Sidebar/Navbar
-const AUTH_ROUTES = ["/login", "/register", "/forgot-password", "/auth"];
+const AUTH_ROUTES = ["/login", "/register", "/forgot-password", "/update-password", "/auth"];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();

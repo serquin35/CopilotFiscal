@@ -1,8 +1,8 @@
 # PROJECT STATUS — COPILOTO FISCAL
 
-> **Versión:** 2.5
-> **Última actualización:** 06 Octubre 2026
-> **Estado global:** FASES 0–7 al 100% — SEG 100% — DT-18 ✅ COMPLETO 06/10 (Header Auth n8n verificado: 403 sin secreto, workflow ejecutado con secreto) — Pendiente único: test físico RLS 2-usuarios (DT-06)
+> **Versión:** 2.6
+> **Última actualización:** 07 Octubre 2026
+> **Estado global:** FASES 0–7 al 100% — SEG 100% — DT-18 ✅ COMPLETO 06/10 — Fix flujo reset password (/update-password) 07/10 — Pendiente único: test físico RLS 2-usuarios (DT-06)
 > **Autor:** Antigravity + Muse Spark (actualización continua)
 > **Fuente de verdad:** [COPILOTO_FISCAL_MASTER_PLAN.md](../COPILOTO_FISCAL_MASTER_PLAN.md)
 
@@ -463,8 +463,13 @@ Todo cambio posterior sin fichero de migración = DT-22.
 | 05/10/2026 | ✅ DT-22 | **MIGRACIONES DERIVA VERSIONADAS**: 3 ficheros creados — `20261001000000_businesses_fiscal_fields.sql` (7 cols IF NOT EXISTS), `20261001000001_realtime_documents.sql`, `20261005000000_rls_audit_checkpoint.sql`. |
 | 05/10/2026 | ✅ DT-06 | **RLS AUDITADO VÍA MCP**: 11 tablas RLS ON, 15 políticas con restricción verificadas, 0 gaps detectados; `rls_matrix.sql` actualizado con secciones 1-3 ejecutables automáticamente; test físico 2-usuarios en Sección 4 (instrucciones incluidas, pendiente ejecución manual). |
 | 05/10/2026 | ✅ DT-18/A5 | **WEBHOOK AUTH (lado cliente)**: proxy SSR `/api/documents/process` — valida JWT sesión, verifica ownership `business_id`, añade `X-Webhook-Secret` server-side; `documents/page.tsx` usa el proxy en lugar de llamar n8n directamente. Pendiente: Header Auth en n8n receptor + `N8N_WEBHOOK_SECRET` en Vercel. |
+| 07/10/2026 | 🛠️ Fix | **RESETEO PASSWORD (/update-password)**: Implementada pantalla completa de actualización de contraseña (`web/src/app/update-password/page.tsx`), agregada a `AUTH_ROUTES` (AppShell) y `PUBLIC_ROUTES` (middleware), con validación, estados de expiración y feedback en `/login`. |
 
 ## 🗺️ Estado actual y próximos pasos
+
+### ✅ Funcionalidades completadas — Sesión 07/10/2026
+
+- [x] **Fix reseteo de contraseña**: ruta `/update-password` implementada con UI oscura oficial, validación de contraseña de 8+ caracteres, coincidencia en tiempo real, manejo de enlaces caducados/inválidos y redirección limpia con confirmación a `/login`.
 
 ### ✅ Funcionalidades completadas — Sesión 05/10/2026
 
