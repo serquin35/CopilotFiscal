@@ -34,7 +34,38 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "La cuenta DEMO institucional no puede eliminarse" }, { status: 403 });
     }
 
-    // 3. Ejecutar función transaccional de borrado atómico
+    // 3. Eliminar archivos de Storage mediante la Storage API oficial (Supabase prohíbe DELETE directo en storage.objects)
+    try {
+      const { data: businesses } = await adminClient
+        .from("businesses")
+        .select("id")
+        .eq("owner_id", user.id);
+
+      if (businesses && businesses.length > 0) {
+        for (const biz of businesses) {
+          const { data: files } = await adminClient.storage
+            .from("documents")
+            .list(biz.id, { limit: 100 });
+          if (files && files.length > 0) {
+            const filePaths = files.map((f) => `${biz.id}/${f.name}`);
+            await adminClient.storage.from("documents").remove(filePaths);
+          }
+        }
+      }
+
+      // Limpiar avatares si existieran
+      const { data: avatarFiles } = await adminClient.storage
+        .from("avatars")
+        .list(user.id, { limit: 100 });
+      if (avatarFiles && avatarFiles.length > 0) {
+        const avatarPaths = avatarFiles.map((f) => `${user.id}/${f.name}`);
+        await adminClient.storage.from("avatars").remove(avatarPaths);
+      }
+    } catch (storageErr) {
+      console.warn("[account/delete] Error al limpiar Storage:", storageErr);
+    }
+
+    // 4. Ejecutar función transaccional de borrado atómico en base de datos
     const { error: rpcError } = await adminClient.rpc("delete_user_account", {
       p_user_id: user.id,
     });
@@ -44,7 +75,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: `Error al eliminar datos: ${rpcError.message}` }, { status: 500 });
     }
 
-    // 4. Asegurar eliminación en el subsistema de GoTrue / Auth de Supabase
+    // 5. Asegurar eliminación en el subsistema de GoTrue / Auth de Supabase
     try {
       await adminClient.auth.admin.deleteUser(user.id);
     } catch (authDelErr) {

@@ -5,7 +5,7 @@ CREATE OR REPLACE FUNCTION public.delete_user_account(p_user_id UUID)
 RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public, auth, storage
+SET search_path = public, auth
 AS $$
 DECLARE
   v_biz_id UUID;
@@ -45,11 +45,6 @@ BEGIN
     
     -- Eventos de auditoría asociados al negocio
     DELETE FROM public.audit_events WHERE business_id = v_biz_id;
-    
-    -- Objetos de Storage asociados a este negocio
-    DELETE FROM storage.objects 
-    WHERE bucket_id = 'documents' 
-      AND (split_part(storage.objects.name, '/', 1) = v_biz_id::text);
       
     -- Borrar el negocio
     DELETE FROM public.businesses WHERE id = v_biz_id;
@@ -61,15 +56,10 @@ BEGIN
   UPDATE public.alerts SET dismissed_by = NULL WHERE dismissed_by = p_user_id;
   DELETE FROM public.audit_events WHERE actor_id = p_user_id;
 
-  -- 5. Borrar posibles avatares en Storage
-  DELETE FROM storage.objects 
-  WHERE bucket_id = 'avatars' 
-    AND (split_part(storage.objects.name, '/', 1) = p_user_id::text);
-
-  -- 6. Borrar perfil de usuario
+  -- 5. Borrar perfil de usuario
   DELETE FROM public.profiles WHERE id = p_user_id;
 
-  -- 7. Borrar usuario en auth.users (cascada de sesiones e identidades de Supabase Auth)
+  -- 6. Borrar usuario en auth.users (cascada de sesiones e identidades de Supabase Auth)
   DELETE FROM auth.users WHERE id = p_user_id;
 END;
 $$;
