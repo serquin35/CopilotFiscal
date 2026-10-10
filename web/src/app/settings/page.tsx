@@ -695,6 +695,7 @@ function TabSeguridad({ onToast }: { onToast: (t: Toast) => void }) {
   const [savingPwd, setSavingPwd] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteText, setDeleteText] = useState("");
+  const [deletingAccount, setDeletingAccount] = useState(false);
 
   const isOAuthUser = !user?.email?.includes("@") || user?.app_metadata?.provider === "google";
 
@@ -722,6 +723,41 @@ function TabSeguridad({ onToast }: { onToast: (t: Toast) => void }) {
   const handleSignOut = async () => {
     await signOut();
     router.push("/login");
+  };
+
+  const handleDeleteAccount = async () => {
+    if (deleteText !== "ELIMINAR" || !user || deletingAccount) return;
+    setDeletingAccount(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+
+      const res = await fetch("/api/account/delete", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(data.error || "Error al eliminar la cuenta");
+      }
+
+      onToast({ type: "success", msg: "Tu cuenta y datos han sido eliminados permanentemente." });
+
+      try {
+        localStorage.clear();
+      } catch (_) {}
+
+      await signOut();
+      router.push("/login");
+    } catch (err: any) {
+      onToast({ type: "error", msg: err.message || "Error al eliminar la cuenta" });
+      setDeletingAccount(false);
+    }
   };
 
   return (
@@ -846,21 +882,24 @@ function TabSeguridad({ onToast }: { onToast: (t: Toast) => void }) {
               value={deleteText}
               onChange={(e) => setDeleteText(e.target.value)}
               placeholder="Escribe ELIMINAR"
-              className="w-full rounded-xl border border-destructive/40 bg-secondary/40 px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-destructive/60 transition-all max-w-xs"
+              disabled={deletingAccount}
+              className="w-full rounded-xl border border-destructive/40 bg-secondary/40 px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-destructive/60 transition-all max-w-xs disabled:opacity-50"
             />
             <div className="flex gap-2">
               <button
                 onClick={() => { setShowDeleteConfirm(false); setDeleteText(""); }}
-                className="rounded-xl border border-border/60 bg-transparent text-muted-foreground px-4 py-2 text-xs font-medium hover:bg-muted/50 transition-all"
+                disabled={deletingAccount}
+                className="rounded-xl border border-border/60 bg-transparent text-muted-foreground px-4 py-2 text-xs font-medium hover:bg-muted/50 transition-all disabled:opacity-40"
               >
                 Cancelar
               </button>
               <button
-                disabled={deleteText !== "ELIMINAR"}
-                className="flex items-center gap-1.5 rounded-xl bg-destructive/80 hover:bg-destructive text-white px-4 py-2 text-xs font-semibold transition-all disabled:opacity-40"
+                onClick={handleDeleteAccount}
+                disabled={deleteText !== "ELIMINAR" || deletingAccount}
+                className="flex items-center gap-1.5 rounded-xl bg-destructive hover:bg-destructive/90 text-white px-4 py-2 text-xs font-semibold transition-all disabled:opacity-40 shadow-sm"
               >
-                <Trash2 className="size-3.5" />
-                Confirmar eliminación
+                {deletingAccount ? <Loader2 className="size-3.5 animate-spin" /> : <Trash2 className="size-3.5" />}
+                {deletingAccount ? "Eliminando..." : "Confirmar eliminación"}
               </button>
             </div>
           </div>
