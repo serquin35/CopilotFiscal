@@ -2,9 +2,13 @@
 
 > **Versión:** 1.0  
 > **Fecha:** 30 Septiembre 2026  
-> **Estado:** FASE 0 — Descubrimiento  
-> **Fuente de verdad:** COPILOTO_FISCAL_MASTER_PLAN.md  
+> **Estado:** 🏛️ DOCUMENTO HISTÓRICO — FASE 0 (Cerrada y superada)  
+> **Fuente de verdad activa:** [COPILOTO_FISCAL_MASTER_PLAN.md](../COPILOTO_FISCAL_MASTER_PLAN.md)  
+> **Estado vivo del proyecto:** [PROJECT_STATUS.md](PROJECT_STATUS.md)  
 > **Autor:** Antigravity (generado durante FASE 0)
+
+> [!NOTE]
+> Este documento refleja el estado inicial de prospección del 30/09/2026 previo a la creación del código. Para el estado actual de arquitectura, implementación y pipeline operativo, consultar [PROJECT_STATUS.md](PROJECT_STATUS.md) y [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ---
 

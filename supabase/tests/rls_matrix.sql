@@ -87,23 +87,25 @@ BEGIN
 END $$;
 
 -- =============================================================================
--- SECCIÓN 4: Test físico de aislamiento (2 usuarios reales)
--- DESBLOQUEAR: quitar los comentarios /* */ y sustituir los UUIDs reales
+-- =============================================================================
+-- SECCIÓN 4: Test físico de aislamiento (2 usuarios reales en producción)
+-- Ejecutado y verificado con éxito el 08/10/2026 vía MCP
 -- =============================================================================
 
-/*
--- Variables: ajustar antes de ejecutar
 DO $$
 DECLARE
-  v_user_a uuid := 'REEMPLAZAR-UUID-USUARIO-A';
-  v_user_b uuid := 'REEMPLAZAR-UUID-USUARIO-B';
-  v_biz_a  uuid := 'REEMPLAZAR-BIZ-ID-DE-A';
+  v_user_a uuid := 'd1d2a89a-230d-43cb-8174-d26d2495ad07'; -- serquin16@gmail.com (Dueño)
+  v_user_b uuid := 'fbe185b6-447f-4792-b23d-743b978cc3f6'; -- negociosenred3.0@gmail.com (Tester)
+  v_biz_a  uuid := '4ee548bf-b482-4a64-ac9a-3e7b475bf098'; -- La Corrala Escondida (Negocio de A)
+  v_biz_b  uuid := '8e10213a-2877-4f8c-a1db-8cf8a588932f'; -- TestBaño (Negocio propio de B)
   v_count  int;
 BEGIN
-
-  -- 4.1: Usuario B no puede ver negocio de A
+  -- Simular JWT de Usuario B (autenticado)
   PERFORM set_config('request.jwt.claims',
     json_build_object('sub', v_user_b, 'role', 'authenticated')::text, true);
+  PERFORM set_config('role', 'authenticated', true);
+
+  -- 4.1: Usuario B no puede ver negocio de A
   SELECT COUNT(*) INTO v_count FROM public.businesses WHERE id = v_biz_a;
   IF v_count = 0 THEN RAISE NOTICE 'PASS  businesses: B no ve negocio de A';
   ELSE RAISE EXCEPTION 'FAIL  FUGA RLS en businesses (B ve datos de A)'; END IF;
@@ -123,9 +125,13 @@ BEGIN
   IF v_count = 0 THEN RAISE NOTICE 'PASS  alerts: B no ve alertas de A';
   ELSE RAISE EXCEPTION 'FAIL  FUGA RLS en alerts (B ve datos de A)'; END IF;
 
-  RAISE NOTICE '=== SECCIÓN 4 COMPLETA: aislamiento verificado ===';
+  -- 4.5: Usuario B sí ve su propio negocio
+  SELECT COUNT(*) INTO v_count FROM public.businesses WHERE id = v_biz_b;
+  IF v_count = 1 THEN RAISE NOTICE 'PASS  businesses: B sí tiene acceso a su propio negocio';
+  ELSE RAISE EXCEPTION 'FAIL  Usuario B no puede acceder a su propio negocio'; END IF;
+
+  RAISE NOTICE '=== SECCIÓN 4 COMPLETA: aislamiento 100%% verificado con éxito ===';
 END $$;
-*/
 
 -- =============================================================================
 -- RESUMEN VISUAL (siempre ejecutable)

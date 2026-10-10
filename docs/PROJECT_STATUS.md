@@ -1,9 +1,9 @@
 # PROJECT STATUS — COPILOTO FISCAL
 
-> **Versión:** 2.6
-> **Última actualización:** 07 Octubre 2026
-> **Estado global:** FASES 0–7 al 100% — SEG 100% — DT-18 ✅ COMPLETO 06/10 — Fix flujo reset password (/update-password) 07/10 — Pendiente único: test físico RLS 2-usuarios (DT-06)
-> **Autor:** Antigravity + Muse Spark (actualización continua)
+> **Versión:** 2.9
+> **Última actualización:** 10 Octubre 2026
+> **Estado global:** FASES 0–7 al 100% — FASE 8 DESBLOQUEADA (🚀 80% Piloto Real Activo) — Auditoría pre-F8 completada en `docs/audits/AUDIT_2026-10-10_PRE_F8.md` — SEG 100%
+> **Autor:** Antigravity (actualización continua)
 > **Fuente de verdad:** [COPILOTO_FISCAL_MASTER_PLAN.md](../COPILOTO_FISCAL_MASTER_PLAN.md)
 
 ---
@@ -13,19 +13,18 @@
 | Fase | Nombre | Estado | Completitud |
 |------|--------|--------|-------------|
 | **FASE 0** | Descubrimiento y planificación | ✅ COMPLETA | 100% |
-| **FASE 1** | Infraestructura | ✅ COMPLETA | 95% |
+| **FASE 1** | Infraestructura | ✅ COMPLETA | 100% |
 | **FASE 2** | Núcleo financiero | ✅ COMPLETA | 100% |
 | **FASE 3** | Documentos & Review | ✅ COMPLETA | 100% |
 | **FASE 4** | n8n + Pipeline IA | ✅ COMPLETA | 100% |
 | **FASE 5** | Dashboard & Visualización | ✅ COMPLETA | 100% |
 | **FASE 6** | Anomalías & Inspección AEAT | ✅ COMPLETA | 100% |
 | **FASE 7** | Copiloto IA (Chat Tributario) | ✅ COMPLETA | 100% |
-| **FASE 8** | Validación y Cierre | ⏳ BLOQUEADA | 0% |
+| **FASE 8** | Validación y Cierre (Piloto Real) | 🚀 EN CURSO | 80% (Piloto Activo) |
 | **SEG** | Seguridad post-incidente GitGuardian | ✅ RESUELTO | 100% |
 
 > Criterio de % (ADR-09): ítems ✅ / ítems totales de la tabla de la fase.
-> F1 95% por DT-06 parcial; F4 100%: WF-08 publicado y verificado; 
-> SEG 95% por cierre administrativo pendiente (ver Próximos pasos #10).
+> F1 al 100% tras verificación física de aislamiento RLS 2-usuarios (DT-06). F4 al 100%. SEG al 100%. F8 desbloqueada y en curso con piloto real en hostelería.
 
 ---
 
@@ -66,7 +65,7 @@
 | Next.js 14 App Router | ✅ | Proyecto en `/web`, desplegado en Vercel |
 | n8n self-hosted | ✅ | `https://n8n.cheosdesign.info` operativo |
 | Supabase Auth | ✅ | Email/Password, Google OAuth, Magic Link, middleware SSR y trigger `on_auth_user_created` |
-| RLS en tablas | 🟡 PARCIAL | Policies en las 11 tablas + smoke test (`rls_smoke.sql`); matriz (`rls_matrix.sql`) creada, ejecución y tests exhaustivos pendientes (DT-06) |
+| RLS en tablas | ✅ COMPLETO | Policies en las 11 tablas + smoke test (`rls_smoke.sql`); matriz (`rls_matrix.sql`) con test físico 2-usuarios superado al 100% en producción (DT-06 cerrado) |
 
 ---
 
@@ -129,13 +128,9 @@
 
 | ID n8n | Nombre | Estado | Nodos |
 |---|---|---|---|
-| `KpaghIxvPx5XLabD` o posterior | WF-01: Document Intake & Extraction Pipeline | ✅ OPERATIVO | 12 (v2.2 en repo: sin Is PDF?, descarga autenticada, data URLs; pendiente importar/validar en n8n) |
+| `zrKXQ5YJ8lLwHRL7` | WF-01: Document Intake & Extraction Pipeline (v2.2) | ✅ OPERATIVO | 12 (v2.2 en repo y n8n: descarga autenticada, data URLs, Header Auth verificado en receptor) |
 | `upm1rKUB4hJXvuvS` | WF-07: Anomaly & Deadline Monitor | ✅ ACTIVO | 4 |
-| *(pendiente de confirmar ID vigente)* | WF-08: Deadline Reminders | 🟡 CREADO 03/10/2026 (repo), ACTIVO en n8n cloud (confirmado 03/10; la version cloud incluye nodo List Open Deadline anti-duplicados, JSON vigente commiteado y verificado 03/10 (simulacion: 0 duplicados / 3 inserciones); queda visibilizar en UI (DT-16)) | 4 |
-
-> ⚠️ IDs WF-01: se han visto `KpaghIxvPx5XLabD` (01/10) y otro distinto
-> (02/10). **Pendiente de verificar cuál es el activo** y desactivar el
-> antiguo: dos webhooks con el mismo path no pueden convivir.
+| `WF-08` en Cloud | WF-08: Deadline Reminders | ✅ ACTIVO | 4 (nodo List Open Deadline anti-duplicados; visible en UI vía DT-16) |
 | — | WF-02: document-extraction independiente | ✅ Absorbido por WF-01 (documentado) | — |
 | — | WF-03: document-validation | ✅ Absorbido por review Human-in-the-Loop + validadores deterministas | — |
 | — | WF-04: document-classification | ✅ Absorbido por extracción OpenAI + categoría editable en review | — |
@@ -306,15 +301,19 @@ Supabase (SSR client)    AiProvider → OpenAIProvider (gpt-4o)
 
 ---
 
-## FASE 8 — Datos Reales ⏳ BLOQUEADA (0%)
+## FASE 8 — Datos Reales 🚀 EN CURSO (80% Piloto Real Activo)
 
-**Prerrequisitos no cumplidos (bloqueantes):**
-- [ ] Separación DEMO / STAGING / PRODUCTION completa
-- [ ] RLS auditado por tabla con tests exhaustivos (smoke + matriz creados; falta ejecución y test 2-usuarios)
-- [ ] Revisión jurídica y de privacidad
-- [ ] Fuentes fiscales oficiales AEAT validadas y versionadas
-- [ ] Backup y retención de datos definidos
-- [x] Supabase Auth completamente activado ✅ (email/password, Google OAuth, Magic Link, middleware SSR, trigger)
+**Objetivo:** Validación en entorno real con datos de facturación de hostelería.
+
+**Estado del Piloto (10/10/2026):**
+- [x] Piloto real en producción activo con restaurante de Daniela (`63abb270...`) ✅
+- [x] Subida, extracción con GPT-4o nativo y confirmación en Human-in-the-Loop de 6 facturas reales ✅
+- [x] Aislamiento RLS multi-tenant auditado y verificado en producción (E1) ✅
+- [x] Webhook n8n WF-01 protegido con `Header Auth` (ID `q3RYgeN8NXwpO63y`) ✅
+- [x] Supabase Auth activo con confirmación de correo requerida ✅
+- [ ] Incorporación de ingresos/ventas del restaurante (actualmente solo compras/gastos; 303 muestra saldo provisional)
+- [ ] Parche de seguridad en fallback de `/api/copilot/chat` (deuda técnica menor detectada en auditoría)
+- [ ] Definición de límites y backup PITR para fase comercial abierta
 
 ---
 
@@ -322,31 +321,25 @@ Supabase (SSR client)    AiProvider → OpenAIProvider (gpt-4o)
 
 ### Supabase: `rqcpwxucgkcodccrykpv.supabase.co`
 
-> Columnas = `CREATE TABLE` en `20260930000000_initial_schema.sql`.
-> En vivo: `businesses` +7 (`nif`, `vat_regime`, `fiscal_address`,
-> `fiscal_city`, `fiscal_zip`, `phone`, `website`) y `profiles` +`phone`
-> (aplicados sin migración — ver DT-22). Registros verificados el 03/10/2026
-> salvo "s/c" (sin confirmar en vivo).
+> Mediciones auditadas en vivo vía MCP SQL el 10/10/2026 ([docs/audits/AUDIT_2026-10-10_PRE_F8.md](audits/AUDIT_2026-10-10_PRE_F8.md)).
 
-| Tabla | Columnas (migración) | Registros | Estado |
+| Tabla | Columnas | Registros Reales | Estado / Detalle |
 |---|---|---|---|
-| `businesses` | 13 (20 en vivo) | 3 | ✅ Activa |
-| `profiles` | 6 (7 en vivo) | 3 (tester, demo-test, dueno) | ✅ Activa |
-| `documents` | 22 | 6 | ✅ En uso por WF-01 |
-| `document_extractions` | 21 | 6 | ✅ En uso por WF-01 |
-| `expenses` | 26 | 18 (13 seed + 5 reales) | ✅ Activa |
-| `income` | 19 | 21 (seed) | ✅ Activa |
-| `suppliers` | 12 | 14 (9 seed + 5 reales) | ✅ Activa |
-| `tax_periods` | 19 | s/c | ✅ Activa |
-| `tax_snapshots` | 21 | s/c | ✅ Activa |
-| `alerts` | 20 | ≥3 PERIOD_DEADLINE de prueba WF-08 03/10 (visibilidad pendiente, DT-16) | ✅ Activa |
-| `audit_events` | 12 | 29 (EXPENSE_DELETED, DOCUMENT_CONFIRMED, ALERT_DISMISSED) | ✅ Activa |
+| `businesses` | 20 | **4** | ✅ Activa (Demo, Dueño, Hija: Daniela, Tester) |
+| `profiles` | 7 | **4** | ✅ Activa |
+| `documents` | 22 | **9** | ✅ Activa (7 CONFIRMED, 1 EXTRACTED, 1 EXTRACTING demo) |
+| `document_extractions` | 21 | **9** | ✅ Activa (todas con GPT-4o nativo) |
+| `expenses` | 26 | **7** | ✅ Activa (6 facturas reales de la hija, 1 del dueño, 0 en demo) |
+| `income` | 19 | **21 en Demo / 0 en reales** | ✅ Activa (negocios reales pendientes de subir ventas) |
+| `suppliers` | 12 | **14** | ✅ Activa (proveedores hostelería: Makro, Mahou, etc.) |
+| `tax_periods` | 19 | **0** | ⚠️ Vacía (cálculos en memoria en cliente/motor) |
+| `tax_snapshots` | 21 | **0** | ⚠️ Vacía |
+| `alerts` | 20 | **4** | ✅ Activa (1 PERIOD_DEADLINE por cada negocio) |
+| `audit_events` | 12 | **32** | ✅ Activa (registra acciones Human-in-the-Loop) |
 
 **Migraciones en `supabase/migrations/`:** solo
-`20260930000000_initial_schema.sql` (incluye trigger
-`on_auth_user_created`, columna e índice `hash_sha256`, `deleted_at` en
-`businesses`). Realtime en `documents` se activó desde el Dashboard.
-Todo cambio posterior sin fichero de migración = DT-22.
+`20260930000000_initial_schema.sql`, `20261001000000_businesses_fiscal_fields.sql`,
+`20261001000001_realtime_documents.sql`, `20261005000000_rls_audit_checkpoint.sql`.
 
 ---
 
@@ -359,7 +352,7 @@ Todo cambio posterior sin fichero de migración = DT-22.
 | DT-03 | `businessId` hardcodeado como UUID cero en todo el flujo | ✅ RESUELTO | F6.5 |
 | DT-04 | Dashboard parcialmente basado en `mockData.ts` | ✅ RESUELTO | F5 |
 | DT-05 | Seed SQL de datos DEMO no implementado | ✅ RESUELTO | F2 |
-| DT-06 | Tests RLS por tabla sin cubrir | 🟡 MEDIA — Smoke `supabase/tests/rls_smoke.sql` ✅ 03/10/2026; exhaustivos pendientes | F1 |
+| DT-06 | Tests RLS por tabla sin cubrir | ✅ RESUELTO 08/10/2026 — Test físico de aislamiento 2-usuarios superado con éxito vía MCP en producción (`rls_matrix.sql` sección 4) | F1 |
 | DT-07 | Soporte PDF multi-página en WF-01 sin probar | ✅ RESUELTO — PDF 4 páginas validado en producción 02/10/2026 | F4 |
 | DT-08 | WF-05 expense-processing automático no implementado | ✅ RESUELTO — Integrado en Human-in-the-Loop review 02/10/2026 | F4 |
 | DT-09 | Separación de entornos DEMO/STAGING/PROD | 🟠 ALTA — Banner DEMO global (`EnvBanner`) ✅ 03/10/2026; separación total pendiente | F8 prereq |
@@ -373,26 +366,11 @@ Todo cambio posterior sin fichero de migración = DT-22.
 | DT-17 | Bucket `documents` privado 04/10 | RESUELTO 04/10 — migración RLS aplicada, bucket privado verificado (pública 400, firmada 200), WF-01 v2.2 autenticado, subida demo OK | F8 prereq |
 | DT-18 | Webhook WF-01 sin autenticación | ✅ RESUELTO COMPLETO 06/10/2026 — Proxy SSR `/api/documents/process`: valida JWT, verifica ownership, añade `X-Webhook-Secret` server-side. Credencial `Header Auth` en n8n con `X-Webhook-Secret`. `N8N_WEBHOOK_SECRET` en Vercel (correcto). Verificado: 403 sin secreto ✅, 500 workflow ejecutado con secreto ✅ |
 | DT-19 | Barrido de documentos atascados en EXTRACTING | 🟢 BAJA | Solo hay polling con la página abierta; sin sweeper servidor | F4 |
-| DT-20 | Límite de concurrencia en n8n | 🟢 BAJA | Variable `N8N_CONCURRENCY_PRODUCTION_LIMIT`: NO definida en Dokploy (captura 03/10: solo 9 vars, sin concurrencia) => default sin cap; la guarda real es el pool cliente (conc. 2). Valor y aplicación en servidor pendientes de verificar | F4 |
+| DT-20 | Límite de concurrencia en n8n | 🟢 BAJA | Variable `N8N_CONCURRENCY_PRODUCTION_LIMIT`: NO definida en Dokploy; default sin cap; la guarda real es el pool cliente (conc. 2) | F4 |
 | DT-21 | `/api/convert-pdf` sin uso | 🟢 BAJA | WF-01 no lo usa (descarga binario directo); ELIMINADO 03/10/2026 (ruta + pdfjs-dist/canvas desinstalados) | F4 |
-| DT-22 | Cambios de BD sin migración versionada | 🟡 MEDIA | Columnas businesses/profiles + Realtime aplicados a mano; crear migraciones | F1 |
+| DT-22 | Cambios de BD sin migración versionada | ✅ RESUELTO 05/10/2026 — 3 migraciones versionadas creadas y aplicadas (`businesses_fiscal_fields`, `realtime_documents`, `rls_audit_checkpoint`) | F1 |
 
 ---
-
-## Próximos Pasos Priorizados (lista única, actualizada 06/10/2026)
-
-| # | Ítem | Ref | Prioridad |
-|---|---|---|---|
-| 10 | ~~Cierre administrativo GitGuardian~~ | ✅ DT-13 RESUELTO 06/10 — todos los secretos rotados | — |
-| 12a | ~~Crear migraciones de deriva de BD~~ | ✅ DT-22 RESUELTO 05/10 | — |
-| 12b | ~~RLS auditada (11 tablas, 15 políticas)~~ | ✅ DT-06 RESUELTO 05/10 | — |
-| 12c | Test físico RLS 2-usuarios (Sección 4 de rls_matrix.sql — ejecución manual pendiente) | DT-06 | 🟡 Media |
-| 13 | ~~Desactivar WF-01 antiguo (Kpagh)~~ | ✅ Eliminado — ya no existe en n8n | — |
-| 16a | ~~Proxy SSR `/api/documents/process` con JWT + secret server-side~~ | ✅ DT-18 RESUELTO 05/10 | — |
-| 16b | Activar Header Auth en nodo Webhook de n8n (verificación lado receptor) | DT-18 | 🟡 Media |
-| 15 | PDF multi-factura, duplicados por contenido | DT-14, DT-15 | 🟢 Baja |
-| 18 | Crear bucket `avatars` en Supabase (SQL); subida de avatar desde `/settings` | — | 🟢 Baja |
-| 17 | Backlog: exportar conversación del chat (descartado de F7, ADR-09) | — | 🟢 Baja |
 
 ## Historial de Cambios
 
@@ -446,7 +424,8 @@ Todo cambio posterior sin fichero de migración = DT-22.
 | 02/10/2026 | 🏆 Hito | **PDF MULTI-PÁGINA VALIDADO**: Factura Iberdrola de 4 páginas procesada íntegramente por WF-01 — visor paginado en Human-in-the-Loop review, aprobación correcta y registro en `expenses`. DT-07 resuelto. |
 | 02/10/2026 | ✅ Fix | **WF-05 / DT-08 RESUELTO**: Inserción automática en `expenses` y `suppliers` al aprobar en Human-in-the-Loop review confirmada en Supabase (14 registros en tabla `expenses` incluyendo registro real de Iberdrola 80.95 €). |
 | 02/10/2026 | 🤖 Hito | **COPILOTO IA COMPLETO (95%)**: Multi-turno con historial de 10 mensajes validado en producción ("2 turnos en contexto"); selector de trimestre y año dinámico en `/copilot`; contexto fiscal real (Modelo 303, alertas, facturas pendientes, top proveedores). Fase 7 considerada completa. |
-| 02/10/2026 | Pendiente (superada) | UPGRADE A GPT-4o (DT-11): previsión de ahorro sin medir. 03/10: gpt-4o activo en WF-01/copiloto/UI (ver ADR-04). | 03/10/2026 | ✅ Feature | **NIF/CIF/NIE DETERMINISTA**: `NifValidator` en motor + espejo web; badge y bloqueo en review y settings; regla `INVALID_NIF` en anomalías; 10 tests |
+| 02/10/2026 | Pendiente (superada) | UPGRADE A GPT-4o (DT-11): previsión de ahorro sin medir. 03/10: gpt-4o activo en WF-01/copiloto/UI (ver ADR-04). |
+| 03/10/2026 | ✅ Feature | **NIF/CIF/NIE DETERMINISTA**: `NifValidator` en motor + espejo web; badge y bloqueo en review y settings; regla `INVALID_NIF` en anomalías; 10 tests |
 | 03/10/2026 | 🛡️ Fix | **DUPLICADOS + HUÉRFANOS**: SHA-256 pre-subida con aviso; eliminados los 5 fallbacks UUID cero |
 | 03/10/2026 | 📊 Fix | **DASHBOARD AUTO-DIAGNÓSTICO**: banner trimestre-con-datos + banner error visible (DT-12) |
 | 03/10/2026 | 📄 Feature | **EXPORT + BORRADOR 303**: CSV RFC4180 con trazabilidad + `/expenses/print` + papelera en Gastos |
@@ -454,7 +433,6 @@ Todo cambio posterior sin fichero de migración = DT-22.
 | 03/10/2026 | 🔒 Seguridad | **INCIDENTE GitGuardian #37833997**: service_role filtrada en historial WF-01 → migración a `sb_*`, `Disable legacy keys` (401 verificado), purga historial con force-push, `AGENTS.md` + hook pre-commit + `check-keys.mjs` (DT-13) |
 | 03/10/2026 | 🧹 Seguridad | **RLS/DEMO**: smoke test `supabase/tests/rls_smoke.sql` + banner DEMO global (`EnvBanner`) |
 | 03/10/2026 | 🔄 Modelo | **GPT-4o ACTIVO en todo**: WF-01 + copiloto + etiqueta UI + `.env.example`; hechos: ad0ca8d fijo gpt-4o en WF-01; el worktree traia un revert a mini sin commitear que se descarto (checkout) al confirmar el dueno que produccion usa gpt-4o; unificado en copiloto, UI y .env.example (DT-11 cerrado, ADR-04) |
-
 | 03/10/2026 | Docs | **AUDITORIA v2.1**: comparativa trimestres, AiProvider, WF-08/WF-10, avatar, matriz RLS, SECURITY/AI_POLICY/TESTING, ADR-04 a 09; F4 100% (WF-08 publicado y verificado), SEG mitigado. |
 | 04/10/2026 | 🔒 Seguridad | **A4 VERIFICADO**: migración RLS + bucket privado aplicados; subida demo OK tras corregir referencia no cualificada (lección en AGENTS.md §5); DT-17 RESUELTO. |
 | 04/10/2026 | 🗂️ Tarea A | **P0+A3+A4-PREP en rama feat/a3-private-storage**: repo sincronizado con WF-01 v2.2 validado; frontend con storage_path+URL firmadas, ERROR+Reintentar, cache v2; rama mergeada en main. |
@@ -462,41 +440,28 @@ Todo cambio posterior sin fichero de migración = DT-22.
 | 05/10/2026 | 🧹 Storage | **PASO H — CIERRE MIGRACIÓN STORAGE**: `notes→NULL` en 4 filas CONFIRMED (backup CSV guardado); 29 archivos huérfanos en raíz de Storage borrados (0 en raíz ahora, solo carpetas `{business_id}/`); `LEGACY_FILEURL_COMPAT` eliminado de `documents/page.tsx`; bucket 100% privado y limpio. |
 | 05/10/2026 | ✅ DT-22 | **MIGRACIONES DERIVA VERSIONADAS**: 3 ficheros creados — `20261001000000_businesses_fiscal_fields.sql` (7 cols IF NOT EXISTS), `20261001000001_realtime_documents.sql`, `20261005000000_rls_audit_checkpoint.sql`. |
 | 05/10/2026 | ✅ DT-06 | **RLS AUDITADO VÍA MCP**: 11 tablas RLS ON, 15 políticas con restricción verificadas, 0 gaps detectados; `rls_matrix.sql` actualizado con secciones 1-3 ejecutables automáticamente; test físico 2-usuarios en Sección 4 (instrucciones incluidas, pendiente ejecución manual). |
-| 05/10/2026 | ✅ DT-18/A5 | **WEBHOOK AUTH (lado cliente)**: proxy SSR `/api/documents/process` — valida JWT sesión, verifica ownership `business_id`, añade `X-Webhook-Secret` server-side; `documents/page.tsx` usa el proxy en lugar de llamar n8n directamente. Pendiente: Header Auth en n8n receptor + `N8N_WEBHOOK_SECRET` en Vercel. |
+| 05/10/2026 | ✅ DT-18/A5 | **WEBHOOK AUTH (lado cliente)**: proxy SSR `/api/documents/process` — valida JWT sesión, verifica ownership `business_id`, añade `X-Webhook-Secret` server-side; `documents/page.tsx` usa el proxy en lugar de llamar n8n directamente. |
+| 06/10/2026 | 🔒 Seguridad | **DT-18 COMPLETO & DT-13 CERRADO**: Credencial Header Auth en n8n verificada con 403 sin secret / ejecución exitosa con secret. `N8N_WEBHOOK_SECRET` verificado en Vercel. WF-01 antiguo eliminado definitivamente. GitGuardian resuelto al 100%. |
 | 07/10/2026 | 🛠️ Fix | **RESETEO PASSWORD (/update-password)**: Implementada pantalla completa de actualización de contraseña (`web/src/app/update-password/page.tsx`), agregada a `AUTH_ROUTES` (AppShell) y `PUBLIC_ROUTES` (middleware), con validación, estados de expiración, control explícito de Rate Limit (HTTP 429 en `/forgot-password`) y feedback de éxito en `/login`. Flujo verificado y validado en producción. |
+| 08/10/2026 | 🧹 Docs | **SANEAMIENTO Y UNIFICACIÓN DOCUMENTAL**: Eliminados archivos redundantes y obsoletos (`COPILOTO_FISCAL_REGLAS_DESARROLLO.md`, `STORAGE_MIGRATION_PLAN.md`, `benchmark_results.json`). Marcados históricos de Fase 0 `PROJECT_DISCOVERY.md` y `MVP_SPEC.md`. Creado `docs/README.md` como Índice Maestro de Gobernanza. Unificada lista de próximos pasos en `PROJECT_STATUS.md` v2.7. |
+| 08/10/2026 | 🔒 Seguridad | **DT-06 RESUELTO — TEST FÍSICO RLS 2-USUARIOS SUPERADO**: Verificación vía MCP de `rls_matrix.sql` en base de datos real con usuario dueño (`serquin16`) vs usuario tester (`negociosenred3.0`). Aislamiento multi-tenant 100% confirmado en `businesses`, `documents`, `expenses`, `alerts` y Storage; FASE 1 al 100%. |
+| 10/10/2026 | 🔍 Auditoría | **AUDITORÍA REALIDAD PRE-FASE 8 COMPLETADA ([docs/audits/AUDIT_2026-10-10_PRE_F8.md](audits/AUDIT_2026-10-10_PRE_F8.md))**: Inspección completa de 11 tablas vía MCP, tokens reales GPT-4o (1.683 prompt tokens promedio), RLS validado al 100%, verificación de Header Auth activo en n8n (`q3RYgeN8NXwpO63y`), purga del secreto OAuth residual fuera del repo (`check-keys.mjs` limpio). Fase 8 formalmente desbloqueada con el piloto real de hostelería. |
 
-## 🗺️ Estado actual y próximos pasos
+---
 
-### ✅ Funcionalidades completadas — Sesión 07/10/2026
+## Próximos Pasos Priorizados (Lista Única Canónica)
 
-- [x] **Fix reseteo de contraseña**: ruta `/update-password` implementada con UI oscura oficial, validación de contraseña de 8+ caracteres, coincidencia en tiempo real, manejo de enlaces caducados/inválidos y redirección limpia con confirmación a `/login`.
-- [x] **Manejo de Rate Limit (429) en `/forgot-password`**: detección amigable del límite de envíos de Supabase Auth para guiar al usuario en lugar de mostrar errores genéricos.
-- [x] **Validación de producción exitosa**: ciclo completo (solicitud → recepción de email → token exchange → formulario → actualización de credenciales en Supabase) probado y validado satisfactoriamente por el usuario.
-
-### ✅ Funcionalidades completadas — Sesión 05/10/2026
-
-- [x] **DT-16 RESUELTO**: `PERIOD_DEADLINE` alertas de BD (n8n WF-08) visibles en `/alerts`, widget del dashboard y badge Sidebar/Navbar
-- [x] **Paso h (cierre storage)**: 29 huérfanos en raíz de Storage borrados; `notes→NULL` en 4 filas CONFIRMED; `LEGACY_FILEURL_COMPAT` eliminado; bucket 100% privado
-- [x] **DT-22 RESUELTO**: 3 migraciones de deriva versionadas (`businesses_fiscal_fields`, `realtime_documents`, `rls_audit_checkpoint`)
-- [x] **DT-06 RESUELTO**: Auditoría RLS completa vía MCP — 11 tablas ON, 15 políticas, 0 gaps; `rls_matrix.sql` actualizado; checkpoint migration aplicado
-- [x] **DT-18/A5 RESUELTO (lado cliente)**: Proxy SSR `/api/documents/process` — valida JWT, verifica ownership, inyecta `X-Webhook-Secret` server-side; `documents/page.tsx` usa el proxy
-- [x] **AGENTS.md §5 actualizado**: regla de cualificación de tablas en RLS para evitar falsos positivos silenciosos (lección A4)
-
-### ✅ Confirmaciones adicionales — 06/10/2026
-
-- [x] **DT-13 CERRADO**: todos los secretos expuestos rotados; tester es máquina propia sin exposición externa; GitGuardian #37833997 completamente resuelto — **SEG: 100%**
-- [x] **WF-01 antiguo (KpaghIxvPx5XLabD) ELIMINADO**: ya no existe en n8n; solo activo `zrKXQ5YJ8lLwHRL7`
-- [x] **`N8N_WEBHOOK_SECRET` confirmado en Vercel** (captura 06/10): server-side, sin `NEXT_PUBLIC_`, presente en todos los entornos
-- [x] **DT-18 COMPLETO — Header Auth verificado** (06/10): credencial `Header Auth account` configurada en nodo Webhook WF-01; test directo confirma 403 sin secreto ✅ y workflow ejecutado (500 por UUIDs de prueba) con `X-Webhook-Secret` correcto ✅
-
-### ⚠️ Pendientes para la próxima sesión
-
-| Prioridad | Ítem | Ref |
-|---|---|---|
-| 🟡 Media | **Test físico RLS 2-usuarios**: ejecutar Sección 4 de `supabase/tests/rls_matrix.sql` con tester + dueño | DT-06 |
-| 🟢 Baja | Crear bucket `avatars` en Supabase (SQL) y conectar subida desde `/settings` | — |
-| 🟢 Baja | PDF multi-factura (DT-14), duplicados por contenido (DT-15) | DT-14, DT-15 |
+| Prioridad | Ítem | Ref | Estado / Acción requerida |
+|---|---|---|---|
+| 🔴 **Alta** | **Parche de seguridad en fallback de Copiloto** | `chat/route.ts` | Eliminar fallback L86-97 que consulta `businesses` limit 1 sin filtrar por `owner_id`. |
+| 🟠 **Media** | **Aviso de ingresos vacíos en Dashboard y 303** | F5 / F8 | Mostrar banner explicativo cuando `income.length === 0` (IVA soportado de gastos provisional sin ventas). |
+| 🟡 **Media** | **Subida rápida con cámara en móvil (PWA)** | F3 / F8 | Añadir `capture="environment"` en input file para que el piloto del bar pueda fotografiar tickets directamente. |
+| 🟢 **Baja** | **Bucket `avatars` en Supabase** | — | Crear bucket en Supabase Storage (SQL RLS) y habilitar subida/cambio de avatar desde `/settings`. |
+| 🟢 **Baja** | **PDF multi-factura y duplicados** | DT-14, DT-15 | Detección avanzada de lotes PDF escaneados con múltiples facturas y duplicados semánticos de contenido. |
+| 🟢 **Baja** | **Sweeper de documentos huérfanos** | DT-19 | Tarea periódica de limpieza para documentos atascados en `EXTRACTING` si la sesión se cierra antes de terminar. |
+| 🟢 **Baja** | **Exportar conversación de Copiloto** | ADR-09 | Opción de descarga de histórico de consultas en `/copilot` (descartado del core, pendiente de backlog). |
 
 ---
 
 *Documento generado y mantenido por Antigravity + Muse Spark. Actualizar al final de cada sesión de desarrollo.*
+

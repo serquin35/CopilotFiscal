@@ -2,12 +2,13 @@
 
 > **Versión:** 1.0  
 > **Fecha:** 30 Septiembre 2026  
-> **Estado:** FASE 0 — Especificación MVP  
-> **Fuente de verdad:** COPILOTO_FISCAL_MASTER_PLAN.md §10, §11, §25  
+> **Estado:** 🏛️ DOCUMENTO HISTÓRICO — ESPECIFICACIÓN ORIGINAL FASE 0 (Completada)  
+> **Fuente de verdad activa:** [COPILOTO_FISCAL_MASTER_PLAN.md](../COPILOTO_FISCAL_MASTER_PLAN.md)  
+> **Estado vivo del proyecto:** [PROJECT_STATUS.md](PROJECT_STATUS.md)  
 > **Autor:** Antigravity (generado durante FASE 0)
 
 > [!NOTE]
-> El MVP opera exclusivamente en entorno DEMO con datos ficticios. El negocio de referencia es "Bar Restaurante Demo", un autónomo ficticio de hostelería en Madrid. Ningún dato aquí representado es real.
+> Este documento representa la especificación inicial preliminar del MVP (30/09/2026). Las fases 0 a 7 ya han sido completadas al 100%, con OCR real OpenAI GPT-4o, Auth SSR, Supabase RLS y streaming en Copiloto IA. Para el estado y alcance en producción, consultar [PROJECT_STATUS.md](PROJECT_STATUS.md) y [COPILOTO_FISCAL_MASTER_PLAN.md](../COPILOTO_FISCAL_MASTER_PLAN.md).
 
 ---
 
