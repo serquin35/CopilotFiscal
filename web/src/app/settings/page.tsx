@@ -750,12 +750,15 @@ function TabSeguridad({ onToast }: { onToast: (t: Toast) => void }) {
 
       try {
         localStorage.clear();
-      } catch (_) {}
+      } catch {
+        // Ignorar si el almacenamiento local está bloqueado
+      }
 
       await signOut();
       router.push("/login");
-    } catch (err: any) {
-      onToast({ type: "error", msg: err.message || "Error al eliminar la cuenta" });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Error al eliminar la cuenta";
+      onToast({ type: "error", msg: message });
       setDeletingAccount(false);
     }
   };

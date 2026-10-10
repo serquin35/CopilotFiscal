@@ -53,8 +53,9 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({ success: true, message: "Cuenta eliminada correctamente" });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("[account/delete] Error inesperado:", error);
-    return NextResponse.json({ error: error.message || "Error interno del servidor" }, { status: 500 });
+    const message = error instanceof Error ? error.message : "Error interno del servidor";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
