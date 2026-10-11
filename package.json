@@ -6,6 +6,7 @@
   "scripts": {
     "build": "tsc",
     "test": "vitest run",
+    "test:wf01": "node n8n/workflows/wf01.v2.2.test.mjs",
     "test:watch": "vitest"
   },
   "keywords": [

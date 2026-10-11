@@ -16,12 +16,6 @@ import { createClient } from "@supabase/supabase-js";
 
 interface ProcessPayload {
   documentId: string;
-  businessId: string;
-  storagePath: string;
-  originalFilename: string;
-  fileSize: number;
-  mimeType: string;
-  uploadedAt: string;
 }
 
 export async function POST(req: NextRequest) {
@@ -48,52 +42,63 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Sesión inválida o expirada" }, { status: 401 });
   }
 
-  // ── 2. Validar y parsear payload ──────────────────────────────────────────
-  let payload: ProcessPayload;
+  // ── 2. Validar payload de entrada ──────────────────────────────────────────
+  let body: Partial<ProcessPayload>;
   try {
-    payload = await req.json();
+    body = await req.json();
   } catch {
     return NextResponse.json({ error: "Payload JSON inválido" }, { status: 400 });
   }
 
-  const { documentId, businessId, storagePath, originalFilename, fileSize, mimeType, uploadedAt } = payload;
-
-  if (!documentId || !businessId || !storagePath) {
-    return NextResponse.json({ error: "Campos obligatorios: documentId, businessId, storagePath" }, { status: 400 });
+  const { documentId } = body;
+  if (!documentId || typeof documentId !== "string") {
+    return NextResponse.json({ error: "Campo obligatorio: documentId" }, { status: 400 });
   }
 
-  // ── 3. Verificar que el businessId pertenece al usuario (RLS manual) ───────
-  const { data: bizCheck, error: bizError } = await adminClient
-    .from("businesses")
-    .select("id")
-    .eq("id", businessId)
-    .eq("owner_id", user.id)
-    .single();
+  // ── 3. Consultar documento con RLS del usuario (defensa estricta) ───────────
+  // No confiamos en storagePath, businessId ni mimeType enviados por el cliente.
+  // Se leen directamente de la base de datos validando ownership por RLS.
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+  const userClient = createClient(supabaseUrl, anonKey, {
+    global: { headers: { Authorization: `Bearer ${accessToken}` } },
+    auth: { persistSession: false },
+  });
 
-  if (bizError || !bizCheck) {
-    console.warn(`[documents/process] Usuario ${user.id} intentó acceder a negocio ${businessId} que no le pertenece`);
-    return NextResponse.json({ error: "Acceso denegado al negocio" }, { status: 403 });
+  const { data: docRow, error: docError } = await userClient
+    .from("documents")
+    .select("id, business_id, storage_path, original_filename, file_size_bytes, mime_type, uploaded_at")
+    .eq("id", documentId)
+    .maybeSingle();
+
+  if (docError || !docRow) {
+    console.warn(`[documents/process] Usuario ${user.id} intentó acceder a documentId ${documentId} inexistente o de otro negocio`);
+    return NextResponse.json({ error: "Documento no encontrado o acceso no autorizado" }, { status: 404 });
   }
 
-  // ── 4. Llamar a n8n con el secreto (server-side, nunca al cliente) ─────────
+  // Verificar que storage_path existe y coincide con la convención del negocio
+  if (!docRow.storage_path || !docRow.storage_path.startsWith(`${docRow.business_id}/`)) {
+    console.error(`[documents/process] storage_path anómalo o vacío para doc ${documentId}`);
+    return NextResponse.json({ error: "Ruta de almacenamiento no válida" }, { status: 400 });
+  }
+
+  // ── 4. Llamar a n8n con el secreto y los datos verificados de BD ───────────
   const n8nUrl =
     process.env.NEXT_PUBLIC_N8N_WEBHOOK_URL ||
     "https://n8n.cheosdesign.info/webhook/copilot-document-intake";
 
   const webhookSecret = process.env.N8N_WEBHOOK_SECRET;
   if (!webhookSecret) {
-    // En desarrollo sin secreto configurado, loguear warning pero continuar
     console.warn("[documents/process] N8N_WEBHOOK_SECRET no configurado — llamada sin autenticación");
   }
 
   const n8nPayload = {
-    documentId,
-    businessId,
-    storagePath,
-    originalFilename,
-    fileSize,
-    mimeType,
-    uploadedAt: uploadedAt || new Date().toISOString(),
+    documentId: docRow.id,
+    businessId: docRow.business_id,
+    storagePath: docRow.storage_path,
+    originalFilename: docRow.original_filename || "documento",
+    fileSize: docRow.file_size_bytes || 0,
+    mimeType: docRow.mime_type || "application/pdf",
+    uploadedAt: docRow.uploaded_at || new Date().toISOString(),
   };
 
   let n8nResponse: Response;

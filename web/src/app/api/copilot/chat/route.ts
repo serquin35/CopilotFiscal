@@ -79,26 +79,11 @@ async function buildFiscalContext(
     .limit(1)
     .maybeSingle();
 
-  let businessId = userBusiness?.id;
-  let businessName = userBusiness?.name || "Mi Negocio";
+  const businessId = userBusiness?.id;
+  const businessName = userBusiness?.name || "Mi Negocio";
 
   if (!businessId) {
-    // Si no tiene negocio con owner_id, buscar si hay algún negocio disponible (demo fallback)
-    const { data: fallbackBiz } = await queryClient
-      .from("businesses")
-      .select("id, name")
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (fallbackBiz) {
-      businessId = fallbackBiz.id;
-      businessName = fallbackBiz.name || "Mi Negocio";
-    }
-  }
-
-  if (!businessId) {
-    console.error("[copilot/chat] No se encontro ningun negocio para el usuario", user.id);
+    console.error("[copilot/chat] Usuario no tiene negocio propio:", user.id);
     return null;
   }
 

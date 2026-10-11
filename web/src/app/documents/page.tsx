@@ -347,12 +347,6 @@ export default function DocumentsPage() {
 
       const payload = {
         documentId: doc.docId,
-        businessId: currentBizId,
-        storagePath: doc.storagePath,
-        originalFilename: doc.filename,
-        fileSize: doc.fileSize,
-        mimeType: doc.mimeType,
-        uploadedAt: new Date().toISOString(),
       };
 
       const response = await fetch("/api/documents/process", {
@@ -399,7 +393,7 @@ export default function DocumentsPage() {
       });
       window.dispatchEvent(new Event("fiscal_docs_updated"));
     },
-    [currentBizId, supabase, persistDocs]
+    [supabase, persistDocs]
   );
 
   // Reintentar extracción de un documento fallido
