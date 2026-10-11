@@ -13,6 +13,8 @@ Copilot Fiscal/
 ├── COPILOTO_FISCAL_MASTER_PLAN.md    ← FUENTE ÚNICA DE VERDAD del producto (visión, alcance, reglas)
 └── docs/
     ├── README.md                     ← Este índice maestro
+    ├── audits/
+    │   └── AUDIT_PRE_FASE_8.md       ← Auditoría integral consolidada pre-Fase 8 (seguridad, BD, tokens reales, F8a/F8b)
     ├── PROJECT_STATUS.md             ← Estado vivo del proyecto, hitos, avance por fases y deudas técnicas
     ├── DECISIONS.md                  ← Registro de Decisiones de Arquitectura (ADRs)
     ├── ARCHITECTURE.md               ← Arquitectura general del sistema y capas
@@ -37,10 +39,11 @@ Copilot Fiscal/
 | **Master Plan** | [COPILOTO_FISCAL_MASTER_PLAN.md](../COPILOTO_FISCAL_MASTER_PLAN.md) | **Fuente de verdad suprema.** Define el problema, usuario, modelo de negocio, reglas fiscales y límites del producto. Si algún documento entra en contradicción con este, manda el Master Plan. |
 | **Agent Guardrails** | [AGENTS.md](../AGENTS.md) | Instrucciones obligatorias leídas por cada IA al comenzar sesión: tolerancia cero de secretos, commits atómicos, determinismo y cualificación estricta en RLS. |
 
-### 2. Estado Vivo y Decisiones Técnicas
+### 2. Estado Vivo, Auditorías y Decisiones Técnicas
 | Documento | Ubicación | Responsabilidad |
 |---|---|---|
 | **Project Status** | [PROJECT_STATUS.md](PROJECT_STATUS.md) | Bitácora viva de avance. Contiene el progreso de Fases 0 a 8, matriz de Deudas Técnicas (DT-01 a DT-22), historial cronológico de cambios y la lista canónica de próximos pasos. |
+| **Auditoría Pre-Fase 8** | [AUDIT_PRE_FASE_8.md](audits/AUDIT_PRE_FASE_8.md) | **Informe canónico y consolidado de auditoría pre-Fase 8.** Inspección de 11 tablas, RLS, mediciones de tokens en vivo ($0.0033 USD), puertas F8a (42%) / F8b (30%) y remediación Parte C completada. |
 | **ADR Registry** | [DECISIONS.md](DECISIONS.md) | Justificación técnica y empírica de decisiones complejas (ej. ADR-01 consumo de tokens visión, ADR-02 compresión 1600px, ADR-03 ingesta en bloque, ADR-06 estados de documento, etc.). |
 
 ### 3. Especificaciones de Subsistemas

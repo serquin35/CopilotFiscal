@@ -2,7 +2,7 @@
 
 > **Versión:** 2.9
 > **Última actualización:** 11 Octubre 2026
-> **Estado global:** FASES 0–7 al 100% — FASE 8 DESGLOSADA: F8a (Piloto Real: 42% en curso) / F8b (Apertura Comercial: 30% bloqueada) — Auditoría pre-F8 v2 y Parte C completadas en `docs/audits/AUDIT_2026-10-10_PRE_F8_v2.md` — SEG 100%
+> **Estado global:** FASES 0–7 al 100% — FASE 8 DESGLOSADA: F8a (Piloto Real: 42% en curso) / F8b (Apertura Comercial: 30% bloqueada) — Auditoría integral pre-F8 y Parte C completadas en `docs/audits/AUDIT_PRE_FASE_8.md` — SEG 100%
 > **Autor:** Antigravity (actualización continua)
 > **Fuente de verdad:** [COPILOTO_FISCAL_MASTER_PLAN.md](../COPILOTO_FISCAL_MASTER_PLAN.md)
 
@@ -304,7 +304,7 @@ Supabase (SSR client)    AiProvider → OpenAIProvider (gpt-4o)
 
 ## FASE 8 — Desglose Operativo: F8a vs F8b
 
-**Fuente:** Auditoría formal `docs/audits/AUDIT_2026-10-10_PRE_F8_v2.md` y aprobación del dueño/revisor (11/10/2026).
+**Fuente:** Auditoría formal `docs/audits/AUDIT_PRE_FASE_8.md` y aprobación del dueño/revisor (11/10/2026).
 
 ### FASE 8a — Piloto Real con Datos Propios (Restaurante Daniela) 🚀 EN CURSO (42%)
 *Fórmula explícita: 2,5 / 6 puertas aprobadas (✅=1, ⚠️=0,5, ❌=0) = 41,67% (42%).*
@@ -336,7 +336,7 @@ Supabase (SSR client)    AiProvider → OpenAIProvider (gpt-4o)
 
 ### Supabase: `rqcpwxucgkcodccrykpv.supabase.co`
 
-> Mediciones auditadas en vivo vía MCP SQL el 11/10/2026 ([docs/audits/AUDIT_2026-10-10_PRE_F8_v2.md](audits/AUDIT_2026-10-10_PRE_F8_v2.md)).
+> Mediciones auditadas en vivo vía MCP SQL el 11/10/2026 ([docs/audits/AUDIT_PRE_FASE_8.md](audits/AUDIT_PRE_FASE_8.md)).
 
 | Tabla | Columnas | Registros Reales | Estado / Detalle |
 |---|---|---|---|
@@ -467,8 +467,8 @@ Supabase (SSR client)    AiProvider → OpenAIProvider (gpt-4o)
 | 07/10/2026 | 🛠️ Fix | **RESETEO PASSWORD (/update-password)**: Implementada pantalla completa de actualización de contraseña (`web/src/app/update-password/page.tsx`), agregada a `AUTH_ROUTES` (AppShell) y `PUBLIC_ROUTES` (middleware), con validación, estados de expiración, control explícito de Rate Limit (HTTP 429 en `/forgot-password`) y feedback de éxito en `/login`. Flujo verificado y validado en producción. |
 | 08/10/2026 | 🧹 Docs | **SANEAMIENTO Y UNIFICACIÓN DOCUMENTAL**: Eliminados archivos redundantes y obsoletos (`COPILOTO_FISCAL_REGLAS_DESARROLLO.md`, `STORAGE_MIGRATION_PLAN.md`, `benchmark_results.json`). Marcados históricos de Fase 0 `PROJECT_DISCOVERY.md` y `MVP_SPEC.md`. Creado `docs/README.md` como Índice Maestro de Gobernanza. Unificada lista de próximos pasos en `PROJECT_STATUS.md` v2.7. |
 | 08/10/2026 | 🔒 Seguridad | **DT-06 RESUELTO — TEST FÍSICO RLS 2-USUARIOS SUPERADO**: Verificación vía MCP de `rls_matrix.sql` en base de datos real con usuario dueño (`serquin16`) vs usuario tester (`negociosenred3.0`). Aislamiento multi-tenant 100% confirmado en `businesses`, `documents`, `expenses`, `alerts` y Storage; FASE 1 al 100%. |
-| 10/10/2026 | 🔍 Auditoría | **AUDITORÍA REALIDAD PRE-FASE 8 COMPLETADA ([docs/audits/AUDIT_2026-10-10_PRE_F8.md](audits/AUDIT_2026-10-10_PRE_F8.md))**: Inspección completa de 11 tablas vía MCP, tokens reales GPT-4o (1.683 prompt tokens promedio), RLS validado al 100%, verificación de Header Auth activo en n8n (`q3RYgeN8NXwpO63y`), purga del secreto OAuth residual fuera del repo (`check-keys.mjs` limpio). Fase 8 formalmente desbloqueada con el piloto real de hostelería. |
-| 11/10/2026 | 🏆 Auditoría & Blindaje | **AUDITORÍA PRE-FASE 8 v2 & PARTE C EJECUTADA**: Desglose formal y fórmula explícita de F8 (F8a = 42%, F8b = 30%); C1 fallback eliminado y proxy RLS blindado en `/api/documents/process`; C2 rate limiting en memoria para Serverless; C3 política RLS en `audit_events`; C4 límites físicos de bucket (20 MB / MIME); C12 `search_path` en funciones SECURITY DEFINER; C7 trigger y `uq_document_extractions_active` en producción; C5 aviso honesto Modelo 303 sin ventas + Guardarraíl 7 en copiloto; C6 alertas dinámicas y exclusión demo en WF-08; C8 script `clean_orphan_expenses` con dry-run; C9 `test:wf01` en package.json; C11 suite RLS isolation (34 tests en verde); C13 cabeceras HTTP en `next.config.mjs`; C14 CI GitHub Actions; C15 soporte móvil para captura directa. |
+| 10/10/2026 | 🔍 Auditoría | **AUDITORÍA REALIDAD PRE-FASE 8 ([docs/audits/AUDIT_PRE_FASE_8.md](audits/AUDIT_PRE_FASE_8.md))**: Inspección completa de 11 tablas vía MCP, tokens reales GPT-4o (1.683 prompt tokens promedio en PDF), RLS validado al 100%, verificación de Header Auth activo en n8n (`q3RYgeN8NXwpO63y`), purga del secreto OAuth residual fuera del repo (`check-keys.mjs` limpio). |
+| 11/10/2026 | 🏆 Auditoría & Blindaje | **AUDITORÍA INTEGRAL UNIFICADA & PARTE C EJECUTADA ([docs/audits/AUDIT_PRE_FASE_8.md](audits/AUDIT_PRE_FASE_8.md))**: Consolidación en informe único de auditoría. Desglose formal y fórmula explícita de F8 (F8a = 42%, F8b = 30%); C1 fallback eliminado y proxy RLS blindado en `/api/documents/process`; C2 rate limiting en memoria para Serverless; C3 política RLS en `audit_events`; C4 límites físicos de bucket (20 MB / MIME); C12 `search_path` en funciones SECURITY DEFINER; C7 trigger y `uq_document_extractions_active` en producción; C5 aviso honesto Modelo 303 sin ventas + Guardarraíl 7 en copiloto; C6 alertas dinámicas y exclusión demo en WF-08; C8 script `clean_orphan_expenses` con dry-run; C9 `test:wf01` en package.json; C11 suite RLS isolation (34 tests en verde); C13 cabeceras HTTP en `next.config.mjs`; C14 CI GitHub Actions; C15 soporte móvil para captura directa. |
 
 ---
 
