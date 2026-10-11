@@ -26,7 +26,7 @@
     },
     {
       "parameters": {
-        "url": "https://rqcpwxucgkcodccrykpv.supabase.co/rest/v1/businesses?select=id,name&deleted_at=is.null",
+        "url": "https://rqcpwxucgkcodccrykpv.supabase.co/rest/v1/businesses?select=id,name&deleted_at=is.null&is_demo=eq.false",
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "supabaseApi",
         "options": {}
@@ -48,7 +48,7 @@
     },
     {
       "parameters": {
-        "url": "https://rqcpwxucgkcodccrykpv.supabase.co/rest/v1/alerts?select=business_id,evidence&type=eq.PERIOD_DEADLINE&status=eq.OPEN",
+        "url": "https://rqcpwxucgkcodccrykpv.supabase.co/rest/v1/alerts?select=business_id,evidence&type=eq.PERIOD_DEADLINE",
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "supabaseApi",
         "options": {}
@@ -60,7 +60,7 @@
         64
       ],
       "id": "c1040854-32e0-4a82-a3b0-40157c2bd83f",
-      "name": "Supabase: List Open Deadline Alerts",
+      "name": "Supabase: List Existing Deadline Alerts",
       "executeOnce": true,
       "alwaysOutputData": true,
       "credentials": {

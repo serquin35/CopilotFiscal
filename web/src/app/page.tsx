@@ -754,8 +754,12 @@ export default function DashboardPage() {
     window.dispatchEvent(new Event("fiscal_docs_updated"));
   };
 
-  const isDeductibleFavorable = summary.netVat < 0 || (summary.collectedVat === 0 && summary.deductibleVat > 0);
-  const displayAmount = isDeductibleFavorable
+  const hasZeroIncomeWithExpenses =
+    (summary.totalSalesBase === 0 || summary.collectedVat === 0) && summary.deductibleVat > 0;
+  const isDeductibleFavorable = !hasZeroIncomeWithExpenses && summary.netVat < 0;
+  const displayAmount = hasZeroIncomeWithExpenses
+    ? summary.deductibleVat
+    : isDeductibleFavorable
     ? summary.deductibleVat - summary.collectedVat
     : summary.netVat;
 
@@ -1001,19 +1005,38 @@ export default function DashboardPage() {
                 <CardDescription>Liquidación fiscal Modelo 303</CardDescription>
                 <FiscalDataBadge type="ESTIMACION" size="xs" />
               </div>
-              <CardTitle className={cn("text-xl mt-0.5", isDeductibleFavorable ? "text-primary" : "text-foreground")}>
-                {isDeductibleFavorable ? "IVA a Compensar (A tu favor)" : "IVA Neto a Ingresar (AEAT)"}
+              <CardTitle
+                className={cn(
+                  "text-xl mt-0.5",
+                  hasZeroIncomeWithExpenses
+                    ? "text-amber-500 dark:text-amber-400"
+                    : isDeductibleFavorable
+                    ? "text-primary"
+                    : "text-foreground"
+                )}
+              >
+                {hasZeroIncomeWithExpenses
+                  ? "Liquidación no calculable: faltan ingresos/ventas"
+                  : isDeductibleFavorable
+                  ? "IVA a Compensar (A tu favor)"
+                  : "IVA Neto a Ingresar (AEAT)"}
               </CardTitle>
             </div>
             <div
               className={cn(
                 "rounded-xl border p-2",
-                isDeductibleFavorable
+                hasZeroIncomeWithExpenses
+                  ? "bg-amber-500/10 border-amber-500/20 text-amber-500 dark:text-amber-400"
+                  : isDeductibleFavorable
                   ? "bg-primary/10 border-primary/20 text-primary"
                   : "bg-warning/10 border-warning/20 text-warning"
               )}
             >
-              <TrendingDown className="size-5" />
+              {hasZeroIncomeWithExpenses ? (
+                <AlertTriangle className="size-5" />
+              ) : (
+                <TrendingDown className="size-5" />
+              )}
             </div>
           </CardHeader>
           <CardContent className="space-y-5">
@@ -1021,13 +1044,19 @@ export default function DashboardPage() {
               <div
                 className={cn(
                   "font-mono text-5xl md:text-6xl font-semibold tracking-tight",
-                  isDeductibleFavorable ? "text-primary" : "text-warning"
+                  hasZeroIncomeWithExpenses
+                    ? "text-amber-500 dark:text-amber-400"
+                    : isDeductibleFavorable
+                    ? "text-primary"
+                    : "text-warning"
                 )}
               >
                 {formatCurrency(displayAmount)}
               </div>
               <p className="text-xs text-muted-foreground mt-2">
-                {isDeductibleFavorable
+                {hasZeroIncomeWithExpenses
+                  ? "IVA soportado en compras deducibles acumulado en el periodo. No se computa como devolución aprobada al no constar ventas registradas (la AEAT requiere justificar actividad)."
+                  : isDeductibleFavorable
                   ? "Tienes saldo a tu favor frente a Hacienda: el IVA soportado deducible supera a las ventas emitidas."
                   : "Diferencia entre IVA repercutido a tus clientes e IVA soportado en compras deducibles."}
               </p>

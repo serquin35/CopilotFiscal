@@ -131,12 +131,37 @@ export default function AlertsPage() {
           if (row.status === "RESOLVED" || row.status === "DISMISSED") {
             resolvedMap[row.id] = row.notes || "Resuelta en base de datos";
           } else if (row.status === "OPEN") {
+            let title = row.title || "Alerta fiscal";
+            let severity = (row.severity as "high" | "medium" | "low") || "medium";
+            let description = row.description || "";
+
+            // C6: Cálculo dinámico de días y severidad para PERIOD_DEADLINE
+            if (row.type === "PERIOD_DEADLINE" && row.evidence?.deadline) {
+              const targetDate = new Date(row.evidence.deadline);
+              const now = new Date();
+              const diffMs = targetDate.getTime() - now.getTime();
+              const days = Math.ceil(diffMs / 86400000);
+              const quarter = row.evidence.quarter || "periodo actual";
+
+              if (days <= 0) {
+                title = `Vencimiento Modelo 303 (${quarter}) cumplido o finalizado`;
+                description = `El plazo legal de presentación del Modelo 303 finalizó el ${row.evidence.deadline}.`;
+                severity = "high";
+              } else {
+                title = `Vence el Modelo 303 (${quarter}) en ${days} ${days === 1 ? "día" : "días"}`;
+                description = `El plazo de presentación del Modelo 303 del trimestre ${quarter} termina el ${row.evidence.deadline}. Revisa y concilia tus facturas pendientes.`;
+                if (days <= 7) {
+                  severity = "high";
+                }
+              }
+            }
+
             // Mapear la alerta de BD al tipo AnomalyAlert de la UI
             dbAlertsToMerge.push({
               id: row.id,
-              title: row.title || "Alerta fiscal",
-              description: row.description || "",
-              severity: (row.severity as "high" | "medium" | "low") || "medium",
+              title,
+              description,
+              severity,
               type: row.type || "PERIOD_DEADLINE",
               createdAt: row.created_at || new Date().toISOString(),
               resolved: false,

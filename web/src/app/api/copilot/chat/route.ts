@@ -239,7 +239,12 @@ function buildSystemPrompt(ctx: FiscalContext): string {
   const fmt = (n: number) =>
     n.toLocaleString("es-ES", { style: "currency", currency: "EUR" });
 
-  const netVatLabel = ctx.netVat >= 0 ? "A INGRESAR a Hacienda" : "A COMPENSAR / DEVOLVER";
+  const hasZeroIncome = ctx.totalIncome === 0 && ctx.collectedVat === 0;
+  const netVatLabel = hasZeroIncome
+    ? "LIQUIDACIÓN INCOMPLETA (0 € ventas registradas: cuota de IVA soportado pendiente de conciliar, NO devolución garantizada)"
+    : ctx.netVat >= 0
+    ? "A INGRESAR a Hacienda"
+    : "A COMPENSAR en trimestres posteriores (o devolución en 4T si procede)";
   const deadlineMonth =
     ctx.quarter === "1T" ? "abril" : ctx.quarter === "2T" ? "julio"
     : ctx.quarter === "3T" ? "octubre" : "enero";
@@ -299,7 +304,8 @@ ${recentDocsText}
 3. Sé conciso y claro. Maximo 4 parrafos bien estructurados. Formato numerico espanol: 1.284,50 EUR.
 4. Si el usuario pregunta por una factura especifica (por ejemplo Iberdrola u otros suministros), busca en los gastos y documentos listados arriba para darle una respuesta precisa sobre su deducibilidad y estado.
 5. Plazo de presentacion del ${ctx.quarter}: 20 de ${deadlineMonth} (15 si se opta por domiciliacion bancaria).
-6. Tienes acceso al historial de la conversacion. Mantén la coherencia con preguntas previas.`;
+6. Tienes acceso al historial de la conversacion. Mantén la coherencia con preguntas previas.
+7. GUARDARRAÍL DE HONESTIDAD FISCAL (§4 Master Plan): Si las ventas/ingresos del trimestre son 0 EUR (${hasZeroIncome ? "SITUACIÓN ACTUAL: 0 € ingresos registrados" : "hay ingresos registrados"}), NUNCA digas que Hacienda le va a devolver dinero o que el resultado definitivo es un saldo a su favor. Debes explicar con claridad que la liquidación del Modelo 303 está INCOMPLETA porque faltan por registrar los ingresos/ventas del periodo, y que presentar un modelo sin ventas con cuotas a compensar puede suscitar requerimientos de la AEAT.`;
 }
 
 // ─── Handler ──────────────────────────────────────────────────────────────────

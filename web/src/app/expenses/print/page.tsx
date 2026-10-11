@@ -170,7 +170,10 @@ function PrintDraftInner() {
                 <p className={pending > 0 ? "text-warning font-medium" : ""}>
                   {pending > 0
                     ? `⚠️ ${pending} documento(s) pendiente(s) de revisión NO incluidos en este borrador.`
-                    : "✅ Sin documentos pendientes: cálculo completo."}
+                    : "✅ Sin documentos pendientes: cálculo de gastos completo."}
+                </p>
+                <p className="text-amber-600 dark:text-amber-400 font-medium">
+                  Nota fiscal: Este borrador refleja únicamente el IVA soportado en gastos deducibles. Para la liquidación final del Modelo 303 (Casilla 71) se requiere incorporar las ventas e ingresos del trimestre.
                 </p>
                 <p>Este documento no constituye declaración oficial ni asesoramiento fiscal.</p>
               </div>
