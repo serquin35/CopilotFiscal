@@ -329,26 +329,26 @@ export default function ExpensesPage() {
           </p>
         </div>
 
-        <div className="flex gap-2 self-start sm:self-auto">
-        <Link href="/expenses/print">
+        <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+          <Link href="/expenses/print" className="flex-1 sm:flex-initial">
+            <Button
+              variant="secondary"
+              size="sm"
+              className="gap-2 text-xs w-full justify-center"
+            >
+              <Receipt className="size-3.5" />
+              <span>Borrador 303 (PDF)</span>
+            </Button>
+          </Link>
           <Button
             variant="secondary"
             size="sm"
-            className="gap-2 text-xs"
+            className="gap-2 text-xs flex-1 sm:flex-initial justify-center"
+            onClick={exportCSV}
           >
-            <Receipt className="size-3.5" />
-            <span>Borrador 303 (PDF)</span>
+            <Download className="size-3.5" />
+            <span>Exportar Libro CSV</span>
           </Button>
-        </Link>
-        <Button
-          variant="secondary"
-          size="sm"
-          className="gap-2 text-xs"
-          onClick={exportCSV}
-        >
-          <Download className="size-3.5" />
-          <span>Exportar Libro CSV</span>
-        </Button>
         </div>
       </div>
 
@@ -391,7 +391,7 @@ export default function ExpensesPage() {
         <CardHeader className="pb-3">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
             {/* Search input */}
-            <div className="relative flex-1 max-w-md">
+            <div className="relative flex-1 max-w-md w-full">
               <Search className="size-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <input
                 type="text"
@@ -403,12 +403,12 @@ export default function ExpensesPage() {
             </div>
 
             {/* Select dropdown filters */}
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
               {/* Category */}
               <select
                 value={categoryFilter}
                 onChange={(e) => setCategoryFilter(e.target.value)}
-                className="h-8 rounded-lg border border-border bg-background px-2.5 text-xs text-foreground focus:ring-1 focus:ring-ring"
+                className="h-8 rounded-lg border border-border bg-background px-2.5 text-xs text-foreground focus:ring-1 focus:ring-ring flex-1 sm:flex-initial min-w-[130px]"
               >
                 <option value="ALL">Todas las Categorías</option>
                 {categories.map((c) => (
@@ -422,7 +422,7 @@ export default function ExpensesPage() {
               <select
                 value={vatRateFilter}
                 onChange={(e) => setVatRateFilter(e.target.value)}
-                className="h-8 rounded-lg border border-border bg-background px-2.5 text-xs text-foreground focus:ring-1 focus:ring-ring"
+                className="h-8 rounded-lg border border-border bg-background px-2.5 text-xs text-foreground focus:ring-1 focus:ring-ring flex-1 sm:flex-initial min-w-[110px]"
               >
                 <option value="ALL">Todos los IVA</option>
                 <option value="21">21% General</option>
@@ -435,7 +435,7 @@ export default function ExpensesPage() {
               <select
                 value={deductibilityFilter}
                 onChange={(e) => setDeductibilityFilter(e.target.value)}
-                className="h-8 rounded-lg border border-border bg-background px-2.5 text-xs text-foreground focus:ring-1 focus:ring-ring"
+                className="h-8 rounded-lg border border-border bg-background px-2.5 text-xs text-foreground focus:ring-1 focus:ring-ring flex-1 sm:flex-initial min-w-[110px]"
               >
                 <option value="ALL">Deducibilidad</option>
                 <option value="100">100% Total</option>

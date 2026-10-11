@@ -1043,7 +1043,7 @@ export default function DashboardPage() {
             <div>
               <div
                 className={cn(
-                  "font-mono text-5xl md:text-6xl font-semibold tracking-tight",
+                  "font-mono text-3xl sm:text-5xl md:text-6xl font-semibold tracking-tight",
                   hasZeroIncomeWithExpenses
                     ? "text-amber-500 dark:text-amber-400"
                     : isDeductibleFavorable
@@ -1064,7 +1064,7 @@ export default function DashboardPage() {
 
             {/* Trazabilidad Matemática Oficial AEAT (Casilla 71) */}
             <div className="rounded-xl border border-border/60 bg-background/50 p-3 space-y-2.5">
-              <div className="flex items-center justify-between text-xs">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs">
                 <span className="font-medium text-foreground flex items-center gap-1.5">
                   <span>Fórmula Oficial Modelo 303 (Casilla 71):</span>
                 </span>
@@ -1072,22 +1072,22 @@ export default function DashboardPage() {
                   [IVA Repercutido] − [IVA Soportado Deducible]
                 </span>
               </div>
-              <div className="grid grid-cols-3 gap-2 pt-1 border-t border-border/30 text-center font-mono text-xs">
-                <div className="p-2 rounded-lg bg-card border border-border/50 flex flex-col items-center gap-1">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 border-t border-border/30 text-center font-mono text-xs">
+                <div className="p-2 rounded-lg bg-card border border-border/50 flex flex-row sm:flex-col items-center justify-between sm:justify-center gap-1">
                   <div className="flex items-center gap-1">
                     <span className="text-[10px] text-muted-foreground">Repercutido</span>
                     <FiscalDataBadge type="ESTIMACION" size="xs" />
                   </div>
                   <span className="font-semibold text-foreground text-sm">{formatCurrency(summary.collectedVat)}</span>
                 </div>
-                <div className="p-2 rounded-lg bg-card border border-border/50 flex flex-col items-center gap-1">
+                <div className="p-2 rounded-lg bg-card border border-border/50 flex flex-row sm:flex-col items-center justify-between sm:justify-center gap-1">
                   <div className="flex items-center gap-1">
                     <span className="text-[10px] text-muted-foreground">Soportado</span>
                     <FiscalDataBadge type="DATO" size="xs" />
                   </div>
                   <span className="font-semibold text-primary text-sm">{formatCurrency(summary.deductibleVat)}</span>
                 </div>
-                <div className="p-2 rounded-lg bg-card border border-border/50 flex flex-col items-center gap-1">
+                <div className="p-2 rounded-lg bg-card border border-border/50 flex flex-row sm:flex-col items-center justify-between sm:justify-center gap-1">
                   <div className="flex items-center gap-1">
                     <span className="text-[10px] text-muted-foreground">Saldo Final</span>
                     <FiscalDataBadge type="ESTIMACION" size="xs" />
@@ -1101,14 +1101,14 @@ export default function DashboardPage() {
 
             {/* Aviso si existen facturas pendientes de conciliar */}
             {summary.pendingReviewCount > 0 && (
-              <div className="flex items-center justify-between rounded-xl bg-amber-500/10 border border-amber-500/25 p-3 text-xs">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-xl bg-amber-500/10 border border-amber-500/25 p-3 text-xs">
                 <div className="flex items-center gap-2">
                   <FiscalDataBadge type="PENDIENTE" size="xs" />
                   <span className="text-foreground text-[11px]">
                     Hay <strong>{summary.pendingReviewCount} documentos</strong> ({formatCurrency(summary.pendingExpensesVat || 0)} de IVA) pendientes de conciliación humana.
                   </span>
                 </div>
-                <Link href="/documents" className="text-primary font-semibold hover:underline flex items-center gap-1 text-[11px] whitespace-nowrap">
+                <Link href="/documents" className="text-primary font-semibold hover:underline flex items-center gap-1 text-[11px] whitespace-nowrap self-end sm:self-auto">
                   Conciliar <ChevronRight className="size-3" />
                 </Link>
               </div>
@@ -1116,7 +1116,7 @@ export default function DashboardPage() {
 
             {/* Segmented VAT visualizer */}
             <div className="space-y-2 pt-2 border-t border-border/40">
-              <div className="flex justify-between text-xs">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs">
                 <span className="flex items-center gap-1.5 text-primary">
                   <span className="size-2 rounded-full bg-primary" />
                   Soportado (deducible): <strong>{formatCurrency(summary.deductibleVat)}</strong>
@@ -1142,7 +1142,7 @@ export default function DashboardPage() {
                   summary.collectedVat === 0 ? (summary.deductibleVat > 0 ? 100 : 0) : 100
                 }
               />
-              <div className="flex justify-between text-[11px] text-muted-foreground pt-1">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-[11px] text-muted-foreground pt-1">
                 <span>Total Repercutido (Ventas): {formatCurrency(summary.collectedVat)}</span>
                 <span>
                   Tasa soportada: {summary.deductibleVat > 0 ? "100.0%" : "0.0%"}

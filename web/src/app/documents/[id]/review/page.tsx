@@ -426,37 +426,37 @@ export default function DocumentReviewPage() {
           </div>
 
           {/* Visual Document Canvas Simulation or Embedded PDF */}
-          <div className="relative min-h-[580px] rounded-2xl border border-border bg-black/40 p-4 flex items-center justify-center overflow-auto shadow-inner">
+          <div className="relative min-h-[360px] sm:min-h-[500px] lg:min-h-[580px] rounded-2xl border border-border bg-black/40 p-2 sm:p-4 flex items-center justify-center overflow-auto shadow-inner">
             {doc.url ? (
               doc.url.toLowerCase().includes(".pdf") || doc.filename?.toLowerCase().endsWith(".pdf") ? (
                 <iframe
                   src={`${doc.url}#view=FitH`}
                   title={doc.filename}
-                  className="w-full h-[620px] rounded-xl border border-border/60 bg-white"
+                  className="w-full h-[360px] sm:h-[500px] lg:h-[620px] rounded-xl border border-border/60 bg-white"
                 />
               ) : (
                 /* eslint-disable-next-line @next/next/no-img-element */
                 <img
                   src={doc.url}
                   alt={doc.filename}
-                  className="max-h-[620px] max-w-full object-contain rounded-xl shadow-lg"
+                  className="max-h-[360px] sm:max-h-[500px] lg:max-h-[620px] max-w-full object-contain rounded-xl shadow-lg"
                 />
               )
             ) : (
               <div
                 style={{ transform: `scale(${zoomLevel / 100})`, transformOrigin: "top center" }}
-                className="w-full max-w-lg rounded-xl bg-white text-neutral-900 p-8 shadow-2xl transition-transform duration-200"
+                className="w-full max-w-lg rounded-xl bg-white text-neutral-900 p-4 sm:p-8 shadow-2xl transition-transform duration-200"
               >
               {/* Simulated Invoice Header */}
-              <div className="flex justify-between items-start border-b border-neutral-200 pb-4 mb-4">
+              <div className="flex flex-col sm:flex-row justify-between items-start gap-2 border-neutral-200 pb-4 mb-4 border-b">
                 <div>
-                  <h2 className="text-lg font-bold text-neutral-900 tracking-tight">
+                  <h2 className="text-base sm:text-lg font-bold text-neutral-900 tracking-tight">
                     {doc.providerName || "PROVEEDOR S.L."}
                   </h2>
                   <p className="text-xs text-neutral-500 font-mono mt-0.5">NIF: {doc.nif || "B00000000"}</p>
-                  <p className="text-xs text-neutral-500">Calle Fiscal 10, Planta 2, Madrid</p>
+                  <p className="text-[11px] sm:text-xs text-neutral-500">Calle Fiscal 10, Planta 2, Madrid</p>
                 </div>
-                <div className="text-right">
+                <div className="text-left sm:text-right">
                   <span className="inline-block px-2 py-0.5 rounded bg-neutral-100 text-[11px] font-mono font-semibold text-neutral-700">
                     FACTURA OFICIAL
                   </span>

@@ -344,10 +344,10 @@ export default function AlertsPage() {
       )}
 
       {/* Filter Tabs */}
-      <div className="flex items-center justify-between">
-        <div className="inline-flex rounded-lg bg-muted p-1">
+      <div className="w-full overflow-x-auto scrollbar-none pb-1">
+        <div className="inline-flex rounded-xl bg-muted p-1 gap-1 min-w-full sm:min-w-0">
           {[
-            { id: "ALL", label: `Todas activas (${activeAlertsCount})` },
+            { id: "ALL", label: `Todas (${activeAlertsCount})` },
             { id: "HIGH", label: `Alta prioridad (${highSeverityCount})` },
             { id: "MEDIUM", label: "Media prioridad" },
             { id: "RESOLVED", label: "Historial resueltas" },
@@ -355,9 +355,9 @@ export default function AlertsPage() {
             <button
               key={tab.id}
               onClick={() => setFilterSeverity(tab.id)}
-              className={`rounded-md px-3 py-1 text-xs font-medium transition-all ${
+              className={`rounded-lg px-3 py-1.5 text-xs font-medium whitespace-nowrap transition-all shrink-0 ${
                 filterSeverity === tab.id
-                  ? "bg-card text-foreground shadow-xs font-semibold"
+                  ? "bg-card text-foreground shadow-xs font-semibold border border-border/40"
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
@@ -380,7 +380,7 @@ export default function AlertsPage() {
             return (
               <Card
                 key={alert.id}
-                className={`border transition-all ${
+                className={`border transition-all overflow-hidden ${
                   alert.resolved
                     ? "border-border/40 opacity-70"
                     : alert.severity === "high"
@@ -388,22 +388,22 @@ export default function AlertsPage() {
                     : "border-warning/30 bg-card hover:border-warning/50"
                 }`}
               >
-                <div className="p-6 flex flex-col md:flex-row md:items-start justify-between gap-4">
+                <div className="p-4 sm:p-6 flex flex-col md:flex-row md:items-start justify-between gap-4">
                   {/* Left: Icon & Alert description */}
-                  <div className="flex items-start gap-4">
+                  <div className="flex items-start gap-3 sm:gap-4 min-w-0 flex-1">
                     <div
-                      className={`flex size-10 items-center justify-center rounded-xl shrink-0 mt-0.5 ${
+                      className={`flex size-9 sm:size-10 items-center justify-center rounded-xl shrink-0 mt-0.5 ${
                         alert.severity === "high"
                           ? "bg-destructive/15 text-destructive border border-destructive/25"
                           : "bg-warning/15 text-warning border border-warning/25"
                       }`}
                     >
-                      <AlertTriangle className="size-5" />
+                      <AlertTriangle className="size-4 sm:size-5" />
                     </div>
 
-                    <div className="space-y-1.5">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="text-base font-semibold text-foreground">
+                    <div className="space-y-2 min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                        <h3 className="text-sm sm:text-base font-semibold text-foreground break-words">
                           {alert.title}
                         </h3>
                         <span
@@ -415,25 +415,25 @@ export default function AlertsPage() {
                         >
                           Prioridad {alert.severity}
                         </span>
-                        <span className="text-[11px] text-muted-foreground font-mono">
+                        <span className="text-[10px] sm:text-[11px] text-muted-foreground font-mono break-all">
                           ID: {alert.id}
                         </span>
                       </div>
 
-                      <p className="text-xs text-muted-foreground leading-relaxed max-w-3xl">
+                      <p className="text-xs text-muted-foreground leading-relaxed max-w-3xl break-words">
                         {alert.description}
                       </p>
 
                       {relatedDoc && (
-                        <div className="inline-flex items-center gap-2 rounded-lg bg-secondary/60 border border-border/40 px-2.5 py-1 text-[11px] text-foreground mt-2">
-                          <FileText className="size-3 text-muted-foreground" />
-                          <span>
+                        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 rounded-lg bg-secondary/60 border border-border/40 p-2 sm:px-2.5 sm:py-1 text-[11px] text-foreground mt-2 max-w-full">
+                          <FileText className="size-3 text-muted-foreground shrink-0" />
+                          <span className="truncate max-w-[200px] sm:max-w-none">
                             Documento asociado: <strong>{relatedDoc.filename}</strong> (
                             {relatedDoc.providerName})
                           </span>
                           <Link
                             href={`/documents/${relatedDoc.id}/review`}
-                            className="text-primary hover:underline flex items-center gap-0.5 ml-1"
+                            className="text-primary hover:underline flex items-center gap-0.5 ml-auto text-xs font-medium"
                           >
                             Ir a revisar <ExternalLink className="size-3" />
                           </Link>
@@ -450,11 +450,11 @@ export default function AlertsPage() {
 
                   {/* Right: Resolution Buttons */}
                   {!alert.resolved && (
-                    <div className="flex sm:flex-col items-center gap-2 shrink-0 self-end md:self-center">
+                    <div className="flex flex-col sm:flex-row md:flex-col items-stretch gap-2 shrink-0 w-full md:w-auto pt-3 md:pt-0 border-t md:border-t-0 border-border/40">
                       <Button
                         size="sm"
                         variant="primary"
-                        className="text-xs gap-1.5 h-8 w-full"
+                        className="text-xs gap-1.5 h-9 w-full justify-center"
                         onClick={() =>
                           handleResolveAlert(
                             alert.id,
@@ -468,7 +468,7 @@ export default function AlertsPage() {
 
                       {relatedDoc && (
                         <Link href={`/documents/${relatedDoc.id}/review`} className="w-full">
-                          <Button size="sm" variant="secondary" className="text-xs gap-1.5 h-8 w-full">
+                          <Button size="sm" variant="secondary" className="text-xs gap-1.5 h-9 w-full justify-center">
                             <Info className="size-3.5" />
                             <span>Inspeccionar Factura</span>
                           </Button>

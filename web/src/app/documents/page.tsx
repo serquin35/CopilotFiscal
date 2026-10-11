@@ -859,25 +859,27 @@ export default function DocumentsPage() {
               />
             </div>
 
-            <div className="inline-flex rounded-lg bg-muted p-1">
-              {[
-                { id: "ALL", label: "Todos" },
-                { id: "PENDING", label: "Pendientes" },
-                { id: "ANOMALIES", label: "Con Alertas" },
-                { id: "REVIEWED", label: "Aprobados" },
-              ].map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => setFilter(tab.id)}
-                  className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${
-                    filter === tab.id
-                      ? "bg-card text-foreground shadow-xs font-semibold"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
+            <div className="overflow-x-auto scrollbar-none pb-0.5 max-w-full">
+              <div className="inline-flex rounded-lg bg-muted p-1 gap-1">
+                {[
+                  { id: "ALL", label: "Todos" },
+                  { id: "PENDING", label: "Pendientes" },
+                  { id: "ANOMALIES", label: "Con Alertas" },
+                  { id: "REVIEWED", label: "Aprobados" },
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setFilter(tab.id)}
+                    className={`rounded-md px-2.5 py-1 text-xs font-medium whitespace-nowrap transition-all shrink-0 ${
+                      filter === tab.id
+                        ? "bg-card text-foreground shadow-xs font-semibold"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
             </div>
 
             <Button

@@ -272,7 +272,7 @@ export default function CopilotPage() {
           <span className="size-2 rounded-full bg-primary animate-pulse" />
 
           {/* Selector de trimestre */}
-          <div className="ml-auto flex items-center gap-1.5">
+          <div className="w-full sm:w-auto sm:ml-auto flex items-center justify-between sm:justify-end gap-1.5 mt-1 sm:mt-0 flex-wrap">
             <div className="flex rounded-lg border border-border overflow-hidden text-[11px] font-mono">
               {QUARTERS.map((q) => (
                 <button
