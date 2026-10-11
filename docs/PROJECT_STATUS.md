@@ -1,8 +1,8 @@
 # PROJECT STATUS — COPILOTO FISCAL
 
-> **Versión:** 2.11
+> **Versión:** 2.12
 > **Última actualización:** 11 Octubre 2026
-> **Estado global:** FASES 0–7 al 100% — FASE 8 DESGLOSADA: F8a (Piloto Real: 42% en curso) / F8b (Apertura Comercial: 30% bloqueada) — Auditoría y Blindaje Responsive Integral en Todas las Vistas Móviles (360px+) — SEG 100%
+> **Estado global:** FASES 0–7 al 100% — FASE 8 DESGLOSADA: F8a (Piloto Real: 42% en curso) / F8b (Apertura Comercial: 30% bloqueada) — Configuración Móvil 2x2 sin scroll — Auditoría integral pre-F8 y Parte C completadas en `docs/audits/AUDIT_PRE_FASE_8.md` — SEG 100%
 > **Autor:** Antigravity (actualización continua)
 > **Fuente de verdad:** [COPILOTO_FISCAL_MASTER_PLAN.md](../COPILOTO_FISCAL_MASTER_PLAN.md)
 
@@ -471,6 +471,7 @@ Supabase (SSR client)    AiProvider → OpenAIProvider (gpt-4o)
 | 11/10/2026 | 🏆 Auditoría & Blindaje | **AUDITORÍA INTEGRAL UNIFICADA & PARTE C EJECUTADA ([docs/audits/AUDIT_PRE_FASE_8.md](audits/AUDIT_PRE_FASE_8.md))**: Consolidación en informe único de auditoría. Desglose formal y fórmula explícita de F8 (F8a = 42%, F8b = 30%); C1 fallback eliminado y proxy RLS blindado en `/api/documents/process`; C2 rate limiting en memoria para Serverless; C3 política RLS en `audit_events`; C4 límites físicos de bucket (20 MB / MIME); C12 `search_path` en funciones SECURITY DEFINER; C7 trigger y `uq_document_extractions_active` en producción; C5 aviso honesto Modelo 303 sin ventas + Guardarraíl 7 en copiloto; C6 alertas dinámicas y exclusión demo en WF-08; C8 script `clean_orphan_expenses` con dry-run; C9 `test:wf01` en package.json; C11 suite RLS isolation (34 tests en verde); C13 cabeceras HTTP en `next.config.mjs`; C14 CI GitHub Actions; C15 soporte móvil para captura directa. |
 | 11/10/2026 | 📱 UI/UX Fix | **RESPONSIVIDAD MÓVIL UNIFICADA**: Eliminada cabecera horizontal obsoleta duplicada (`Navbar.tsx`) que se montaba bajo el breakpoint `md` (<768px) en `AppShell.tsx`; unificada toda la navegación móvil en `Sidebar.tsx` con cabecera fija limpia (h-14, logo, badge DEMO, acceso rápido "+ Subir", botón hamburguesa accesible) y drawer lateral (`z-50`, `overflow-y-auto`, botón explícito `X` de cierre); corregido `<main>` anidado y overflow de pestañas en `settings/page.tsx`; verificado con `tsc --noEmit` y `check-keys.mjs`. |
 | 11/10/2026 | 📱 UI/UX Fix | **BLINDAJE RESPONSIVE INTEGRAL TODAS LAS SECCIONES (360px+)**: En `/alerts`: corregido desbordamiento de botones de acción (`flex-col w-full` en móvil), filtros scrollables con `overflow-x-auto`, títulos y IDs largos con `break-words`/`break-all`; en `AppShell`: `overflow-x-hidden` global y padding ajustado; en `/` (Dashboard): fórmulas, desglose y cifras ajustadas a `text-3xl sm:text-5xl md:text-6xl` y `grid-cols-1 sm:grid-cols-3`; en `/expenses`: botones de exportación y selects wrap flexibles; en `/documents`: pestañas de repositorio scrollables; en `/documents/[id]/review`: visor canvas adaptativo (`min-h-[360px] sm:min-h-[500px] lg:min-h-[580px]`) y cabecera apilada; en `/copilot`: selectores wrap adaptativos; en `next.config.mjs`: `wss:` añadido a CSP `connect-src` para Realtime. |
+| 11/10/2026 | 📱 UI/UX Fix | **CONFIGURACIÓN PESTAÑAS 2x2 EN MÓVIL**: Reorganizado el Tab bar de `/settings` a una cuadrícula limpia de dos en dos (`grid grid-cols-2`) en móvil y fila flexible horizontal (`sm:flex`) en escritorio, eliminando completamente el scroll horizontal y mostrando siempre visibles *Perfil personal*, *Mi empresa*, *Preferencias* y *Seguridad*. |
 
 ---
 

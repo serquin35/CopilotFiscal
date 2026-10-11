@@ -937,8 +937,8 @@ export default function SettingsPage() {
         </p>
       </div>
 
-      {/* Tab Bar */}
-      <div className="flex items-center gap-1.5 rounded-2xl border border-border bg-card p-1.5 overflow-x-auto">
+      {/* Tab Bar: cuadrícula 2x2 en móvil, fila horizontal en escritorio */}
+      <div className="grid grid-cols-2 sm:flex sm:items-center gap-1.5 rounded-2xl border border-border bg-card p-1.5">
         {TABS.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -946,14 +946,14 @@ export default function SettingsPage() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-medium whitespace-nowrap transition-all duration-200 shrink-0 ${
+              className={`flex items-center justify-center sm:justify-start gap-2 rounded-xl px-3 sm:px-4 py-2.5 sm:py-2 text-xs font-medium transition-all duration-200 w-full sm:w-auto ${
                 isActive
                   ? "bg-secondary text-foreground shadow-sm border border-border/60 font-semibold"
                   : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
               }`}
             >
-              <Icon className={`size-3.5 ${isActive ? "text-primary" : ""}`} />
-              {tab.label}
+              <Icon className={`size-3.5 shrink-0 ${isActive ? "text-primary" : ""}`} />
+              <span className="truncate">{tab.label}</span>
             </button>
           );
         })}
