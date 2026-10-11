@@ -1,8 +1,8 @@
 # PROJECT STATUS — COPILOTO FISCAL
 
 > **Versión:** 2.9
-> **Última actualización:** 10 Octubre 2026
-> **Estado global:** FASES 0–7 al 100% — FASE 8 DESBLOQUEADA (🚀 80% Piloto Real Activo) — Auditoría pre-F8 completada en `docs/audits/AUDIT_2026-10-10_PRE_F8.md` — SEG 100%
+> **Última actualización:** 11 Octubre 2026
+> **Estado global:** FASES 0–7 al 100% — FASE 8 DESGLOSADA: F8a (Piloto Real: 42% en curso) / F8b (Apertura Comercial: 30% bloqueada) — Auditoría pre-F8 v2 y Parte C completadas en `docs/audits/AUDIT_2026-10-10_PRE_F8_v2.md` — SEG 100%
 > **Autor:** Antigravity (actualización continua)
 > **Fuente de verdad:** [COPILOTO_FISCAL_MASTER_PLAN.md](../COPILOTO_FISCAL_MASTER_PLAN.md)
 
@@ -20,11 +20,12 @@
 | **FASE 5** | Dashboard & Visualización | ✅ COMPLETA | 100% |
 | **FASE 6** | Anomalías & Inspección AEAT | ✅ COMPLETA | 100% |
 | **FASE 7** | Copiloto IA (Chat Tributario) | ✅ COMPLETA | 100% |
-| **FASE 8** | Validación y Cierre (Piloto Real) | 🚀 EN CURSO | 80% (Piloto Activo) |
+| **FASE 8a** | Piloto Real con Datos Propios | 🚀 EN CURSO | 42% (2,5 / 6 puertas) |
+| **FASE 8b** | Apertura Comercial Multi-Tenant | 🔒 BLOQUEADA | 30% (3,0 / 10 puertas) |
 | **SEG** | Seguridad post-incidente GitGuardian | ✅ RESUELTO | 100% |
 
-> Criterio de % (ADR-09): ítems ✅ / ítems totales de la tabla de la fase.
-> F1 al 100% tras verificación física de aislamiento RLS 2-usuarios (DT-06). F4 al 100%. SEG al 100%. F8 desbloqueada y en curso con piloto real en hostelería.
+> Criterio de % (AUDIT v2): Fórmula matemática explícita (✅=1, ⚠️=0,5, ❌=0 / total de puertas).
+> F1 al 100% tras verificación física de aislamiento RLS 2-usuarios (DT-06). F4 al 100%. SEG al 100%. F8a desbloqueada con piloto en hostelería. F8b bloqueada hasta cierre formal de F8a y plan comercial.
 
 ---
 
@@ -301,19 +302,33 @@ Supabase (SSR client)    AiProvider → OpenAIProvider (gpt-4o)
 
 ---
 
-## FASE 8 — Datos Reales 🚀 EN CURSO (80% Piloto Real Activo)
+## FASE 8 — Desglose Operativo: F8a vs F8b
 
-**Objetivo:** Validación en entorno real con datos de facturación de hostelería.
+**Fuente:** Auditoría formal `docs/audits/AUDIT_2026-10-10_PRE_F8_v2.md` y aprobación del dueño/revisor (11/10/2026).
 
-**Estado del Piloto (10/10/2026):**
-- [x] Piloto real en producción activo con restaurante de Daniela (`63abb270...`) ✅
-- [x] Subida, extracción con GPT-4o nativo y confirmación en Human-in-the-Loop de 6 facturas reales ✅
-- [x] Aislamiento RLS multi-tenant auditado y verificado en producción (E1) ✅
-- [x] Webhook n8n WF-01 protegido con `Header Auth` (ID `q3RYgeN8NXwpO63y`) ✅
-- [x] Supabase Auth activo con confirmación de correo requerida ✅
-- [ ] Incorporación de ingresos/ventas del restaurante (actualmente solo compras/gastos; 303 muestra saldo provisional)
-- [ ] Parche de seguridad en fallback de `/api/copilot/chat` (deuda técnica menor detectada en auditoría)
-- [ ] Definición de límites y backup PITR para fase comercial abierta
+### FASE 8a — Piloto Real con Datos Propios (Restaurante Daniela) 🚀 EN CURSO (42%)
+*Fórmula explícita: 2,5 / 6 puertas aprobadas (✅=1, ⚠️=0,5, ❌=0) = 41,67% (42%).*
+
+- [x] **P1 (Negocio real operativo):** Restaurante de Daniela activo (`63abb270...`) con 6 facturas procesadas y validadas en Human-in-the-Loop ✅ (1,0)
+- [x] **P2 (Aislamiento RLS en producción):** Verificado físicamente vía MCP con usuario dueño vs tester ✅ (1,0)
+- [x] **P3 (Pipeline OCR y cuotas en vivo):** WF-01 activo con Header Auth (`q3RYgeN8NXwpO63y`), GPT-4o medido en tickets móviles (1.031 tokens / $0.0033 USD) ✅ (1,0)
+- [ ] **P4 (Modelo 303 completo con ventas):** Compras deducibles conciliadas; aviso honesto ámbar implementado (C5); pendiente carga de ventas del restaurante ⚠️ (0,5)
+- [ ] **P5 (Prueba de estrés de volumen en el bar):** Subida masiva de lote de tickets y facturas del bar de la hija pendiente ❌ (0,0)
+- [ ] **P6 (Feedback y validación gestor):** Revisión de liquidación con gestoría externa pendiente ❌ (0,0)
+
+### FASE 8b — Apertura Comercial Multi-Tenant 🔒 BLOQUEADA (30%)
+*Fórmula explícita: 3,0 / 10 puertas aprobadas = 30%. Bloqueada hasta completar el piloto F8a y plan comercial.*
+
+- [x] Aislamiento RLS multi-tenant auditado a nivel de motor SQL ✅ (1,0)
+- [x] Webhook n8n protegido con Header Auth y proxy SSR con validación de ownership ✅ (1,0)
+- [x] Reseteo seguro de contraseña y confirmación de correo activa ✅ (1,0)
+- [ ] Plan comercial y de costes fijado (actualmente en Supabase Free / OpenAI prepago con techo) ❌ (0,0)
+- [ ] Backup PITR y redundancia de datos ❌ (0,0)
+- [ ] Términos y condiciones, aviso de privacidad legal y GDPR para terceros ❌ (0,0)
+- [ ] Integración de pasarela de pago o suscripción de clientes (Stripe) ❌ (0,0)
+- [ ] Onboarding automatizado para nuevos clientes sin intervención manual ❌ (0,0)
+- [ ] Monitorización de caídas y alerting 24/7 de n8n/Supabase ❌ (0,0)
+- [ ] Aprobación formal de salida a mercado por el dueño ❌ (0,0)
 
 ---
 
@@ -321,25 +336,32 @@ Supabase (SSR client)    AiProvider → OpenAIProvider (gpt-4o)
 
 ### Supabase: `rqcpwxucgkcodccrykpv.supabase.co`
 
-> Mediciones auditadas en vivo vía MCP SQL el 10/10/2026 ([docs/audits/AUDIT_2026-10-10_PRE_F8.md](audits/AUDIT_2026-10-10_PRE_F8.md)).
+> Mediciones auditadas en vivo vía MCP SQL el 11/10/2026 ([docs/audits/AUDIT_2026-10-10_PRE_F8_v2.md](audits/AUDIT_2026-10-10_PRE_F8_v2.md)).
 
 | Tabla | Columnas | Registros Reales | Estado / Detalle |
 |---|---|---|---|
-| `businesses` | 20 | **4** | ✅ Activa (Demo, Dueño, Hija: Daniela, Tester) |
-| `profiles` | 7 | **4** | ✅ Activa |
+| `businesses` | 20 | **3** | ✅ Activa (Demo, Dueño: Bar La Corrala, Hija: Daniela Quintero; tester purgado) |
+| `profiles` | 7 | **3** | ✅ Activa (cuentas verificadas) |
 | `documents` | 22 | **9** | ✅ Activa (7 CONFIRMED, 1 EXTRACTED, 1 EXTRACTING demo) |
-| `document_extractions` | 21 | **9** | ✅ Activa (todas con GPT-4o nativo) |
-| `expenses` | 26 | **7** | ✅ Activa (6 facturas reales de la hija, 1 del dueño, 0 en demo) |
-| `income` | 19 | **21 en Demo / 0 en reales** | ✅ Activa (negocios reales pendientes de subir ventas) |
+| `document_extractions` | 21 | **9** | ✅ Activa (índice único `uq_document_extractions_active` activo, 0 duplicados) |
+| `expenses` | 26 | **7** | ✅ Activa (6 facturas de Daniela, 1 del dueño, 0 huérfanos verificados) |
+| `income` | 19 | **21 en Demo / 0 en reales** | ✅ Activa (ventas reales pendientes de subida) |
 | `suppliers` | 12 | **14** | ✅ Activa (proveedores hostelería: Makro, Mahou, etc.) |
 | `tax_periods` | 19 | **0** | ⚠️ Vacía (cálculos en memoria en cliente/motor) |
 | `tax_snapshots` | 21 | **0** | ⚠️ Vacía |
-| `alerts` | 20 | **4** | ✅ Activa (1 PERIOD_DEADLINE por cada negocio) |
-| `audit_events` | 12 | **32** | ✅ Activa (registra acciones Human-in-the-Loop) |
+| `alerts` | 20 | **3** | ✅ Activa (1 PERIOD_DEADLINE por cada negocio activo, dinámicas) |
+| `audit_events` | 12 | **32** | ✅ Activa (política INSERT blindada por RLS con `businesses.owner_id = auth.uid()`) |
 
-**Migraciones en `supabase/migrations/`:** solo
-`20260930000000_initial_schema.sql`, `20261001000000_businesses_fiscal_fields.sql`,
-`20261001000001_realtime_documents.sql`, `20261005000000_rls_audit_checkpoint.sql`.
+**Migraciones aplicadas en `supabase/migrations/`:**
+- `20260930000000_initial_schema.sql` (schema base)
+- `20261001000000_businesses_fiscal_fields.sql` (campos fiscales)
+- `20261001000001_realtime_documents.sql` (suscripción realtime)
+- `20261005000000_rls_audit_checkpoint.sql` (checkpoint RLS)
+- `20261010000000_delete_user_account.sql` (borrado atómico de cuenta)
+- `20261011000000_audit_events_insert_policy.sql` (C3: blindaje RLS en audit_events)
+- `20261011000001_bucket_documents_limits.sql` (C4: límite 20 MB y tipos MIME)
+- `20261011000002_security_definer_functions.sql` (C12: search_path en funciones de seguridad)
+- `20261011000003_unique_active_extraction.sql` (C7: índice único uq_document_extractions_active y trigger)
 
 ---
 
@@ -446,6 +468,7 @@ Supabase (SSR client)    AiProvider → OpenAIProvider (gpt-4o)
 | 08/10/2026 | 🧹 Docs | **SANEAMIENTO Y UNIFICACIÓN DOCUMENTAL**: Eliminados archivos redundantes y obsoletos (`COPILOTO_FISCAL_REGLAS_DESARROLLO.md`, `STORAGE_MIGRATION_PLAN.md`, `benchmark_results.json`). Marcados históricos de Fase 0 `PROJECT_DISCOVERY.md` y `MVP_SPEC.md`. Creado `docs/README.md` como Índice Maestro de Gobernanza. Unificada lista de próximos pasos en `PROJECT_STATUS.md` v2.7. |
 | 08/10/2026 | 🔒 Seguridad | **DT-06 RESUELTO — TEST FÍSICO RLS 2-USUARIOS SUPERADO**: Verificación vía MCP de `rls_matrix.sql` en base de datos real con usuario dueño (`serquin16`) vs usuario tester (`negociosenred3.0`). Aislamiento multi-tenant 100% confirmado en `businesses`, `documents`, `expenses`, `alerts` y Storage; FASE 1 al 100%. |
 | 10/10/2026 | 🔍 Auditoría | **AUDITORÍA REALIDAD PRE-FASE 8 COMPLETADA ([docs/audits/AUDIT_2026-10-10_PRE_F8.md](audits/AUDIT_2026-10-10_PRE_F8.md))**: Inspección completa de 11 tablas vía MCP, tokens reales GPT-4o (1.683 prompt tokens promedio), RLS validado al 100%, verificación de Header Auth activo en n8n (`q3RYgeN8NXwpO63y`), purga del secreto OAuth residual fuera del repo (`check-keys.mjs` limpio). Fase 8 formalmente desbloqueada con el piloto real de hostelería. |
+| 11/10/2026 | 🏆 Auditoría & Blindaje | **AUDITORÍA PRE-FASE 8 v2 & PARTE C EJECUTADA**: Desglose formal y fórmula explícita de F8 (F8a = 42%, F8b = 30%); C1 fallback eliminado y proxy RLS blindado en `/api/documents/process`; C2 rate limiting en memoria para Serverless; C3 política RLS en `audit_events`; C4 límites físicos de bucket (20 MB / MIME); C12 `search_path` en funciones SECURITY DEFINER; C7 trigger y `uq_document_extractions_active` en producción; C5 aviso honesto Modelo 303 sin ventas + Guardarraíl 7 en copiloto; C6 alertas dinámicas y exclusión demo en WF-08; C8 script `clean_orphan_expenses` con dry-run; C9 `test:wf01` en package.json; C11 suite RLS isolation (34 tests en verde); C13 cabeceras HTTP en `next.config.mjs`; C14 CI GitHub Actions; C15 soporte móvil para captura directa. |
 
 ---
 
@@ -453,15 +476,15 @@ Supabase (SSR client)    AiProvider → OpenAIProvider (gpt-4o)
 
 | Prioridad | Ítem | Ref | Estado / Acción requerida |
 |---|---|---|---|
-| 🔴 **Alta** | **Parche de seguridad en fallback de Copiloto** | `chat/route.ts` | Eliminar fallback L86-97 que consulta `businesses` limit 1 sin filtrar por `owner_id`. |
-| 🟠 **Media** | **Aviso de ingresos vacíos en Dashboard y 303** | F5 / F8 | Mostrar banner explicativo cuando `income.length === 0` (IVA soportado de gastos provisional sin ventas). |
-| 🟡 **Media** | **Subida rápida con cámara en móvil (PWA)** | F3 / F8 | Añadir `capture="environment"` en input file para que el piloto del bar pueda fotografiar tickets directamente. |
+| 🔴 **Alta** | **Incorporación de ventas reales (Daniela)** | F8a (P4) | Subida y conciliación de ventas o tickets Z del bar para cerrar la Casilla 71 oficial con saldo definitivo. |
+| 🟠 **Media** | **Prueba de estrés de lote en bar** | F8a (P5) | Subida de lote grande de tickets/facturas arrugadas o con iluminación variable de hostelería desde móvil. |
+| 🟡 **Media** | **Feedback y revisión con gestoría** | F8a (P6) | Cotejo del Modelo 303 generado con el borrador de la gestoría externa del restaurante. |
 | 🟢 **Baja** | **Bucket `avatars` en Supabase** | — | Crear bucket en Supabase Storage (SQL RLS) y habilitar subida/cambio de avatar desde `/settings`. |
 | 🟢 **Baja** | **PDF multi-factura y duplicados** | DT-14, DT-15 | Detección avanzada de lotes PDF escaneados con múltiples facturas y duplicados semánticos de contenido. |
-| 🟢 **Baja** | **Sweeper de documentos huérfanos** | DT-19 | Tarea periódica de limpieza para documentos atascados en `EXTRACTING` si la sesión se cierra antes de terminar. |
-| 🟢 **Baja** | **Exportar conversación de Copiloto** | ADR-09 | Opción de descarga de histórico de consultas en `/copilot` (descartado del core, pendiente de backlog). |
+| 🟢 **Baja** | **Plan comercial y pasarela Stripe (F8b)** | F8b | Definición de pricing, backup PITR y pasarela de pago para apertura a terceros tras el piloto. |
 
 ---
 
 *Documento generado y mantenido por Antigravity + Muse Spark. Actualizar al final de cada sesión de desarrollo.*
+
 
