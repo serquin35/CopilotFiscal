@@ -125,20 +125,35 @@ export function Sidebar() {
   return (
     <>
       {/* Mobile Top Header */}
-      <div className="md:hidden flex h-14 w-full items-center justify-between border-b border-border bg-sidebar px-4 sticky top-0 z-50">
+      <div className="md:hidden flex h-14 w-full items-center justify-between border-b border-border bg-sidebar px-4 sticky top-0 z-40">
         <Link href="/" className="flex items-center gap-2">
           <div className="flex size-7 items-center justify-center rounded-lg bg-primary/10 border border-primary/25 text-primary">
             <ShieldCheck className="size-4" />
           </div>
           <span className="font-semibold text-sm text-foreground">Copiloto Fiscal</span>
+          {isDemo && (
+            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/20 font-semibold font-mono">
+              DEMO
+            </span>
+          )}
         </Link>
-        <button
-          onClick={() => setMobileOpen(!mobileOpen)}
-          className="size-8 rounded-lg border border-border flex items-center justify-center text-muted-foreground hover:text-foreground"
-          aria-label="Abrir menú"
-        >
-          {mobileOpen ? <X className="size-4" /> : <Menu className="size-4" />}
-        </button>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/documents"
+            className="flex items-center gap-1 rounded-lg bg-primary/10 border border-primary/25 px-2.5 py-1 text-xs font-semibold text-primary hover:bg-primary/20 transition-colors"
+          >
+            <PlusCircle className="size-3.5" />
+            <span className="text-[11px]">Subir</span>
+          </Link>
+          <button
+            onClick={() => setMobileOpen(!mobileOpen)}
+            className="size-8 rounded-lg border border-border flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+            aria-label={mobileOpen ? "Cerrar menú" : "Abrir menú"}
+            aria-expanded={mobileOpen}
+          >
+            {mobileOpen ? <X className="size-4" /> : <Menu className="size-4" />}
+          </button>
+        </div>
       </div>
 
       {/* Mobile backdrop */}
@@ -152,38 +167,47 @@ export function Sidebar() {
       {/* Main Sidebar */}
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-40 flex w-64 flex-col justify-between border-r border-border bg-sidebar transition-transform duration-200 md:static md:translate-x-0",
-          mobileOpen ? "translate-x-0" : "-translate-x-full"
+          "fixed inset-y-0 left-0 z-50 flex w-72 max-w-[85vw] flex-col justify-between border-r border-border bg-sidebar transition-transform duration-200 overflow-y-auto md:static md:w-64 md:translate-x-0 md:overflow-y-auto",
+          mobileOpen ? "translate-x-0 shadow-2xl" : "-translate-x-full"
         )}
       >
         <div className="flex flex-col gap-6 p-4">
           {/* Logo / Brand Header */}
-          <Link
-            href="/"
-            onClick={() => setMobileOpen(false)}
-            className="flex items-center gap-3 p-1 group"
-          >
-            <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10 border border-primary/25 text-primary group-hover:bg-primary/20 transition-all">
-              <ShieldCheck className="size-5" />
-            </div>
-            <div className="flex flex-col">
-              <span className="font-semibold tracking-tight text-foreground text-sm flex items-center gap-1.5">
-                Copiloto Fiscal
-              </span>
-              <span className="text-[11px] text-muted-foreground flex items-center gap-1">
-                <span className="font-medium text-foreground/90 truncate max-w-[110px]" title={businessName}>
-                  {businessName}
+          <div className="flex items-center justify-between">
+            <Link
+              href="/"
+              onClick={() => setMobileOpen(false)}
+              className="flex items-center gap-3 p-1 group flex-1 min-w-0"
+            >
+              <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10 border border-primary/25 text-primary group-hover:bg-primary/20 transition-all shrink-0">
+                <ShieldCheck className="size-5" />
+              </div>
+              <div className="flex flex-col min-w-0">
+                <span className="font-semibold tracking-tight text-foreground text-sm flex items-center gap-1.5">
+                  Copiloto Fiscal
                 </span>
-                <span className="size-1 rounded-full bg-border" />
-                <span className="text-primary font-mono text-[10px]">4T 2026</span>
-                {isDemo && (
-                  <span className="ml-1 text-[9px] px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/20 font-semibold">
-                    DEMO
+                <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+                  <span className="font-medium text-foreground/90 truncate max-w-[110px]" title={businessName}>
+                    {businessName}
                   </span>
-                )}
-              </span>
-            </div>
-          </Link>
+                  <span className="size-1 rounded-full bg-border" />
+                  <span className="text-primary font-mono text-[10px]">4T 2026</span>
+                  {isDemo && (
+                    <span className="ml-1 text-[9px] px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/20 font-semibold">
+                      DEMO
+                    </span>
+                  )}
+                </span>
+              </div>
+            </Link>
+            <button
+              onClick={() => setMobileOpen(false)}
+              className="md:hidden size-8 rounded-lg border border-border/60 flex items-center justify-center text-muted-foreground hover:text-foreground shrink-0 ml-2"
+              aria-label="Cerrar menú"
+            >
+              <X className="size-4" />
+            </button>
+          </div>
 
           {/* Quick Action Button */}
           <Link

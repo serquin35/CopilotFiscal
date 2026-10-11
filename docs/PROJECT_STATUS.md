@@ -1,8 +1,8 @@
 # PROJECT STATUS — COPILOTO FISCAL
 
-> **Versión:** 2.9
+> **Versión:** 2.10
 > **Última actualización:** 11 Octubre 2026
-> **Estado global:** FASES 0–7 al 100% — FASE 8 DESGLOSADA: F8a (Piloto Real: 42% en curso) / F8b (Apertura Comercial: 30% bloqueada) — Auditoría integral pre-F8 y Parte C completadas en `docs/audits/AUDIT_PRE_FASE_8.md` — SEG 100%
+> **Estado global:** FASES 0–7 al 100% — FASE 8 DESGLOSADA: F8a (Piloto Real: 42% en curso) / F8b (Apertura Comercial: 30% bloqueada) — UI Móvil unificada (eliminada duplicidad Navbar/Sidebar) — Auditoría integral pre-F8 y Parte C completadas en `docs/audits/AUDIT_PRE_FASE_8.md` — SEG 100%
 > **Autor:** Antigravity (actualización continua)
 > **Fuente de verdad:** [COPILOTO_FISCAL_MASTER_PLAN.md](../COPILOTO_FISCAL_MASTER_PLAN.md)
 
@@ -469,6 +469,7 @@ Supabase (SSR client)    AiProvider → OpenAIProvider (gpt-4o)
 | 08/10/2026 | 🔒 Seguridad | **DT-06 RESUELTO — TEST FÍSICO RLS 2-USUARIOS SUPERADO**: Verificación vía MCP de `rls_matrix.sql` en base de datos real con usuario dueño (`serquin16`) vs usuario tester (`negociosenred3.0`). Aislamiento multi-tenant 100% confirmado en `businesses`, `documents`, `expenses`, `alerts` y Storage; FASE 1 al 100%. |
 | 10/10/2026 | 🔍 Auditoría | **AUDITORÍA REALIDAD PRE-FASE 8 ([docs/audits/AUDIT_PRE_FASE_8.md](audits/AUDIT_PRE_FASE_8.md))**: Inspección completa de 11 tablas vía MCP, tokens reales GPT-4o (1.683 prompt tokens promedio en PDF), RLS validado al 100%, verificación de Header Auth activo en n8n (`q3RYgeN8NXwpO63y`), purga del secreto OAuth residual fuera del repo (`check-keys.mjs` limpio). |
 | 11/10/2026 | 🏆 Auditoría & Blindaje | **AUDITORÍA INTEGRAL UNIFICADA & PARTE C EJECUTADA ([docs/audits/AUDIT_PRE_FASE_8.md](audits/AUDIT_PRE_FASE_8.md))**: Consolidación en informe único de auditoría. Desglose formal y fórmula explícita de F8 (F8a = 42%, F8b = 30%); C1 fallback eliminado y proxy RLS blindado en `/api/documents/process`; C2 rate limiting en memoria para Serverless; C3 política RLS en `audit_events`; C4 límites físicos de bucket (20 MB / MIME); C12 `search_path` en funciones SECURITY DEFINER; C7 trigger y `uq_document_extractions_active` en producción; C5 aviso honesto Modelo 303 sin ventas + Guardarraíl 7 en copiloto; C6 alertas dinámicas y exclusión demo en WF-08; C8 script `clean_orphan_expenses` con dry-run; C9 `test:wf01` en package.json; C11 suite RLS isolation (34 tests en verde); C13 cabeceras HTTP en `next.config.mjs`; C14 CI GitHub Actions; C15 soporte móvil para captura directa. |
+| 11/10/2026 | 📱 UI/UX Fix | **RESPONSIVIDAD MÓVIL UNIFICADA**: Eliminada cabecera horizontal obsoleta duplicada (`Navbar.tsx`) que se montaba bajo el breakpoint `md` (<768px) en `AppShell.tsx`; unificada toda la navegación móvil en `Sidebar.tsx` con cabecera fija limpia (h-14, logo, badge DEMO, acceso rápido "+ Subir", botón hamburguesa accesible) y drawer lateral (`z-50`, `overflow-y-auto`, botón explícito `X` de cierre); corregido `<main>` anidado y overflow de pestañas en `settings/page.tsx`; verificado con `tsc --noEmit` y `check-keys.mjs`. |
 
 ---
 

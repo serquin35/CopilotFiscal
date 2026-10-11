@@ -928,7 +928,7 @@ export default function SettingsPage() {
   const showToast = useCallback((t: Toast) => setToast(t), []);
 
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-5xl flex-col gap-6 px-4 py-6 md:px-8 md:py-10">
+    <div className="flex flex-col gap-6 w-full max-w-5xl mx-auto">
       {/* Page Header */}
       <div>
         <h1 className="text-2xl font-semibold text-foreground tracking-tight">Configuración</h1>
@@ -938,7 +938,7 @@ export default function SettingsPage() {
       </div>
 
       {/* Tab Bar */}
-      <div className="flex items-center gap-1 rounded-2xl border border-border bg-card p-1.5 overflow-x-auto">
+      <div className="flex items-center gap-1.5 rounded-2xl border border-border bg-card p-1.5 overflow-x-auto">
         {TABS.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -946,9 +946,9 @@ export default function SettingsPage() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-medium whitespace-nowrap transition-all duration-200 ${
+              className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-medium whitespace-nowrap transition-all duration-200 shrink-0 ${
                 isActive
-                  ? "bg-secondary text-foreground shadow-sm border border-border/60"
+                  ? "bg-secondary text-foreground shadow-sm border border-border/60 font-semibold"
                   : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
               }`}
             >
@@ -969,6 +969,6 @@ export default function SettingsPage() {
 
       {/* Toast */}
       {toast && <ToastBanner toast={toast} onClose={() => setToast(null)} />}
-    </main>
+    </div>
   );
 }
