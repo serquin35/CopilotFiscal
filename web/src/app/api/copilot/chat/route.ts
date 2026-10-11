@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { getAiProvider } from "@/lib/ai/MockAiProvider";
 import type { ChatMessage } from "@/lib/ai/AiProvider";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -338,6 +339,23 @@ export async function POST(req: NextRequest): Promise<Response> {
     return NextResponse.json(
       { error: "Sesion no valida. Comprueba que tu sesion no haya expirado." },
       { status: 401 }
+    );
+  }
+
+  // Rate Limiting C2: máximo 10 consultas cada 5 minutos (300 segundos)
+  const clientIp = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown-ip";
+  const rateLimitKey = `chat:${token.slice(-16)}:${clientIp}`;
+  const rateCheck = checkRateLimit(rateLimitKey, 10, 300);
+
+  if (!rateCheck.success) {
+    return NextResponse.json(
+      { error: "Has superado el límite de consultas al Copiloto (máx. 10 cada 5 minutos). Espera un momento antes de preguntar de nuevo." },
+      {
+        status: 429,
+        headers: {
+          "Retry-After": String(rateCheck.resetSeconds),
+        },
+      }
     );
   }
 

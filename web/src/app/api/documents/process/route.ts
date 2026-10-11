@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 // ─── A5 / DT-18: Proxy autenticado hacia n8n ──────────────────────────────────
 // Reemplaza la llamada directa cliente→n8n por un proxy SSR que:
@@ -40,6 +41,23 @@ export async function POST(req: NextRequest) {
 
   if (authError || !user) {
     return NextResponse.json({ error: "Sesión inválida o expirada" }, { status: 401 });
+  }
+
+  // Rate Limiting C2: máximo 20 peticiones de procesamiento cada 10 minutos (600s) por usuario
+  const clientIp = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown-ip";
+  const rateLimitKey = `process:${user.id}:${clientIp}`;
+  const rateCheck = checkRateLimit(rateLimitKey, 20, 600);
+
+  if (!rateCheck.success) {
+    return NextResponse.json(
+      { error: "Has alcanzado el límite de procesamiento de documentos (máx. 20 cada 10 minutos). Por favor espera unos minutos." },
+      {
+        status: 429,
+        headers: {
+          "Retry-After": String(rateCheck.resetSeconds),
+        },
+      }
+    );
   }
 
   // ── 2. Validar payload de entrada ──────────────────────────────────────────

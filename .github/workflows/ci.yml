@@ -1,0 +1,44 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: [ main, audit/*, feat/*, fix/* ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Root Dependencies
+        run: npm ci
+
+      - name: Check Secrets (Regla de Oro AGENTS.md)
+        run: node scripts/check-keys.mjs
+
+      - name: Run Fiscal Engine Unit Tests (Vitest)
+        run: npm test
+
+      - name: Run WF-01 Contract Tests
+        run: npm run test:wf01
+
+      - name: Install Web Dependencies
+        working-directory: ./web
+        run: npm ci
+
+      - name: TypeScript Check (web)
+        working-directory: ./web
+        run: npx tsc --noEmit
+
+      - name: ESLint Check (web)
+        working-directory: ./web
+        run: npm run lint

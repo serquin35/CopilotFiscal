@@ -718,7 +718,7 @@ export default function DocumentsPage() {
           ref={fileInputRef}
           onChange={handleFileChange}
           multiple
-          accept=".pdf,.jpg,.jpeg,.png"
+          accept=".pdf,.jpg,.jpeg,.png,.webp,image/*"
           className="hidden"
           disabled={isUploading}
         />
