@@ -156,11 +156,26 @@ export default function DocumentReviewPage() {
       const updated = { ...prev, [field]: value };
       // Recalcular cuota y total si cambia base o tasa de IVA
       if (field === "baseAmount" || field === "vatRate") {
-        const base = field === "baseAmount" ? Number(value) || 0 : prev.baseAmount || 0;
-        const rate = field === "vatRate" ? Number(value) || 0 : prev.vatRate || 0;
+        const base = field === "baseAmount" ? (value === "" ? 0 : Number(value) || 0) : prev.baseAmount || 0;
+        const rate = field === "vatRate" ? (value === "" ? 0 : Number(value) || 0) : prev.vatRate || 0;
         const vat = Number(((base * rate) / 100).toFixed(2));
         updated.vatAmount = vat;
         updated.totalAmount = Number((base + vat).toFixed(2));
+      } else if (field === "vatAmount") {
+        // Ajuste manual de cuota IVA (multi-IVA o céntimos de redondeo)
+        const vat = value === "" ? 0 : Number(value) || 0;
+        const base = prev.baseAmount || 0;
+        updated.vatAmount = vat;
+        updated.totalAmount = Number((base + vat).toFixed(2));
+      } else if (field === "totalAmount") {
+        // Ajuste directo del total pagado / devengado (desglose inverso según tipo de IVA)
+        const total = value === "" ? 0 : Number(value) || 0;
+        const rate = prev.vatRate ?? 10;
+        const base = Number((total / (1 + rate / 100)).toFixed(2));
+        const vat = Number((total - base).toFixed(2));
+        updated.baseAmount = base;
+        updated.vatAmount = vat;
+        updated.totalAmount = total;
       }
       return updated;
     });
@@ -215,6 +230,27 @@ export default function DocumentReviewPage() {
         .eq("id", doc.id);
     } catch (e) {
       console.warn("Error actualizando Supabase documents:", e);
+    }
+
+    // 2.5 Actualizar document_extractions activo si existe con los datos aprobados
+    try {
+      await supabase
+        .from("document_extractions")
+        .update({
+          extracted_supplier_name: doc.providerName,
+          extracted_supplier_nif: doc.nif === "-" ? null : doc.nif,
+          extracted_invoice_number: doc.invoiceNumber,
+          extracted_date: doc.date,
+          extracted_base_amount: doc.baseAmount,
+          extracted_vat_rate: doc.vatRate,
+          extracted_vat_amount: doc.vatAmount,
+          extracted_total_amount: doc.totalAmount,
+          extracted_category: doc.category,
+        })
+        .eq("document_id", doc.id)
+        .eq("is_active", true);
+    } catch (e) {
+      console.warn("Error actualizando document_extractions:", e);
     }
 
     // 3. Crear o vincular proveedor en public.suppliers
@@ -677,19 +713,32 @@ export default function DocumentReviewPage() {
                   </label>
                   <select
                     disabled={isReadOnly}
-                    value={doc.category || "Servicios"}
+                    value={doc.category || "alimentacion"}
                     onChange={(e) => handleFieldChange("category", e.target.value)}
                     className={`w-full h-8 rounded-lg border border-border bg-background px-2 text-xs text-foreground focus:ring-1 focus:ring-ring ${
                       isReadOnly ? "opacity-80 cursor-not-allowed bg-muted/40" : ""
                     }`}
                   >
+                    <option value="alimentacion">Alimentación y Mercaderías</option>
+                    <option value="bebidas">Bebidas y Bodega</option>
+                    <option value="limpieza">Limpieza e Higiene</option>
+                    <option value="suministros">Suministros (Luz, Agua, Gas)</option>
+                    <option value="alquiler">Alquiler y Local</option>
+                    <option value="mantenimiento">Mantenimiento y Maquinaria</option>
+                    <option value="servicios_profesionales">Servicios Profesionales / Asesoría</option>
+                    <option value="software">Software y TPV</option>
+                    <option value="material_oficina">Material de Oficina</option>
+                    <option value="marketing">Publicidad y Redes</option>
+                    <option value="transporte">Transporte y Combustible</option>
+                    <option value="seguros">Seguros</option>
+                    <option value="otros">Otros Gastos Deducibles</option>
+                    {/* Compatibilidad con valores legibles históricos */}
                     <option value="Servicios Cloud / Hosting">Servicios Cloud / Hosting</option>
                     <option value="Software y Licencias">Software y Licencias</option>
-                    <option value="Servicios Profesionales / Legal">Servicios Profesionales</option>
+                    <option value="Servicios Profesionales / Legal">Servicios Profesionales / Legal</option>
                     <option value="Comidas de Negocios / Relaciones Públicas">Restauración y Dietas</option>
                     <option value="Combustible y Desplazamientos">Combustible / Transporte</option>
                     <option value="Suministros y Material">Suministros Oficina</option>
-                    <option value="suministros">Suministros (Luz, Agua, Gas)</option>
                   </select>
                 </div>
               </div>
@@ -705,7 +754,7 @@ export default function DocumentReviewPage() {
                       type="number"
                       step="0.01"
                       disabled={isReadOnly}
-                      value={doc.baseAmount || 0}
+                      value={doc.baseAmount ?? 0}
                       onChange={(e) => handleFieldChange("baseAmount", e.target.value)}
                       className={`w-full h-8 font-mono rounded-lg border border-border bg-background px-2 text-xs text-foreground text-right focus:ring-1 focus:ring-ring ${
                         isReadOnly ? "opacity-80 cursor-not-allowed bg-muted/40" : ""
@@ -718,7 +767,7 @@ export default function DocumentReviewPage() {
                     </label>
                     <select
                       disabled={isReadOnly}
-                      value={doc.vatRate || 21}
+                      value={doc.vatRate ?? 10}
                       onChange={(e) => handleFieldChange("vatRate", e.target.value)}
                       className={`w-full h-8 font-mono rounded-lg border border-border bg-background px-2 text-xs text-foreground focus:ring-1 focus:ring-ring ${
                         isReadOnly ? "opacity-80 cursor-not-allowed bg-muted/40" : ""
@@ -736,19 +785,48 @@ export default function DocumentReviewPage() {
                     </label>
                     <input
                       type="number"
-                      readOnly
-                      disabled
-                      value={doc.vatAmount || 0}
-                      className="w-full h-8 font-mono rounded-lg border border-border/60 bg-muted px-2 text-xs text-muted-foreground text-right"
+                      step="0.01"
+                      disabled={isReadOnly}
+                      value={doc.vatAmount ?? 0}
+                      onChange={(e) => handleFieldChange("vatAmount", e.target.value)}
+                      title="Editable: ajusta céntimos de redondeo o facturas multi-tasa"
+                      className={`w-full h-8 font-mono rounded-lg border border-border bg-background px-2 text-xs text-foreground text-right focus:ring-1 focus:ring-ring ${
+                        isReadOnly ? "opacity-80 cursor-not-allowed bg-muted/40" : ""
+                      }`}
                     />
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between pt-2 border-t border-border/40">
-                  <span className="text-xs font-medium text-foreground">TOTAL FACTURA:</span>
-                  <span className="text-base font-semibold font-mono text-primary">
-                    {formatCurrency(doc.totalAmount || 0)}
-                  </span>
+                {/* Total Factura / Total Pagado Real */}
+                <div className="pt-2 border-t border-border/40 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-xs font-semibold text-foreground block">TOTAL FACTURA / PAGADO:</span>
+                      <span className="text-[10px] text-muted-foreground">
+                        Editable si hubo devolución o pago parcial
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="number"
+                        step="0.01"
+                        disabled={isReadOnly}
+                        value={doc.totalAmount ?? 0}
+                        onChange={(e) => handleFieldChange("totalAmount", e.target.value)}
+                        className={`w-32 h-9 font-mono font-bold text-sm text-primary text-right rounded-lg border border-primary/40 bg-background px-2.5 focus:ring-2 focus:ring-primary ${
+                          isReadOnly ? "opacity-80 cursor-not-allowed bg-muted/40" : ""
+                        }`}
+                      />
+                      <span className="text-sm font-bold text-primary">€</span>
+                    </div>
+                  </div>
+
+                  {/* Aviso informativo si hay descuadre manual entre Base + IVA y Total */}
+                  {Math.abs(Number(((doc.baseAmount || 0) + (doc.vatAmount || 0)).toFixed(2)) - Number((doc.totalAmount || 0).toFixed(2))) > 0.02 && (
+                    <p className="text-[10px] text-amber-500/90 bg-amber-500/10 px-2 py-1 rounded border border-amber-500/20">
+                      ℹ️ Ajuste manual: Base ({formatCurrency(doc.baseAmount || 0)}) + IVA ({formatCurrency(doc.vatAmount || 0)}) = {formatCurrency((doc.baseAmount || 0) + (doc.vatAmount || 0))}, total pagado fijado en {formatCurrency(doc.totalAmount || 0)}.
+                    </p>
+                  )}
                 </div>
               </div>
 

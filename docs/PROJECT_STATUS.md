@@ -1,8 +1,8 @@
 # PROJECT STATUS — COPILOTO FISCAL
 
-> **Versión:** 2.12
-> **Última actualización:** 11 Octubre 2026
-> **Estado global:** FASES 0–7 al 100% — FASE 8 DESGLOSADA: F8a (Piloto Real: 42% en curso) / F8b (Apertura Comercial: 30% bloqueada) — Configuración Móvil 2x2 sin scroll — Auditoría integral pre-F8 y Parte C completadas en `docs/audits/AUDIT_PRE_FASE_8.md` — SEG 100%
+> **Versión:** 2.13
+> **Última actualización:** 21 Octubre 2026
+> **Estado global:** FASES 0–7 al 100% — FASE 8 DESGLOSADA: F8a (Piloto Real: 42% en curso) / F8b (Apertura Comercial: 30% bloqueada) — Configuración Móvil 2x2 sin scroll — Auditoría integral pre-F8 y Parte C completadas en `docs/audits/AUDIT_PRE_FASE_8.md` — SEG 100% — Keep-Alive n8n para Supabase añadido
 > **Autor:** Antigravity (actualización continua)
 > **Fuente de verdad:** [COPILOTO_FISCAL_MASTER_PLAN.md](../COPILOTO_FISCAL_MASTER_PLAN.md)
 
@@ -132,6 +132,7 @@
 | `zrKXQ5YJ8lLwHRL7` | WF-01: Document Intake & Extraction Pipeline (v2.2) | ✅ OPERATIVO | 12 (v2.2 en repo y n8n: descarga autenticada, data URLs, Header Auth verificado en receptor) |
 | `upm1rKUB4hJXvuvS` | WF-07: Anomaly & Deadline Monitor | ✅ ACTIVO | 4 |
 | `WF-08` en Cloud | WF-08: Deadline Reminders | ✅ ACTIVO | 4 (nodo List Open Deadline anti-duplicados; visible en UI vía DT-16) |
+| — | WF-00: Supabase Keep-Alive | ✅ CREADO | 2 (`wf00_supabase_keep_alive.json`, ping diario 04:00 para evitar pausa por inactividad) |
 | — | WF-02: document-extraction independiente | ✅ Absorbido por WF-01 (documentado) | — |
 | — | WF-03: document-validation | ✅ Absorbido por review Human-in-the-Loop + validadores deterministas | — |
 | — | WF-04: document-classification | ✅ Absorbido por extracción OpenAI + categoría editable en review | — |
@@ -472,6 +473,7 @@ Supabase (SSR client)    AiProvider → OpenAIProvider (gpt-4o)
 | 11/10/2026 | 📱 UI/UX Fix | **RESPONSIVIDAD MÓVIL UNIFICADA**: Eliminada cabecera horizontal obsoleta duplicada (`Navbar.tsx`) que se montaba bajo el breakpoint `md` (<768px) en `AppShell.tsx`; unificada toda la navegación móvil en `Sidebar.tsx` con cabecera fija limpia (h-14, logo, badge DEMO, acceso rápido "+ Subir", botón hamburguesa accesible) y drawer lateral (`z-50`, `overflow-y-auto`, botón explícito `X` de cierre); corregido `<main>` anidado y overflow de pestañas en `settings/page.tsx`; verificado con `tsc --noEmit` y `check-keys.mjs`. |
 | 11/10/2026 | 📱 UI/UX Fix | **BLINDAJE RESPONSIVE INTEGRAL TODAS LAS SECCIONES (360px+)**: En `/alerts`: corregido desbordamiento de botones de acción (`flex-col w-full` en móvil), filtros scrollables con `overflow-x-auto`, títulos y IDs largos con `break-words`/`break-all`; en `AppShell`: `overflow-x-hidden` global y padding ajustado; en `/` (Dashboard): fórmulas, desglose y cifras ajustadas a `text-3xl sm:text-5xl md:text-6xl` y `grid-cols-1 sm:grid-cols-3`; en `/expenses`: botones de exportación y selects wrap flexibles; en `/documents`: pestañas de repositorio scrollables; en `/documents/[id]/review`: visor canvas adaptativo (`min-h-[360px] sm:min-h-[500px] lg:min-h-[580px]`) y cabecera apilada; en `/copilot`: selectores wrap adaptativos; en `next.config.mjs`: `wss:` añadido a CSP `connect-src` para Realtime. |
 | 11/10/2026 | 📱 UI/UX Fix | **CONFIGURACIÓN PESTAÑAS 2x2 EN MÓVIL**: Reorganizado el Tab bar de `/settings` a una cuadrícula limpia de dos en dos (`grid grid-cols-2`) en móvil y fila flexible horizontal (`sm:flex`) en escritorio, eliminando completamente el scroll horizontal y mostrando siempre visibles *Perfil personal*, *Mi empresa*, *Preferencias* y *Seguridad*. |
+| 25/10/2026 | 🧾 Review Fix | **EDICIÓN FLEXIBLE DE TOTALES, CUOTA IVA Y CATEGORÍAS HOSTELERÍA**: En `/documents/[id]/review`: campo *Total Factura / Pagado* ahora editable con cálculo inverso automático de Base e IVA según tasa seleccionada (caso común de albaranes con devoluciones o pagos parciales a repartidor); *Cuota IVA* ahora editable para admitir ajustes de céntimos o multi-IVA; banner de ajuste manual si difiere de Base+IVA; categorías ampliadas a estándares del negocio (`alimentacion`, `bebidas`, `limpieza`, etc.) evitando que caigan por defecto en Hosting; sincronización bidireccional en `document_extractions` y `expenses`; `tsc --noEmit` y `check-keys.mjs` en verde. |
 
 ---
 
