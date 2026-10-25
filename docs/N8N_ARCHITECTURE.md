@@ -27,6 +27,12 @@
 
 ## 2. Catálogo de Workflows
 
+### WF-00: `supabase-keep-alive` ACTIVO
+**Responsabilidad:** Mantener activo el proyecto Supabase de Copiloto Fiscal ejecutando una consulta ligera diaria para evitar la pausa automática por inactividad del plan gratuito.
+**Fichero:** `n8n/workflows/wf00_supabase_keep_alive.json`
+**Trigger:** `Schedule Trigger` — diario, 04:00.
+**Destino:** `https://rqcpwxucgkcodccrykpv.supabase.co/rest/v1/businesses?select=id&limit=1` con credencial `Supabase Copilot`.
+
 ### WF-01: `document-intake`
 **Responsabilidad:** Recibir notificación de nuevo documento subido y registrarlo en la base de datos.
 

@@ -1,0 +1,64 @@
+{
+  "name": "[Copilot Fiscal] Supabase Keep-Alive",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 4
+            }
+          ]
+        }
+      },
+      "id": "8a32d1e4-411a-4712-83b6-976be044e001",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        448,
+        -32
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://rqcpwxucgkcodccrykpv.supabase.co/rest/v1/businesses?select=id&limit=1",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "options": {}
+      },
+      "id": "e731b994-6d9b-4bf1-a75d-57ef9a82cd21",
+      "name": "Supabase HTTP Keep-Alive",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        640,
+        -32
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "UrPBRVGMD2tjVUxj",
+          "name": "Supabase Copilot"
+        }
+      },
+      "notes": "Llama a la API REST de Supabase en Copiloto Fiscal para mantener activa la base de datos y evitar la pausa por inactividad."
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Supabase HTTP Keep-Alive",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "instanceId": "13031a7f8278891f0885fdb5e98e31adeb0766c6b92c822b393433419b9dbfcd"
+  }
+}
