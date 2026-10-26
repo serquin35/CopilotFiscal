@@ -99,3 +99,23 @@ export interface QuarterlySummary {
     deductible: number;
   }[];
 }
+
+export interface IncomeRecord {
+  id: string;
+  business_id?: string;
+  document_id?: string | null;
+  date: string;
+  description: string;
+  base_amount: number;
+  vat_rate: number;
+  vat_amount: number;
+  total_amount: number;
+  currency?: string;
+  source: "tpv" | "factura" | "manual" | "online" | string;
+  category?: string;
+  fiscal_period_year?: number;
+  fiscal_period_quarter?: number;
+  payment_method?: "tarjeta" | "efectivo" | "mixto" | "transferencia" | string;
+  notes?: string | null;
+  created_at?: string;
+}

@@ -17,6 +17,7 @@ import {
   LogOut,
   Building2,
   Settings2,
+  Store,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
@@ -209,15 +210,28 @@ export function Sidebar() {
             </button>
           </div>
 
-          {/* Quick Action Button */}
-          <Link
-            href="/documents"
-            onClick={() => setMobileOpen(false)}
-            className="flex items-center justify-center gap-2 rounded-xl bg-primary px-3.5 py-2 text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition-all shadow-sm active:scale-[0.98]"
-          >
-            <PlusCircle className="size-4" />
-            <span>Subir Factura / Ticket</span>
-          </Link>
+          {/* Quick Action Buttons */}
+          <div className="flex flex-col gap-1.5">
+            <Link
+              href="/documents"
+              onClick={() => setMobileOpen(false)}
+              className="flex items-center justify-center gap-2 rounded-xl bg-primary px-3.5 py-2 text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition-all shadow-sm active:scale-[0.98]"
+            >
+              <PlusCircle className="size-4" />
+              <span>Subir Factura / Ticket</span>
+            </Link>
+            <button
+              type="button"
+              onClick={() => {
+                setMobileOpen(false);
+                window.dispatchEvent(new Event("open_income_modal"));
+              }}
+              className="flex items-center justify-center gap-2 rounded-xl bg-secondary/80 hover:bg-secondary border border-border/60 px-3.5 py-1.5 text-xs font-medium text-foreground transition-all active:scale-[0.98]"
+            >
+              <Store className="size-3.5 text-primary" />
+              <span>+ Cierre Z / Ventas</span>
+            </button>
+          </div>
 
           {/* Nav List */}
           <nav className="flex flex-col gap-1">

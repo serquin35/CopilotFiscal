@@ -1,8 +1,8 @@
 # PROJECT STATUS — COPILOTO FISCAL
 
-> **Versión:** 2.13
-> **Última actualización:** 21 Octubre 2026
-> **Estado global:** FASES 0–7 al 100% — FASE 8 DESGLOSADA: F8a (Piloto Real: 42% en curso) / F8b (Apertura Comercial: 30% bloqueada) — Configuración Móvil 2x2 sin scroll — Auditoría integral pre-F8 y Parte C completadas en `docs/audits/AUDIT_PRE_FASE_8.md` — SEG 100% — Keep-Alive n8n para Supabase añadido
+> **Versión:** 2.14
+> **Última actualización:** 26 Octubre 2026
+> **Estado global:** FASES 0–7 al 100% — FASE 8 DESGLOSADA: F8a (Piloto Real: 50% en curso - Modal Cierre Z / Ventas implementado) / F8b (Apertura Comercial: 30% bloqueada) — Auditoría integral pre-F8 y Parte C completadas en `docs/audits/AUDIT_PRE_FASE_8.md` — SEG 100% — Keep-Alive n8n para Supabase añadido
 > **Autor:** Antigravity (actualización continua)
 > **Fuente de verdad:** [COPILOTO_FISCAL_MASTER_PLAN.md](../COPILOTO_FISCAL_MASTER_PLAN.md)
 
@@ -474,6 +474,7 @@ Supabase (SSR client)    AiProvider → OpenAIProvider (gpt-4o)
 | 11/10/2026 | 📱 UI/UX Fix | **BLINDAJE RESPONSIVE INTEGRAL TODAS LAS SECCIONES (360px+)**: En `/alerts`: corregido desbordamiento de botones de acción (`flex-col w-full` en móvil), filtros scrollables con `overflow-x-auto`, títulos y IDs largos con `break-words`/`break-all`; en `AppShell`: `overflow-x-hidden` global y padding ajustado; en `/` (Dashboard): fórmulas, desglose y cifras ajustadas a `text-3xl sm:text-5xl md:text-6xl` y `grid-cols-1 sm:grid-cols-3`; en `/expenses`: botones de exportación y selects wrap flexibles; en `/documents`: pestañas de repositorio scrollables; en `/documents/[id]/review`: visor canvas adaptativo (`min-h-[360px] sm:min-h-[500px] lg:min-h-[580px]`) y cabecera apilada; en `/copilot`: selectores wrap adaptativos; en `next.config.mjs`: `wss:` añadido a CSP `connect-src` para Realtime. |
 | 11/10/2026 | 📱 UI/UX Fix | **CONFIGURACIÓN PESTAÑAS 2x2 EN MÓVIL**: Reorganizado el Tab bar de `/settings` a una cuadrícula limpia de dos en dos (`grid grid-cols-2`) en móvil y fila flexible horizontal (`sm:flex`) en escritorio, eliminando completamente el scroll horizontal y mostrando siempre visibles *Perfil personal*, *Mi empresa*, *Preferencias* y *Seguridad*. |
 | 25/10/2026 | 🧾 Review Fix | **EDICIÓN FLEXIBLE DE TOTALES, CUOTA IVA Y CATEGORÍAS HOSTELERÍA**: En `/documents/[id]/review`: campo *Total Factura / Pagado* ahora editable con cálculo inverso automático de Base e IVA según tasa seleccionada (caso común de albaranes con devoluciones o pagos parciales a repartidor); *Cuota IVA* ahora editable para admitir ajustes de céntimos o multi-IVA; banner de ajuste manual si difiere de Base+IVA; categorías ampliadas a estándares del negocio (`alimentacion`, `bebidas`, `limpieza`, etc.) evitando que caigan por defecto en Hosting; sincronización bidireccional en `document_extractions` y `expenses`; `tsc --noEmit` y `check-keys.mjs` en verde. |
+| 26/10/2026 | 🚀 Feature | **REGISTRO DE INGRESOS Y CIERRES Z (OPCIÓN A - F8a P4)**: Creado e integrado componente modal `RegisterIncomeModal.tsx` accesible globalmente desde AppShell, Dashboard (`/`), Documentos (`/documents`) y Sidebar. Permite registrar cierres diarios de TPV / caja o ventas con cálculo bidireccional determinista de Base + IVA (10% estándar hostelería, 21%, 4%), desglose de método de cobro (tarjeta / efectivo / mixto) y subida opcional de comprobante fotográfico a Storage con `direction: 'income'`; pestaña integrada para consultar y gestionar el historial de ventas del período; inserción en `income` con auditoría en `audit_events`; reactivación inmediata del cálculo de IVA Repercutido y Casilla 71 en el Modelo 303 en tiempo real; `tsc --noEmit`, `vitest` y `check-keys.mjs` en verde. |
 
 ---
 
@@ -481,7 +482,7 @@ Supabase (SSR client)    AiProvider → OpenAIProvider (gpt-4o)
 
 | Prioridad | Ítem | Ref | Estado / Acción requerida |
 |---|---|---|---|
-| 🔴 **Alta** | **Incorporación de ventas reales (Daniela)** | F8a (P4) | Subida y conciliación de ventas o tickets Z del bar para cerrar la Casilla 71 oficial con saldo definitivo. |
+| 🔴 **Alta** | **Incorporación de ventas reales (Daniela)** | F8a (P4) | 🚀 **Interfaz implementada (Modal Cierre Z activo en producción)**. Pendiente que Daniela empiece a registrar los cierres Z de su TPV para completar el Modelo 303. |
 | 🟠 **Media** | **Prueba de estrés de lote en bar** | F8a (P5) | Subida de lote grande de tickets/facturas arrugadas o con iluminación variable de hostelería desde móvil. |
 | 🟡 **Media** | **Feedback y revisión con gestoría** | F8a (P6) | Cotejo del Modelo 303 generado con el borrador de la gestoría externa del restaurante. |
 | 🟢 **Baja** | **Bucket `avatars` en Supabase** | — | Crear bucket en Supabase Storage (SQL RLS) y habilitar subida/cambio de avatar desde `/settings`. |

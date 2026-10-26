@@ -1,8 +1,10 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { Sidebar } from "@/components/Sidebar";
 import { EnvBanner } from "@/components/EnvBanner";
+import { RegisterIncomeModal } from "@/components/RegisterIncomeModal";
 
 // These routes show a full-page auth layout without Sidebar/Navbar
 const AUTH_ROUTES = ["/login", "/register", "/forgot-password", "/update-password", "/auth"];
@@ -10,6 +12,13 @@ const AUTH_ROUTES = ["/login", "/register", "/forgot-password", "/update-passwor
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isAuthRoute = AUTH_ROUTES.some((r) => pathname.startsWith(r));
+  const [isIncomeModalOpen, setIsIncomeModalOpen] = useState(false);
+
+  useEffect(() => {
+    const handleOpen = () => setIsIncomeModalOpen(true);
+    window.addEventListener("open_income_modal", handleOpen);
+    return () => window.removeEventListener("open_income_modal", handleOpen);
+  }, []);
 
   if (isAuthRoute) {
     return <>{children}</>;
@@ -24,6 +33,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           {children}
         </main>
       </div>
+      <RegisterIncomeModal
+        isOpen={isIncomeModalOpen}
+        onClose={() => setIsIncomeModalOpen(false)}
+      />
     </div>
   );
 }

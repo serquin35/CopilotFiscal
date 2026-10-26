@@ -15,6 +15,7 @@ import {
   Loader2,
   CheckCircle2,
   Sparkles,
+  Store,
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -679,16 +680,25 @@ export default function DocumentsPage() {
   return (
     <div className="flex flex-col gap-8">
       {/* 1. Header */}
-      <div className="flex flex-col gap-2">
-        <span className="text-xs font-semibold uppercase tracking-widest text-primary">
-          Ingesta &amp; Pipeline n8n
-        </span>
-        <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-          Gestión de Documentos y Facturas
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          Sube facturas o tickets (PDF, JPG, PNG). Se guardan de forma persistente y el pipeline de n8n dispara la extracción OCR vía OpenAI.
-        </p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-1">
+          <span className="text-xs font-semibold uppercase tracking-widest text-primary">
+            Ingesta &amp; Pipeline n8n
+          </span>
+          <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+            Gestión de Documentos y Facturas
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Sube facturas o tickets (PDF, JPG, PNG) para OCR con IA, o registra tus cierres Z de caja.
+          </p>
+        </div>
+        <Button
+          onClick={() => window.dispatchEvent(new Event("open_income_modal"))}
+          className="gap-2 bg-primary/15 hover:bg-primary/25 text-primary border border-primary/30 text-xs font-semibold self-start sm:self-auto shrink-0 shadow-xs"
+        >
+          <Store className="size-4" />
+          <span>+ Registrar Cierre Z / Ventas</span>
+        </Button>
       </div>
 
       {/* Aviso piloto (temporal, tarea A): qué se procesa y con qué límites */}

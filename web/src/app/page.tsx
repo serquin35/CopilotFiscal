@@ -15,6 +15,7 @@ import {
   Info,
   Sparkles,
   Loader2,
+  Store,
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -313,6 +314,7 @@ export default function DashboardPage() {
         .from("income")
         .select("vat_amount, base_amount, date")
         .eq("business_id", currentBizId)
+        .is("deleted_at", null)
         .eq("fiscal_period_year", 2026);
       if (!incomeError && incomeRows) {
         fetchedIncome = incomeRows.map((r: Record<string, unknown>) => ({
@@ -688,9 +690,12 @@ export default function DashboardPage() {
 
     window.addEventListener("storage", handleUpdate);
     window.addEventListener("fiscal_docs_updated", handleUpdate);
+    window.addEventListener("fiscal_income_updated", handleUpdate);
+
     return () => {
       window.removeEventListener("storage", handleUpdate);
       window.removeEventListener("fiscal_docs_updated", handleUpdate);
+      window.removeEventListener("fiscal_income_updated", handleUpdate);
     };
   }, [loadDashboardData]);
 
@@ -784,8 +789,19 @@ export default function DashboardPage() {
           </p>
         </div>
 
-        {/* Trimestre Selector */}
-        <div className="flex items-center gap-1 rounded-xl border border-border bg-card p-1 self-start md:self-auto">
+        {/* Botón rápido Cierre Z y Selector Trimestre */}
+        <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
+          <Button
+            size="sm"
+            onClick={() => window.dispatchEvent(new Event("open_income_modal"))}
+            className="gap-1.5 bg-primary/15 hover:bg-primary/25 text-primary border border-primary/30 text-xs font-semibold shadow-xs"
+          >
+            <Store className="size-3.5" />
+            <span>+ Cierre Z / Ventas</span>
+          </Button>
+
+          {/* Trimestre Selector */}
+          <div className="flex items-center gap-1 rounded-xl border border-border bg-card p-1">
           {(["1T", "2T", "3T", "4T"] as const).map((q) => (
             <button
               key={q}
@@ -799,6 +815,7 @@ export default function DashboardPage() {
               {q}
             </button>
           ))}
+          </div>
         </div>
       </div>
 
@@ -901,6 +918,16 @@ export default function DashboardPage() {
           <div className="flex items-center justify-between text-[11px] text-muted-foreground mt-3 pt-2 border-t border-border/40">
             <span>IVA Repercutido ({selectedQuarter}):</span>
             <span className="font-mono font-medium text-foreground">{formatCurrency(summary.collectedVat)}</span>
+          </div>
+          <div className="mt-3 pt-2 border-t border-border/40">
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new Event("open_income_modal"))}
+              className="w-full py-1.5 px-2.5 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors"
+            >
+              <Store className="size-3.5" />
+              <span>+ Registrar Cierre Z / Venta</span>
+            </button>
           </div>
         </Card>
 
@@ -1060,6 +1087,21 @@ export default function DashboardPage() {
                   ? "Tienes saldo a tu favor frente a Hacienda: el IVA soportado deducible supera a las ventas emitidas."
                   : "Diferencia entre IVA repercutido a tus clientes e IVA soportado en compras deducibles."}
               </p>
+              {hasZeroIncomeWithExpenses && (
+                <div className="mt-4 pt-3 border-t border-amber-500/20 flex flex-wrap items-center justify-between gap-3">
+                  <span className="text-xs text-amber-400 font-medium">
+                    Añade las ventas de tu TPV para calcular el IVA Repercutido real:
+                  </span>
+                  <Button
+                    size="sm"
+                    onClick={() => window.dispatchEvent(new Event("open_income_modal"))}
+                    className="gap-2 bg-amber-500 hover:bg-amber-600 text-black font-semibold text-xs shadow-sm"
+                  >
+                    <Store className="size-3.5" />
+                    Registrar Cierre Z / Ventas
+                  </Button>
+                </div>
+              )}
             </div>
 
             {/* Trazabilidad Matemática Oficial AEAT (Casilla 71) */}
