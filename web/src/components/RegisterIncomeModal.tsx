@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   X,
   Store,
@@ -14,8 +14,6 @@ import {
   Loader2,
   Trash2,
   Receipt,
-  Sparkles,
-  ArrowRight,
   TrendingUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -30,7 +28,6 @@ interface RegisterIncomeModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess?: () => void;
-  defaultQuarter?: string;
   defaultYear?: number;
 }
 
@@ -38,12 +35,10 @@ export function RegisterIncomeModal({
   isOpen,
   onClose,
   onSuccess,
-  defaultQuarter = "4T",
   defaultYear = 2026,
 }: RegisterIncomeModalProps) {
   const { business, supabase } = useAuth();
   const currentBizId = business?.id;
-  const isDemo = business?.is_demo ?? false;
 
   const [activeTab, setActiveTab] = useState<"register" | "history">("register");
 
@@ -125,7 +120,7 @@ export function RegisterIncomeModal({
   const quarterLabel = `${quarterNum}T ${year}`;
 
   // Cargar historial de ingresos del negocio
-  const loadHistory = async () => {
+  const loadHistory = useCallback(async () => {
     if (!currentBizId) return;
     setIsLoadingHistory(true);
     try {
@@ -144,7 +139,7 @@ export function RegisterIncomeModal({
     } finally {
       setIsLoadingHistory(false);
     }
-  };
+  }, [currentBizId, supabase]);
 
   useEffect(() => {
     if (isOpen) {
@@ -154,7 +149,7 @@ export function RegisterIncomeModal({
         loadHistory();
       }
     }
-  }, [isOpen, activeTab]);
+  }, [isOpen, activeTab, loadHistory]);
 
   // Manejo de archivo
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -684,7 +679,7 @@ export function RegisterIncomeModal({
                       <button
                         key={m.id}
                         type="button"
-                        onClick={() => setPaymentMethod(m.id as any)}
+                        onClick={() => setPaymentMethod(m.id as "mixto" | "tarjeta" | "efectivo" | "transferencia")}
                         className={`py-2 px-2 rounded-xl border text-xs flex items-center justify-center gap-1.5 transition-all ${
                           paymentMethod === m.id
                             ? "border-primary bg-primary/10 text-foreground font-semibold"
@@ -743,6 +738,7 @@ export function RegisterIncomeModal({
                   <div className="rounded-xl border border-primary/30 bg-primary/5 p-3 flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2.5 truncate">
                       {filePreview ? (
+                        /* eslint-disable-next-line @next/next/no-img-element */
                         <img
                           src={filePreview}
                           alt="Vista previa"
